@@ -10,3 +10,4 @@ export * from './chess/pgn';
 export * from './clock';
 export * from './rating/glicko2';
 export * from './rating/replay';
+export * from './i18n';
