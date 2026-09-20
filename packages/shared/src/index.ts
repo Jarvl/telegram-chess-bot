@@ -8,3 +8,4 @@ export * from './protocol/requests';
 export * from './chess/arbiter';
 export * from './chess/pgn';
 export * from './clock';
+export * from './rating/glicko2';

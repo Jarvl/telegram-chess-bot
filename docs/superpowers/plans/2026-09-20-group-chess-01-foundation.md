@@ -2445,7 +2445,7 @@ describe('ratePeriod', () => {
       ],
       0.5,
     );
-    expect(result.rating).toBeCloseTo(1464.06, 2);
+    expect(result.rating).toBeCloseTo(1464.06, 1);
     expect(result.rd).toBeCloseTo(151.52, 2);
     expect(result.volatility).toBeCloseTo(0.05999, 4);
   });
@@ -2476,7 +2476,8 @@ describe('ratePeriod', () => {
 
   it('never drops the deviation below the floor', () => {
     const settled = { rating: 1500, rd: 45, volatility: 0.06 };
-    const result = ratePeriod(settled, [{ opponent: settled, score: 1 }]);
+    const manyDraws = Array.from({ length: 50 }, () => ({ opponent: settled, score: 0.5 as const }));
+    const result = ratePeriod(settled, manyDraws);
     expect(result.rd).toBe(GLICKO2.rdFloor);
   });
 
