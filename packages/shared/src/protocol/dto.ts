@@ -1,0 +1,286 @@
+import { z } from 'zod';
+import {
+  ChallengeStatusSchema,
+  ColourChoiceSchema,
+  ColourSchema,
+  EndReasonSchema,
+  GameResultSchema,
+  GameStatusSchema,
+  TimePerMoveSchema,
+  ViewerRoleSchema,
+} from './enums';
+import { PublicIdSchema, UserIdSchema } from './ids';
+
+export const UciSchema = z.string().regex(/^[a-h][1-8][a-h][1-8][qrbn]?$/);
+
+export type Uci = z.infer<typeof UciSchema>;
+
+/** Timestamps travel as ISO-8601 UTC strings, exactly what `Date#toISOString()` produces. */
+export const IsoDateSchema = z.iso.datetime();
+
+export const PlayerRefSchema = z.object({
+  id: UserIdSchema,
+  name: z.string(),
+  username: z.string().nullable(),
+  /** Rounded current rating in this group; 1500 (provisional) before the first rated game. */
+  rating: z.number().int(),
+  provisional: z.boolean(),
+});
+
+export type PlayerRef = z.infer<typeof PlayerRefSchema>;
+
+export const GamePlayerSchema = PlayerRefSchema.extend({
+  /** Rating after the game; null while it runs and for casual, aborted or voided games. */
+  ratingAfter: z.number().int().nullable(),
+  provisionalAfter: z.boolean().nullable(),
+});
+
+export type GamePlayer = z.infer<typeof GamePlayerSchema>;
+
+export const MoveDtoSchema = z.object({
+  ply: z.number().int().min(1),
+  uci: UciSchema,
+  san: z.string().min(1),
+  fenAfter: z.string().min(1),
+  playedAt: IsoDateSchema,
+});
+
+export type MoveDto = z.infer<typeof MoveDtoSchema>;
+
+export const DrawOfferSchema = z.object({
+  by: ColourSchema,
+  atPly: z.number().int().min(0),
+});
+
+export type DrawOffer = z.infer<typeof DrawOfferSchema>;
+
+export const ClaimsSchema = z.object({
+  threefold: z.boolean(),
+  fiftyMove: z.boolean(),
+});
+
+export const GroupRefSchema = z.object({
+  id: PublicIdSchema,
+  title: z.string(),
+});
+
+export type GroupRef = z.infer<typeof GroupRefSchema>;
+
+export const GameDtoSchema = z.object({
+  id: PublicIdSchema,
+  group: GroupRefSchema,
+  status: GameStatusSchema,
+  white: GamePlayerSchema,
+  black: GamePlayerSchema,
+  timePerMove: TimePerMoveSchema,
+  rated: z.boolean(),
+  fen: z.string().min(1),
+  plyCount: z.number().int().min(0),
+  version: z.number().int().min(0),
+  moves: z.array(MoveDtoSchema),
+  deadlineAt: IsoDateSchema.nullable(),
+  serverTime: IsoDateSchema,
+  drawOffer: DrawOfferSchema.nullable(),
+  claims: ClaimsSchema,
+  viewerRole: ViewerRoleSchema,
+  result: GameResultSchema.nullable(),
+  endReason: EndReasonSchema.nullable(),
+  voided: z.boolean(),
+  startedAt: IsoDateSchema,
+  finishedAt: IsoDateSchema.nullable(),
+  /** Only present once the game is finished (spec §7.6). */
+  lichessUrl: z.url().optional(),
+  analysisUrl: z.url().optional(),
+});
+
+export type GameDto = z.infer<typeof GameDtoSchema>;
+
+export const GameSummarySchema = z.object({
+  id: PublicIdSchema,
+  white: PlayerRefSchema,
+  black: PlayerRefSchema,
+  status: GameStatusSchema,
+  timePerMove: TimePerMoveSchema,
+  rated: z.boolean(),
+  plyCount: z.number().int().min(0),
+  sideToMove: ColourSchema,
+  yourTurn: z.boolean(),
+  deadlineAt: IsoDateSchema.nullable(),
+  lastMoveAt: IsoDateSchema.nullable(),
+  startedAt: IsoDateSchema,
+  finishedAt: IsoDateSchema.nullable(),
+  result: GameResultSchema.nullable(),
+  endReason: EndReasonSchema.nullable(),
+  voided: z.boolean(),
+});
+
+export type GameSummary = z.infer<typeof GameSummarySchema>;
+
+export const ChallengeDtoSchema = z.object({
+  id: PublicIdSchema,
+  challenger: PlayerRefSchema,
+  opponent: PlayerRefSchema.nullable(),
+  timePerMove: TimePerMoveSchema,
+  challengerColour: ColourChoiceSchema,
+  rated: z.boolean(),
+  status: ChallengeStatusSchema,
+  createdAt: IsoDateSchema,
+  expiresAt: IsoDateSchema,
+  viewer: z.object({
+    canAccept: z.boolean(),
+    canDecline: z.boolean(),
+    canCancel: z.boolean(),
+  }),
+});
+
+export type ChallengeDto = z.infer<typeof ChallengeDtoSchema>;
+
+export const WinDrawLossSchema = z.object({
+  wins: z.number().int().min(0),
+  draws: z.number().int().min(0),
+  losses: z.number().int().min(0),
+});
+
+export type WinDrawLoss = z.infer<typeof WinDrawLossSchema>;
+
+export const LeaderboardEntrySchema = PlayerRefSchema.extend({
+  gamesPlayed: z.number().int().min(0),
+  record: WinDrawLossSchema,
+});
+
+export type LeaderboardEntry = z.infer<typeof LeaderboardEntrySchema>;
+
+export const GroupSettingsSchema = z.object({
+  defaultTimePerMove: TimePerMoveSchema,
+  ratedDefault: z.boolean(),
+  allowOpenChallenges: z.boolean(),
+  maxActiveGamesPerUser: z.number().int().min(1).max(20),
+  leaderboardMinGames: z.number().int().min(0).max(100),
+  cardTopicMode: z.enum(['origin', 'fixed']),
+  fixedTopicId: z.number().int().positive().nullable(),
+});
+
+export type GroupSettings = z.infer<typeof GroupSettingsSchema>;
+
+export const GROUP_SETTINGS_DEFAULTS: GroupSettings = {
+  defaultTimePerMove: 86400,
+  ratedDefault: true,
+  allowOpenChallenges: true,
+  maxActiveGamesPerUser: 5,
+  leaderboardMinGames: 5,
+  cardTopicMode: 'origin',
+  fixedTopicId: null,
+};
+
+export const FinishedPageDtoSchema = z.object({
+  items: z.array(GameSummarySchema),
+  nextCursor: z.string().nullable(),
+});
+
+export type FinishedPageDto = z.infer<typeof FinishedPageDtoSchema>;
+
+export const LobbyDtoSchema = z.object({
+  group: GroupRefSchema,
+  isAdmin: z.boolean(),
+  settings: GroupSettingsSchema.pick({
+    defaultTimePerMove: true,
+    ratedDefault: true,
+    allowOpenChallenges: true,
+  }),
+  /** Active games, the viewer's "your move" games first. */
+  active: z.array(GameSummarySchema),
+  finished: FinishedPageDtoSchema,
+  challenges: z.array(ChallengeDtoSchema),
+  players: z.array(LeaderboardEntrySchema),
+});
+
+export type LobbyDto = z.infer<typeof LobbyDtoSchema>;
+
+export const PlayersPickerDtoSchema = z.object({
+  players: z.array(PlayerRefSchema),
+});
+
+export type PlayersPickerDto = z.infer<typeof PlayersPickerDtoSchema>;
+
+export const PlayerPageDtoSchema = z.object({
+  player: LeaderboardEntrySchema,
+  /** The viewer's record against this player. */
+  headToHead: WinDrawLossSchema,
+  recentGames: z.array(GameSummarySchema),
+});
+
+export type PlayerPageDto = z.infer<typeof PlayerPageDtoSchema>;
+
+export const PrefsSchema = z.object({
+  confirmMoves: z.boolean(),
+  closeAfterMove: z.boolean(),
+  notifications: z.boolean(),
+  boardTheme: z.string().max(32).nullable(),
+  pieceSet: z.string().max(32).nullable(),
+});
+
+export type Prefs = z.infer<typeof PrefsSchema>;
+
+export const PREFS_DEFAULTS: Prefs = {
+  confirmMoves: true,
+  closeAfterMove: true,
+  notifications: true,
+  boardTheme: null,
+  pieceSet: null,
+};
+
+export const MeGroupsDtoSchema = z.object({
+  groups: z.array(
+    GroupRefSchema.extend({
+      activeGames: z.number().int().min(0),
+      yourMove: z.number().int().min(0),
+    }),
+  ),
+});
+
+export type MeGroupsDto = z.infer<typeof MeGroupsDtoSchema>;
+
+export const GroupSettingsDtoSchema = z.object({
+  group: GroupRefSchema,
+  settings: GroupSettingsSchema,
+  blocked: z.array(PlayerRefSchema),
+  botIsAdmin: z.boolean(),
+  isForum: z.boolean(),
+});
+
+export type GroupSettingsDto = z.infer<typeof GroupSettingsDtoSchema>;
+
+/** Where the app lands after `POST /launch`, with that screen's data (spec §6.1 step 3). */
+export const LaunchRouteSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('game'), game: GameDtoSchema }),
+  z.object({ kind: z.literal('lobby'), lobby: LobbyDtoSchema }),
+  z.object({ kind: z.literal('settings'), settings: GroupSettingsDtoSchema }),
+  z.object({ kind: z.literal('groups'), groups: MeGroupsDtoSchema }),
+  z.object({ kind: z.literal('locked'), group: GroupRefSchema }),
+]);
+
+export type LaunchRoute = z.infer<typeof LaunchRouteSchema>;
+
+export const LaunchResponseSchema = z.object({
+  token: z.string().min(1),
+  user: z.object({
+    id: UserIdSchema,
+    name: z.string(),
+    username: z.string().nullable(),
+  }),
+  prefs: PrefsSchema,
+  /** True when the write-access prompt has never been shown to this user (spec §6.1 step 4). */
+  askWriteAccess: z.boolean(),
+  route: LaunchRouteSchema,
+  serverTime: IsoDateSchema,
+  bot: z.object({
+    username: z.string(),
+    miniAppShortName: z.string(),
+  }),
+});
+
+export type LaunchResponse = z.infer<typeof LaunchResponseSchema>;
+
+export const OkDtoSchema = z.object({ ok: z.literal(true) });
+
+export type OkDto = z.infer<typeof OkDtoSchema>;
