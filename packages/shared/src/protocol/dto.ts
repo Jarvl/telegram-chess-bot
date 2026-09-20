@@ -22,7 +22,11 @@ export const PlayerRefSchema = z.object({
   id: UserIdSchema,
   name: z.string(),
   username: z.string().nullable(),
-  /** Rounded current rating in this group; 1500 (provisional) before the first rated game. */
+  /**
+   * Rounded rating in this group: the live value everywhere, except for the players of a finished
+   * rated game, where it is the rating when that game started (`*_rating_before`). 1500 and
+   * provisional before the first rated game.
+   */
   rating: z.number().int(),
   provisional: z.boolean(),
 });
@@ -30,7 +34,7 @@ export const PlayerRefSchema = z.object({
 export type PlayerRef = z.infer<typeof PlayerRefSchema>;
 
 export const GamePlayerSchema = PlayerRefSchema.extend({
-  /** Rating after the game; null while it runs and for casual, aborted or voided games. */
+  /** The `*_rating_after` snapshot; null while the game runs and for casual, aborted or voided games. */
   ratingAfter: z.number().int().nullable(),
   provisionalAfter: z.boolean().nullable(),
 });

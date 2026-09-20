@@ -10,7 +10,7 @@ export type MessageParams = Record<string, string | number>;
 /** Replaces `{name}` placeholders; unknown placeholders are left in place so a typo is visible. */
 export function format(template: string, params: MessageParams): string {
   return template.replace(/\{(\w+)\}/g, (placeholder, name: string) =>
-    Object.hasOwn(params, name) ? String(params[name]) : placeholder,
+    Object.prototype.hasOwnProperty.call(params, name) ? String(params[name]) : placeholder,
   );
 }
 

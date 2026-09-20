@@ -203,6 +203,22 @@ describe('timeoutOutcome', () => {
     expect(timeoutOutcome(fen, 'black')).toEqual({ result: '1-0', endReason: 'timeout' });
   });
 
+  it.each([
+    ['king and bishop against a rook', 'r3k3/8/8/8/8/8/8/4KB2 b - - 0 1'],
+    ['king and bishop against a queen', 'q3k3/8/8/8/8/8/8/4KB2 b - - 0 1'],
+    ['king and knight against a queen', 'q3k3/8/8/8/8/8/8/4KN2 b - - 0 1'],
+    ['two bishops on the same colour against a bare king', '4k3/8/8/8/8/8/8/3BKB2 b - - 0 1'],
+  ])('is a draw when a helpmate is impossible: %s', (_label, fen) => {
+    expect(timeoutOutcome(fen, 'black')).toEqual({ result: '1/2-1/2', endReason: 'timeout' });
+  });
+
+  it.each([
+    ['king and bishop against a rook and a pawn', 'r3k3/4p3/8/8/8/8/8/4KB2 b - - 0 1'],
+    ['king and knight against a rook', 'r3k3/8/8/8/8/8/8/4KN2 b - - 0 1'],
+  ])('is a loss when a helpmate exists: %s', (_label, fen) => {
+    expect(timeoutOutcome(fen, 'black')).toEqual({ result: '1-0', endReason: 'timeout' });
+  });
+
   it('draws a white flag fall against a bare black king', () => {
     expect(timeoutOutcome('4k3/8/8/8/8/8/8/4KQ2 w - - 0 1', 'white')).toEqual({
       result: '1/2-1/2',

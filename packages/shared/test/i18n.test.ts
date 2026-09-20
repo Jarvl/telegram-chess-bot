@@ -16,6 +16,17 @@ describe('format', () => {
     expect(format('{a} vs {b}', { a: 'Alice', b: 'Bob' })).toBe('Alice vs Bob');
   });
 
+  it('does not depend on Object.hasOwn, which older WebViews lack', () => {
+    const original = Object.hasOwn;
+    // @ts-expect-error simulating a WebView without the ES2022 API
+    Object.hasOwn = undefined;
+    try {
+      expect(format('{a} vs {b}', { a: 'Alice', b: 'Bob' })).toBe('Alice vs Bob');
+    } finally {
+      Object.hasOwn = original;
+    }
+  });
+
   it('leaves unknown placeholders in place', () => {
     expect(format('Move {n} · {missing}', { n: 12 })).toBe('Move 12 · {missing}');
   });

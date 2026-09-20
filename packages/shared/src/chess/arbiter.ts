@@ -177,16 +177,19 @@ export function timeoutOutcome(
   const winner = opposite(flagged);
   const winning = materialOf(fen, winner);
   const losing = materialOf(fen, flagged);
+  const winnerBishopsOnly =
+    winning.nonKing.length > 0 && winning.nonKing.every((piece) => piece === 'b');
   let canMate: boolean;
   if (winning.nonKing.length === 0) {
     canMate = false;
   } else if (winning.nonKing.length === 1 && winning.nonKing[0] === 'n') {
-    canMate = losing.nonKing.length > 0;
-  } else if (winning.nonKing.length === 1 && winning.nonKing[0] === 'b') {
-    const onlySameColourBishops =
-      losing.nonKing.every((piece) => piece === 'b') &&
-      [...losing.bishopSquares].every((square) => winning.bishopSquares.has(square));
-    canMate = !(losing.nonKing.length === 0 || onlySameColourBishops);
+    // A lone knight can be helped to mate by any defending piece except a queen.
+    canMate = losing.nonKing.some((piece) => piece !== 'q');
+  } else if (winnerBishopsOnly) {
+    // Bishops on one square colour mate only with an opposite-coloured bishop, a knight or a
+    // pawn on the board; a defending rook or queen always interposes.
+    const colours = new Set([...winning.bishopSquares, ...losing.bishopSquares]);
+    canMate = colours.size === 2 || losing.nonKing.some((piece) => piece === 'n' || piece === 'p');
   } else {
     canMate = true;
   }
