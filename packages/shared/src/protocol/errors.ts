@@ -1,0 +1,45 @@
+import { z } from 'zod';
+
+export const ERROR_CODES = [
+  'unauthorized',
+  'forbidden',
+  'not_found',
+  'stale_state',
+  'not_your_turn',
+  'illegal_move',
+  'expired',
+  'limit_exceeded',
+  'rate_limited',
+  'validation',
+] as const;
+
+export const ErrorCodeSchema = z.enum(ERROR_CODES);
+
+export type ErrorCode = z.infer<typeof ErrorCodeSchema>;
+
+export const ApiErrorBodySchema = z.object({
+  error: z.object({
+    code: ErrorCodeSchema,
+    message: z.string(),
+  }),
+});
+
+export type ApiErrorBody = z.infer<typeof ApiErrorBodySchema>;
+
+/** HTTP status per code. The board treats every 409 as "reload the state and snap back" (spec §6.3). */
+export const HTTP_STATUS_BY_ERROR_CODE: Readonly<Record<ErrorCode, number>> = {
+  unauthorized: 401,
+  forbidden: 403,
+  not_found: 404,
+  stale_state: 409,
+  not_your_turn: 409,
+  expired: 409,
+  limit_exceeded: 409,
+  illegal_move: 422,
+  rate_limited: 429,
+  validation: 400,
+};
+
+export function apiErrorBody(code: ErrorCode, message: string): ApiErrorBody {
+  return { error: { code, message } };
+}
