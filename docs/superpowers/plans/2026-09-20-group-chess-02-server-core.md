@@ -378,7 +378,7 @@ git commit -m "feat(server): scaffold the server package with validated configur
 
 **Interfaces:**
 - Consumes: `createLogger`, `Logger` (Task 1); `INITIAL_FEN`, `GROUP_SETTINGS_DEFAULTS`, `PREFS_DEFAULTS`, types from `@group-chess/shared`.
-- Produces: the Drizzle tables `users, groups, groupMembers, challenges, games, moves, ratings, shares, boardImages, jobs, telegramUpdates, adminActions` and their `$inferSelect` row types `UserRow, GroupRow, GroupMemberRow, ChallengeRow, GameRow, MoveRow, RatingRow, JobRow`; `createDb(url, { max? }) → { db, close }`, `type Db`, `type Tx`, `type DbOrTx`, `dbNow(tx): Promise<Date>`; `runMigrations(db, folder?)`; `generatePublicId(): string`; `interface Bus { publish(gameId: string): void; subscribe(gameId: string, listener: () => void): () => void }`, `class LocalBus`; `type Deps = { db: Db; bus: Bus; log: Logger }`; `class DomainError extends Error { code: ErrorCode; details: Record<string, unknown> }`; test helpers `openTestDb()`, `truncateAll(db)`, fixtures `insertUser`, `insertGroup`, `insertMember`, `insertGame`, `insertMove`.
+- Produces: the Drizzle tables `users, groups, groupMembers, challenges, games, moves, ratings, shares, boardImages, jobs, telegramUpdates, adminActions` and their `$inferSelect` row types `UserRow, GroupRow, GroupMemberRow, ChallengeRow, GameRow, MoveRow, RatingRow, JobRow`; `createDb(url, { max? }) → { db, close }`, `type Db`, `type Tx`, `type DbOrTx`, `dbNow(tx): Promise<Date>`; `runMigrations(databaseUrl, folder?)`; `generatePublicId(): string`; `interface Bus { publish(gameId: string): void; subscribe(gameId: string, listener: () => void): () => void }`, `class LocalBus`; `type Deps = { db: Db; bus: Bus; log: Logger }`; `class DomainError extends Error { code: ErrorCode; details: Record<string, unknown> }`; test helpers `openTestDb()`, `truncateAll(db)`, fixtures `insertUser`, `insertGroup`, `insertMember`, `insertGame`, `insertMove`.
 
 - [ ] **Step 1: Write the failing unit tests**
 
@@ -779,19 +779,33 @@ export async function dbNow(tx: DbOrTx): Promise<Date> {
 
 ```ts
 import { fileURLToPath } from 'node:url';
-import { sql } from 'drizzle-orm';
+import { drizzle } from 'drizzle-orm/postgres-js';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
-import type { Db } from './client';
+import postgres from 'postgres';
 
 const DEFAULT_FOLDER = fileURLToPath(new URL('../../drizzle', import.meta.url));
 const MIGRATION_LOCK = 72_648_101;
 
-/** Applies pending migrations under an advisory lock so concurrent replicas serialise (spec §4.4). */
-export async function runMigrations(db: Db, migrationsFolder: string = DEFAULT_FOLDER): Promise<void> {
-  await db.transaction(async (tx) => {
-    await tx.execute(sql`select pg_advisory_xact_lock(${MIGRATION_LOCK})`);
-    await migrate(tx, { migrationsFolder });
-  });
+/**
+ * Applies pending migrations under a session advisory lock so concurrent replicas serialise
+ * (spec §4.4). A dedicated single connection keeps the lock and the migrator in one session.
+ */
+export async function runMigrations(
+  databaseUrl: string,
+  migrationsFolder: string = DEFAULT_FOLDER,
+): Promise<void> {
+  const client = postgres(databaseUrl, { max: 1, onnotice: () => undefined });
+  const db = drizzle(client, { casing: 'snake_case' });
+  try {
+    await client`select pg_advisory_lock(${MIGRATION_LOCK})`;
+    try {
+      await migrate(db, { migrationsFolder });
+    } finally {
+      await client`select pg_advisory_unlock(${MIGRATION_LOCK})`;
+    }
+  } finally {
+    await client.end({ timeout: 5 });
+  }
 }
 ```
 
@@ -891,18 +905,12 @@ Expected: `apps/server/drizzle/0000_<name>.sql` and `apps/server/drizzle/meta/` 
 `apps/server/test/helpers/globalSetup.ts`:
 
 ```ts
-import { createDb } from '../../src/db/client';
 import { runMigrations } from '../../src/db/migrate';
 
 export default async function setup(): Promise<void> {
   const url = process.env.TEST_DATABASE_URL;
   if (!url) throw new Error('TEST_DATABASE_URL must be set for integration tests');
-  const { db, close } = createDb(url, { max: 1 });
-  try {
-    await runMigrations(db);
-  } finally {
-    await close();
-  }
+  await runMigrations(url);
 }
 ```
 
@@ -1084,7 +1092,7 @@ afterAll(() => close());
 
 describe('database', () => {
   it('has every table after migration and is idempotent to migrate again', async () => {
-    await runMigrations(db);
+    await runMigrations(process.env.TEST_DATABASE_URL!);
     const rows = await db.execute(
       sql`select table_name from information_schema.tables where table_schema = 'public' order by table_name`,
     );
