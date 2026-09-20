@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Scope** | Technical design for the product in [docs/PRD.md](../../PRD.md) (Draft v0.2, 2026-09-20) |
-| **Status** | Draft v0.1, for review |
+| **Status** | Draft v0.2, for review |
 | **Date** | 2026-09-20 |
 | **Method** | superpowers `brainstorming` skill, architectural path (see §0) |
 | **Next step** | After review, an implementation plan at `docs/superpowers/plans/2026-09-20-group-chess.md` (superpowers `writing-plans`) |
@@ -17,6 +17,8 @@ This design follows the superpowers brainstorming skill's architectural path: ex
 Library and platform facts were re-verified on 2026-09-20 (Appendix A). A fact that could not be verified from the build sandbox is marked *verify in spike* and collected in §17.
 
 Conventions: "must" is a requirement for the alpha, "should" is a strong default, "P1" follows the PRD's priorities. Identifiers in examples are illustrative.
+
+Revisions: v0.2 adds §3.6 and decision D13, the reasoning behind the bot, HTTP and database libraries, after review.
 
 ## 1. Decisions taken on your behalf
 
@@ -34,6 +36,7 @@ Conventions: "must" is a requirement for the alpha, "should" is a strong default
 | D10 | Does the bot need admin rights? | Recommended, not required. Authorization uses a verification ladder (§5.6) | `getChatMember` is only guaranteed to work when the bot is an administrator (Bot API 10.3) | None |
 | D11 | Board images for shared positions? | Server-rendered SVG rasterised to PNG with resvg; cache keyed to the Telegram `file_id` | Deterministic, no headless browser | Low |
 | D12 | Mini App authentication? | Validate `initData` once per launch, issue a 24 h session token | Standard recipe; avoids re-validating every request and handles apps left open for hours | Low |
+| D13 | Which libraries inside the TypeScript stack? | grammY for the bot, Hono for HTTP, Drizzle for PostgreSQL | grammY tracks the Bot API within days and has maintained throttling plugins; Hono gives typed routes, a zod validator and an SSE helper; Drizzle expresses skip-locked reads and partial indexes in a TypeScript schema (§3.6) | Low: Telegraf, Fastify and Kysely fit the same seams |
 
 ## 2. Scope
 
@@ -62,7 +65,7 @@ Conventions: "must" is a requirement for the alpha, "should" is a strong default
 | Operations | One toolchain, one CI pipeline, one container | Two toolchains | Two toolchains |
 | Choose when | Small team, web-first | Team is Python-native and values python-chess | Team is Go-native |
 
-A wins on a single language and a single rules engine. B's real advantage is python-chess; it costs about 200 lines of arbiter and SVG code to match in A.
+A wins on a single language and a single rules engine. B's real advantage is python-chess; it costs about 200 lines of arbiter and SVG code to match in A. The libraries inside A are compared in §3.6.
 
 ### 3.2 Board library
 
@@ -102,6 +105,26 @@ The outcome of a race between a late move and a timeout is decided by the databa
 | Correct for games played after the voided one | Yes | No, later games used the wrong inputs | Yes by construction |
 | Cost | O(rated games in group); a large club is a few thousand games, well under a second | O(1) | Limits admins |
 
+### 3.6 Libraries inside the TypeScript stack
+
+These three picks were defaults in v0.1; the reasoning below was added after review. None of them is load-bearing: the `bot` module only translates updates into domain calls, outbound pacing lives in the `telegram` module, the HTTP surface is about 25 routes, and the data layer is thin. Each is a low-cost swap.
+
+**Bot framework: grammY over Telegraf.** Both are MIT and written in TypeScript. The deciding factor is how closely each tracks the Bot API (verified 2026-09-20, Appendix A).
+
+| | Telegraf 4.16.3 | grammY 1.46.0 |
+|---|---|---|
+| Bot API version the README declares | 7.1 (February 2024) | 10.3 (current, August 2026) |
+| Types dependency | `@telegraf/types ^7.1` | `@grammyjs/types 5.0.0`, published the day after Bot API 10.3 |
+| Latest release | 4.16.3 | 1.46.0, August 2026 |
+| 429 retry and outbound throttling | Community packages, last published 2022 | Official `auto-retry` and `transformer-throttler` plugins, updated 2025 |
+| Webhook integration | One Node request handler, usable with Express | Named adapters for Hono, Fastify, Express and others |
+
+Everything P0 in this design uses Bot API methods older than 7.1, so Telegraf would work today. The gap matters for typed access to newer fields, for `savePreparedInlineMessage` (Bot API 8.0, P1) and for whatever Telegram adds next. Telegraf's larger body of tutorials is a fair reason to pick it for a team that already knows it. How the plugins are used here: the `telegram` module applies `transformer-throttler`, which implements Telegram's published per-second, per-chat and per-group limits, as the pacing layer of §5.8; `auto-retry` is not used, because waiting out a long `retry_after` inside a handler would hold a job lease, so the worker reschedules the job instead (§10).
+
+**HTTP framework: Hono over Fastify and Express.** Any of the three carries this load. Hono was chosen for typed routes with a zod validator middleware that reuses the shared schemas unchanged, a built-in SSE streaming helper for the route in §6.4, an official grammY webhook adapter, and a small footprint on Node through its Node server adapter. Fastify is the conservative alternative: JSON Schema validation, the most mature Node plugin set (rate limiting, static files, security headers, back-pressure) and the best raw throughput on Node; SSE needs a plugin or writing to the raw response. Express 5 works but has no typed routing or validation story. A team that already runs Fastify should choose it; only the route files change.
+
+**Database access: Drizzle over Kysely and Prisma.** §7.4 and §10 need `FOR UPDATE`, `FOR UPDATE SKIP LOCKED`, partial indexes, advisory locks, jsonb columns and database `now()`, and §4.3 needs `LISTEN/NOTIFY` later. Drizzle expresses all of these: the schema is TypeScript, drizzle-kit generates migrations from it including partial indexes, skip-locked selects are native, and `sql` templates cover the rest, over the `postgres` driver. Kysely is the equal alternative, a typed query builder with the same locking support, hand-written migrations and types generated from the database; choose it if you prefer SQL migrations. Prisma is not recommended here: skip-locked reads need raw queries and partial indexes need hand-edited migrations, which removes most of what Prisma offers.
+
 ## 4. System architecture
 
 ### 4.1 Context
@@ -127,7 +150,7 @@ Repository layout is in §16. The server is one package with these modules. Depe
 | `bot` | grammY handlers for `/play`, `/chess`, `/settings`, `/start`, callback queries, `my_chat_member`, `chat_member`, service messages. Translates updates into domain calls. Never sends messages directly; it enqueues jobs |
 | `api` | Hono routes for the Mini App (§9): launch, lobby, games, moves, SSE, sharing, preferences, admin |
 | `domain` | `challenges`, `games` (with the arbiter from the shared package), `ratings`, `sharing`, `notifications`, `membership`. All business rules and transactions live here |
-| `telegram` | Outbound Bot API client with pacing and retry, card renderer (state → text and keyboard), mention formatting, deep-link builder |
+| `telegram` | Outbound Bot API client (grammY `Api` with the `transformer-throttler` plugin for pacing; 429s reschedule the job), card renderer (state → text and keyboard), mention formatting, deep-link builder |
 | `jobs` | Outbox worker: leases jobs from the `jobs` table and runs the handler for each kind (§10) |
 | `clock` | Scanners for game deadlines, reminders and challenge expiry (§7.3) |
 | `lichess` | Import client with global serialisation and 429 handling |
@@ -712,6 +735,8 @@ Sources: the npm registry; chess.js 1.4.0 executed locally; the community JSON m
 | `initData` validation: sorted `key=value` pairs joined with `\n`, HMAC-SHA256 keyed by HMAC-SHA256("WebAppData", bot token), hex comparison; a worked example with token, payload and expected hash is available as a test vector | Mini Apps docs |
 | `POST /api/import`: form field `pgn`, response `{ id, url }`, 200 per hour with OAuth, 100 anonymous; "only make one request at a time", wait a minute after a 429; analysis-board URL form `https://lichess.org/analysis/pgn/e4_e5_Nf3_Nc6_Bc4_Bc5_Bxf7+` | Lichess API spec |
 | Glicko-2 worked example: 1500 / 200 / 0.06 with τ = 0.5 against 1400 (30) win, 1550 (100) loss, 1700 (300) loss → 1464.06 / 151.52 / 0.05999 | Glickman, "Example of the Glicko-2 system" |
+| Telegraf 4.16.3 (latest) declares Bot API 7.1 in its README and depends on `@telegraf/types ^7.1`; grammY 1.46.0 declares Bot API 10.3 and depends on `@grammyjs/types 5.0.0`, published 2026-08-25, one day after Bot API 10.3; `@grammyjs/auto-retry` 2.0.2 and `@grammyjs/transformer-throttler` 1.2.1 last published 2025-03-01; `telegraf-throttler` 0.6.0 and `telegraf-ratelimit` 2.0.0 last published in 2022 | npm registry; the two projects' READMEs on GitHub |
+| hono 4.13.8, `@hono/node-server` 2.1.1, `@hono/zod-validator` 0.9.1; fastify 5.12.5; express 5.2.1; kysely 0.29.6, kysely-codegen 0.20.0; drizzle-kit 0.31.10; `@prisma/client` 7.10.0 | npm registry |
 
 ## Appendix B. Glossary
 
