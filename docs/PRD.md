@@ -195,8 +195,8 @@ Edits to the game card are silent (no notification). There are no per-move messa
 
 ### 7.10 Lichess analysis — P0
 
-- When a game ends, the server imports the PGN into Lichess and stores the resulting game URL. The game-end screen, the game card and later position shares link to it. On Lichess the user can request computer analysis with the normal Lichess controls.
-- Fallback if the import fails or is rate-limited: link to the Lichess analysis board with the final position (client-side engine, no account needed) and offer the PGN download.
+- When a game ends, the server imports the PGN into Lichess via `POST /api/import` (unauthenticated or with an OAuth2 token; either way the response is immediate, not queued) and stores the resulting game URL. The game-end screen, the game card and later position shares link to it. On Lichess the user can request computer analysis with the normal Lichess controls, a website feature open to any visitor of the game page.
+- Fallback if the import fails or is rate-limited (100 imports/hour unauthenticated, 200/hour with an OAuth2 token): link to the Lichess analysis board with the final position (client-side engine, no account needed) and offer the PGN download.
 - Nothing links to Lichess until the game is over.
 
 ### 7.11 Settings and admin — P0
@@ -271,15 +271,15 @@ Short and chess-literate. Standard notation (SAN, "1-0", "½-½"). Emoji only as
 
 ## 9. Telegram platform feature map
 
-Bot API version tags reflect knowledge as of mid-2026; this session could not reach the official changelog, so verify each tag against core.telegram.org/bots/api-changelog during technical design.
+Bot API version tags below were verified against core.telegram.org/bots/api-changelog and core.telegram.org/bots/webapps on 2026-09-20.
 
 | Product feature | Platform capability | Notes and caveats |
 |---|---|---|
 | Interactive board | Mini App (web view) | The only way to get drag-and-drop inside Telegram. |
 | Open the board from a group message | Direct-link Mini App via URL button (`t.me/<bot>/<app>?startapp=<game>`) | Inline `web_app` buttons are private-chat only. Direct links work in groups and open the app over the chat. Launch data includes the user and the start payload. |
 | Return to the chat after moving | Mini App `close()` | Closing returns to wherever the app was opened from. |
-| Reliable dragging on phones | `disableVerticalSwipes()` (Bot API 7.7), `expand()`, fullscreen mode (Bot API 8.0) | Prevents the app sheet from collapsing during a drag. |
-| Lobby without a group message | Main Mini App on the bot profile (mid-2024) | Also reachable from the attachment menu once configured. |
+| Reliable dragging on phones | `disableVerticalSwipes()` (Bot API 7.7, July 2024), `expand()` (base WebApp API, no later version tag), fullscreen mode (Bot API 8.0, November 2024) | Prevents the app sheet from collapsing during a drag. |
+| Lobby without a group message | Main Mini App on the bot profile (Bot API 7.8, July 31, 2024) | Also reachable from the attachment menu once configured. |
 | DM notifications | `requestWriteAccess()` in the Mini App (Bot API 6.9), then ordinary private messages | Bots cannot DM users who never allowed it. |
 | Feel | Haptic feedback, theme parameters, back button, main button | Standard Mini App APIs. |
 | Identity in the app | Signed launch data (`initData`) | Server-side validation; the source of truth for who is moving. |
@@ -290,7 +290,7 @@ Bot API version tags reflect knowledge as of mid-2026; this session could not re
 | Forum groups | `message_thread_id` (Bot API 6.3) | Cards go in the challenge's topic or a fixed topic. |
 | Admin check for settings | `getChatMember` | Verified on every settings request. |
 | Command menu | `setMyCommands` with group scope | Keeps the group menu to three commands. |
-| Lichess analysis | Lichess game import API and analysis-board URL | External; verify current import limits and whether anonymous imports can request server analysis. |
+| Lichess analysis | Lichess game import API and analysis-board URL | `POST /api/import` takes a PGN, needs no authentication, and returns a permanent game id and URL immediately (no queueing). Rate limit: 100 imports/hour unauthenticated, 200/hour with an OAuth2 token — worth an app token at the 5,000-group scale target. Requesting computer analysis is a lichess.org website feature on the game page, open to any visitor; it is not a separate API call. |
 
 Considered and not used: inline keyboards for moves (clunky, the reason for the Mini App), board images per move (chat pollution), Telegram HTML5 Games (older and less capable than Mini Apps), message effects (private-chat only), reactions (no clear value once the chat is quiet).
 
@@ -339,7 +339,7 @@ Considered and not used: inline keyboards for moves (clunky, the reason for the 
 1. **Confirm moves default.** Proposed on, since moves are permanent. Confirm or default it off.
 2. **Close after moving.** Proposed default: the app closes and returns to the chat after a move. Confirm.
 3. **Group mention fallback.** For users who decline DMs, allow admins to turn on a group mention after N hours without a move? Proposed: off, revisit after alpha.
-4. **Board library and licence.** Lichess's board library is GPL-licensed; MIT alternatives exist. Decide in the tech doc.
-5. **Lichess import.** Server-side import at game end (gives a permanent URL) versus a link that opens the Lichess import page with the PGN. Depends on current Lichess API limits.
+4. **Board library and licence.** Confirmed: `chessground`, Lichess's own board library, is GPL-3.0-or-later; `react-chessboard` is a maintained MIT alternative. Decide in the tech doc.
+5. **Lichess import.** Server-side import at game end (gives a permanent URL) versus a link that opens the Lichess import page with the PGN. Confirmed: `POST /api/import` returns a permanent URL immediately, unauthenticated, at 100 imports/hour (200/hour with an OAuth2 token). Decide in the tech doc whether the 5,000-group scale target needs an app token or a queued fallback for burst traffic.
 6. **Rating scope.** Per group only (proposed), or also a cross-group rating.
 7. **Name and handle.**
