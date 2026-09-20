@@ -100,3 +100,13 @@ export async function migrateChatId(
     .set({ telegramChatId: newChatId, type: 'supergroup', updatedAt: sql`now()` })
     .where(eq(groups.telegramChatId, oldChatId));
 }
+export async function getGroupById(tx: DbOrTx, id: number): Promise<GroupRow | null> {
+  const [row] = await tx.select().from(groups).where(eq(groups.id, id)).limit(1);
+  return row ?? null;
+}
+
+export async function requireGroup(tx: DbOrTx, id: number): Promise<GroupRow> {
+  const row = await getGroupById(tx, id);
+  if (!row) throw new DomainError('not_found', 'group not found', { groupId: id });
+  return row;
+}

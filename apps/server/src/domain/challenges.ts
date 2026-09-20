@@ -1,0 +1,349 @@
+import { randomInt } from 'node:crypto';
+import { INITIAL_FEN, opposite, type ColourChoice, type TimePerMove } from '@group-chess/shared';
+import { and, asc, eq, lte, sql } from 'drizzle-orm';
+import { dbNow, type DbOrTx } from '../db/client';
+import { generatePublicId } from '../db/ids';
+import { challenges, games, type ChallengeRow, type GameRow, type UserRow } from '../db/schema';
+import { enqueue } from '../jobs/queue';
+import type { Deps } from './deps';
+import { DomainError } from './errors';
+import { requireGroup, settingsOf } from './groups';
+import {
+  MAX_GAMES_PER_PAIR,
+  MAX_PENDING_CHALLENGES,
+  countActiveGames,
+  countActiveGamesBetween,
+  countPendingChallenges,
+  deadlineExpression,
+  reminderExpression,
+} from './limits';
+import { isBlocked } from './members';
+import { requireUser } from './users';
+
+export type CreateChallengeInput = {
+  groupId: number;
+  challengerId: number;
+  /** null for an open challenge. */
+  opponentId: number | null;
+  timePerMove: TimePerMove;
+  colour: ColourChoice;
+  rated: boolean;
+  /** Forum topic the card belongs to; null for the General topic or a basic group. */
+  threadId: number | null;
+};
+
+function randomColour(): 'white' | 'black' {
+  return randomInt(2) === 0 ? 'white' : 'black';
+}
+
+async function assertCanPlay(
+  tx: DbOrTx,
+  groupId: number,
+  user: UserRow,
+  maxActive: number,
+): Promise<void> {
+  if (await isBlocked(tx, groupId, user.id)) {
+    throw new DomainError('forbidden', 'blocked in this group', {
+      reason: 'blocked',
+      userId: user.id,
+    });
+  }
+  const active = await countActiveGames(tx, groupId, user.id);
+  if (active >= maxActive) {
+    throw new DomainError('limit_exceeded', 'active games limit reached', {
+      reason: 'active_limit',
+      userId: user.id,
+      name: user.firstName,
+      count: active,
+    });
+  }
+}
+
+async function assertPairLimit(tx: DbOrTx, groupId: number, a: UserRow, b: UserRow): Promise<void> {
+  const pair = await countActiveGamesBetween(tx, groupId, a.id, b.id);
+  if (pair >= MAX_GAMES_PER_PAIR) {
+    throw new DomainError('limit_exceeded', 'too many games with this opponent', {
+      reason: 'pair_limit',
+      name: b.firstName,
+      count: pair,
+    });
+  }
+}
+
+export async function getChallengeById(tx: DbOrTx, id: number): Promise<ChallengeRow | null> {
+  const [row] = await tx.select().from(challenges).where(eq(challenges.id, id)).limit(1);
+  return row ?? null;
+}
+
+export async function getChallengeByPublicId(
+  tx: DbOrTx,
+  publicId: string,
+): Promise<ChallengeRow | null> {
+  const [row] = await tx
+    .select()
+    .from(challenges)
+    .where(eq(challenges.publicId, publicId))
+    .limit(1);
+  return row ?? null;
+}
+
+export async function setChallengeMessage(
+  tx: DbOrTx,
+  challengeId: number,
+  messageId: number,
+): Promise<void> {
+  await tx.update(challenges).set({ messageId }).where(eq(challenges.id, challengeId));
+}
+
+function editCard(tx: DbOrTx, challenge: Pick<ChallengeRow, 'id' | 'publicId'>): Promise<void> {
+  return enqueue(tx, {
+    kind: 'edit_card',
+    payload: { challengeId: challenge.id },
+    dedupKey: `card:ch:${challenge.publicId}`,
+  });
+}
+
+/** Spec §7.1/§7.8: limits checked, the card send and the opponent's DM enqueued in the same transaction. */
+export async function createChallenge(
+  deps: Deps,
+  input: CreateChallengeInput,
+): Promise<ChallengeRow> {
+  return deps.db.transaction(async (tx) => {
+    const group = await requireGroup(tx, input.groupId);
+    const settings = settingsOf(group);
+    if (input.opponentId !== null && input.opponentId === input.challengerId) {
+      throw new DomainError('validation', 'cannot challenge yourself', { reason: 'self' });
+    }
+    if (input.opponentId === null && !settings.allowOpenChallenges) {
+      throw new DomainError('forbidden', 'open challenges are off in this group', {
+        reason: 'open_disabled',
+      });
+    }
+    const challenger = await requireUser(tx, input.challengerId);
+    await assertCanPlay(tx, group.id, challenger, settings.maxActiveGamesPerUser);
+    const pending = await countPendingChallenges(tx, group.id, challenger.id);
+    if (pending >= MAX_PENDING_CHALLENGES) {
+      throw new DomainError('limit_exceeded', 'too many pending challenges', {
+        reason: 'pending_limit',
+        count: pending,
+      });
+    }
+    let opponent: UserRow | null = null;
+    if (input.opponentId !== null) {
+      opponent = await requireUser(tx, input.opponentId);
+      if (opponent.deletedAt) {
+        throw new DomainError('not_found', 'opponent no longer plays here', {
+          reason: 'opponent_gone',
+        });
+      }
+      await assertCanPlay(tx, group.id, opponent, settings.maxActiveGamesPerUser);
+      await assertPairLimit(tx, group.id, challenger, opponent);
+    }
+    const [challenge] = await tx
+      .insert(challenges)
+      .values({
+        publicId: generatePublicId(),
+        groupId: group.id,
+        challengerId: challenger.id,
+        opponentId: opponent?.id ?? null,
+        timePerMove: input.timePerMove,
+        challengerColour: input.colour,
+        rated: input.rated,
+        threadId: input.threadId,
+        expiresAt: sql`now() + interval '24 hours'`,
+      })
+      .returning();
+    if (!challenge) throw new Error('challenge insert returned no row');
+    await enqueue(tx, {
+      kind: 'send_challenge_card',
+      payload: { challengeId: challenge.id },
+      dedupKey: `card:send:${challenge.publicId}`,
+    });
+    if (opponent) {
+      await enqueue(tx, {
+        kind: 'send_dm',
+        payload: { userId: opponent.id, template: 'challenge', challengeId: challenge.id },
+        dedupKey: `dm:${opponent.id}:ch:${challenge.publicId}`,
+      });
+    }
+    return challenge;
+  });
+}
+
+async function lockPendingChallenge(tx: DbOrTx, challengeId: number): Promise<ChallengeRow> {
+  const [challenge] = await tx
+    .select()
+    .from(challenges)
+    .where(eq(challenges.id, challengeId))
+    .limit(1)
+    .for('update');
+  if (!challenge) throw new DomainError('not_found', 'challenge not found');
+  if (challenge.status === 'accepted') {
+    throw new DomainError('stale_state', 'someone accepted first', { reason: 'accepted_first' });
+  }
+  if (challenge.status !== 'pending') {
+    throw new DomainError('expired', 'this challenge is no longer open', {
+      reason: 'challenge_gone',
+    });
+  }
+  const now = await dbNow(tx);
+  if (challenge.expiresAt.getTime() <= now.getTime()) {
+    throw new DomainError('expired', 'this challenge has expired', { reason: 'challenge_gone' });
+  }
+  return challenge;
+}
+
+/** Spec §7.1 accept: the row lock makes the first committed acceptance of an open challenge win. */
+export async function acceptChallenge(
+  deps: Deps,
+  input: { challengeId: number; userId: number },
+): Promise<{ challenge: ChallengeRow; game: GameRow }> {
+  const result = await deps.db.transaction(async (tx) => {
+    const challenge = await lockPendingChallenge(tx, input.challengeId);
+    if (challenge.opponentId !== null && challenge.opponentId !== input.userId) {
+      throw new DomainError('forbidden', 'only the challenged player can accept', {
+        reason: 'not_your_challenge',
+        opponentId: challenge.opponentId,
+      });
+    }
+    if (challenge.opponentId === null && challenge.challengerId === input.userId) {
+      throw new DomainError('forbidden', 'cannot accept your own challenge', {
+        reason: 'own_challenge',
+      });
+    }
+    const group = await requireGroup(tx, challenge.groupId);
+    const settings = settingsOf(group);
+    const challenger = await requireUser(tx, challenge.challengerId);
+    const accepter = await requireUser(tx, input.userId);
+    await assertCanPlay(tx, group.id, accepter, settings.maxActiveGamesPerUser);
+    await assertCanPlay(tx, group.id, challenger, settings.maxActiveGamesPerUser);
+    await assertPairLimit(tx, group.id, accepter, challenger);
+
+    const challengerColour =
+      challenge.challengerColour === 'random' ? randomColour() : challenge.challengerColour;
+    const white = challengerColour === 'white' ? challenger : accepter;
+    const black = challengerColour === 'white' ? accepter : challenger;
+    const timePerMove = challenge.timePerMove as TimePerMove;
+    const [game] = await tx
+      .insert(games)
+      .values({
+        publicId: generatePublicId(),
+        groupId: group.id,
+        whiteId: white.id,
+        blackId: black.id,
+        timePerMove,
+        rated: challenge.rated,
+        fen: INITIAL_FEN,
+        deadlineAt: deadlineExpression(timePerMove),
+        reminderAt: reminderExpression(timePerMove, white.dmAllowed),
+        cardMessageId: challenge.messageId,
+        cardThreadId: challenge.threadId,
+      })
+      .returning();
+    if (!game) throw new Error('game insert returned no row');
+    const [accepted] = await tx
+      .update(challenges)
+      .set({ status: 'accepted', opponentId: accepter.id, gameId: game.id, resolvedAt: sql`now()` })
+      .where(eq(challenges.id, challenge.id))
+      .returning();
+    await enqueue(tx, {
+      kind: 'edit_card',
+      payload: { gameId: game.id },
+      dedupKey: `card:g:${game.publicId}`,
+    });
+    await enqueue(tx, {
+      kind: 'send_dm',
+      payload: { userId: white.id, template: 'turn', gameId: game.id },
+      dedupKey: `dm:${white.id}:g:${game.publicId}:turn:0`,
+    });
+    return { challenge: accepted ?? challenge, game };
+  });
+  deps.bus.publish(result.game.publicId);
+  return result;
+}
+
+export async function declineChallenge(
+  deps: Deps,
+  input: { challengeId: number; userId: number },
+): Promise<ChallengeRow> {
+  return deps.db.transaction(async (tx) => {
+    const challenge = await lockPendingChallenge(tx, input.challengeId);
+    if (challenge.opponentId === null || challenge.opponentId !== input.userId) {
+      throw new DomainError('forbidden', 'only the challenged player can decline', {
+        reason: 'not_your_challenge',
+        opponentId: challenge.opponentId,
+      });
+    }
+    const [declined] = await tx
+      .update(challenges)
+      .set({ status: 'declined', resolvedAt: sql`now()` })
+      .where(eq(challenges.id, challenge.id))
+      .returning();
+    await editCard(tx, challenge);
+    return declined ?? challenge;
+  });
+}
+
+export async function cancelChallenge(
+  deps: Deps,
+  input: { challengeId: number; userId: number },
+): Promise<ChallengeRow> {
+  return deps.db.transaction(async (tx) => {
+    const challenge = await lockPendingChallenge(tx, input.challengeId);
+    if (challenge.challengerId !== input.userId) {
+      throw new DomainError('forbidden', 'only the challenger can withdraw', {
+        reason: 'not_your_challenge',
+      });
+    }
+    const [cancelled] = await tx
+      .update(challenges)
+      .set({ status: 'cancelled', resolvedAt: sql`now()` })
+      .where(eq(challenges.id, challenge.id))
+      .returning();
+    await editCard(tx, challenge);
+    return cancelled ?? challenge;
+  });
+}
+
+/** Scanner (spec §7.3): pending challenges past `expires_at`, at most `limit` per pass. */
+export async function expireChallenges(deps: Deps, limit = 100): Promise<number> {
+  return deps.db.transaction(async (tx) => {
+    const due = await tx
+      .select({ id: challenges.id, publicId: challenges.publicId })
+      .from(challenges)
+      .where(and(eq(challenges.status, 'pending'), lte(challenges.expiresAt, sql`now()`)))
+      .orderBy(asc(challenges.expiresAt))
+      .limit(limit)
+      .for('update', { skipLocked: true });
+    for (const challenge of due) {
+      await tx
+        .update(challenges)
+        .set({ status: 'expired', resolvedAt: sql`now()` })
+        .where(and(eq(challenges.id, challenge.id), eq(challenges.status, 'pending')));
+      await editCard(tx, challenge);
+    }
+    return due.length;
+  });
+}
+
+/** PRD §7.2: a reversed-colour challenge with the same terms, as a new card. */
+export async function createRematch(
+  deps: Deps,
+  input: { gameId: number; userId: number },
+): Promise<ChallengeRow> {
+  const [game] = await deps.db.select().from(games).where(eq(games.id, input.gameId)).limit(1);
+  if (!game) throw new DomainError('not_found', 'game not found');
+  if (game.status !== 'finished') throw new DomainError('stale_state', 'the game is still running');
+  const colour =
+    game.whiteId === input.userId ? 'white' : game.blackId === input.userId ? 'black' : null;
+  if (!colour) throw new DomainError('forbidden', 'only the players can ask for a rematch');
+  return createChallenge(deps, {
+    groupId: game.groupId,
+    challengerId: input.userId,
+    opponentId: colour === 'white' ? game.blackId : game.whiteId,
+    timePerMove: game.timePerMove as TimePerMove,
+    colour: opposite(colour),
+    rated: game.rated,
+    threadId: game.cardThreadId,
+  });
+}
