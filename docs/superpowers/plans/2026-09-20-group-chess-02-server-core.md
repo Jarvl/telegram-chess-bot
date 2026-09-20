@@ -3693,7 +3693,8 @@ export type PlayMoveInput = { gameId: string; userId: number; uci: string; expec
 export async function playMove(deps: Deps, input: PlayMoveInput): Promise<GameDto> {
   const dto = await deps.db.transaction(async (tx) => {
     const { game, colour } = await lockActiveGame(tx, input.gameId, input.userId);
-    if (sideToMove(game.fen) !== colour) throw new DomainError('not_your_turn', 'not your turn');
+    // A retried request must return the current state even though it is now the opponent's turn,
+    // and a stale client learns that before it learns whose turn it is.
     const history = await listMoves(tx, game.id);
     if (history.some((move) => move.clientMoveId === input.clientMoveId)) {
       return loadGameDto(tx, game, input.userId);
@@ -3701,6 +3702,7 @@ export async function playMove(deps: Deps, input: PlayMoveInput): Promise<GameDt
     if (input.expectedPly !== game.plyCount) {
       throw new DomainError('stale_state', 'the position has changed', { plyCount: game.plyCount });
     }
+    if (sideToMove(game.fen) !== colour) throw new DomainError('not_your_turn', 'not your turn');
     const now = await dbNow(tx);
     if (game.deadlineAt && game.deadlineAt.getTime() < now.getTime()) {
       return loadGameDto(tx, await applyTimeout(tx, game, now), input.userId);
