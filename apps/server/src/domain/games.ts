@@ -146,7 +146,7 @@ export async function applyTimeout(tx: DbOrTx, game: GameRow, now: Date): Promis
   return finishGame(tx, game, timeoutEnd(game), now);
 }
 
-async function lockActiveGame(
+export async function lockActiveGame(
   tx: DbOrTx,
   publicId: string,
   userId: number,
