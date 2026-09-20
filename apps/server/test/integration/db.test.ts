@@ -42,7 +42,13 @@ describe('database', () => {
     await db.insert(jobs).values({ kind: 'edit_card', dedupKey: 'card:g:x' });
     await expect(
       db.insert(jobs).values({ kind: 'edit_card', dedupKey: 'card:g:x' }),
-    ).rejects.toThrow(/jobs_dedup_pending/);
+    ).rejects.toSatisfy((error: unknown) =>
+      /jobs_dedup_pending/.test(
+        String(
+          (error as { cause?: { message?: string } }).cause?.message ?? (error as Error).message,
+        ),
+      ),
+    );
     await db.update(jobs).set({ doneAt: sql`now()` });
     await expect(
       db.insert(jobs).values({ kind: 'edit_card', dedupKey: 'card:g:x' }),
