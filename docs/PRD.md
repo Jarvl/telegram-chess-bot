@@ -5,7 +5,7 @@
 | **Product** | Group Chess (working title) — a Telegram bot for playing and watching 1v1 chess with the people in a group chat |
 | **Status** | Draft v0.2, for review |
 | **Date** | 2026-09-20 |
-| **Next step** | Technical requirements and architecture document |
+| **Next step** | Technical requirements and architecture document: [docs/superpowers/specs/2026-09-20-group-chess-technical-design.md](superpowers/specs/2026-09-20-group-chess-technical-design.md) |
 
 ---
 
