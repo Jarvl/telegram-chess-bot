@@ -2152,6 +2152,7 @@ describe('rebuildGroupRatings', () => {
     const c = await finished(group.id, carol.id, alice.id, '1/2-1/2', 'draw_agreement', 3);
     for (const game of [a, b, c]) await applyGameResultToRatings(db, game, game.finishedAt!);
     const carolBeforeVoid = (await reload(c.id)).whiteRatingBefore;
+    const aliceAfterA = (await reload(a.id)).whiteRatingAfter;
     expect(carolBeforeVoid).toBeLessThan(1500);
 
     await db.update(games).set({ voidedAt: sql`now()`, voidedBy: alice.id }).where(eq(games.id, b.id));
@@ -2159,7 +2160,7 @@ describe('rebuildGroupRatings', () => {
 
     expect(changedGameIds).toEqual([c.id]);
     expect((await reload(c.id)).whiteRatingBefore).toBe(1500);
-    expect((await reload(a.id)).whiteRatingAfter).toBeCloseTo(a.whiteRatingAfter ?? 0, 9);
+    expect((await reload(a.id)).whiteRatingAfter).toBeCloseTo(aliceAfterA ?? 0, 9);
     const rows = await db.select().from(ratings).orderBy(ratings.userId);
     expect(rows.map((r) => [r.userId, r.gamesPlayed])).toEqual([
       [alice.id, 2],
