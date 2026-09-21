@@ -28,6 +28,16 @@ export const ConfigSchema = z.object({
   ROLES: RolesSchema,
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+  /** Bot API base for tests and local fakes; unset means api.telegram.org. */
+  TELEGRAM_API_ROOT: z.url().optional(),
+  /** `true` runs long polling (dev); otherwise updates arrive on the webhook (spec §4.4). */
+  TELEGRAM_POLLING: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  LICHESS_API_URL: z.url().default('https://lichess.org'),
+  /** Directory of the built Mini App to serve under /app/; unset means not served. */
+  MINI_APP_DIR: z.string().min(1).optional(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

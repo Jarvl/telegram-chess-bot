@@ -91,4 +91,8 @@ export const en = {
   'alert.challenge_gone': 'This challenge is no longer open.',
   'alert.only_players_rematch': 'Only the players can ask for a rematch.',
   'locked.hint': 'Open a game card in the group once, or ask an admin to promote the bot.',
+  'command.chess': 'Play chess with this group on a real board.',
+  'command.settings': 'Group chess settings (admins only).',
+  'dm.start':
+    "Tap Open Chess to see your groups' games. You'll get a message here when it's your move.",
 } as const;

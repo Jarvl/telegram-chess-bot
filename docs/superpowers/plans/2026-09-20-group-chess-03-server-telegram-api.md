@@ -1611,7 +1611,7 @@ export function webhookRoutes(bot: Bot, deps: Deps, config: Config): Hono {
 - [ ] **Step 6: Run the test to verify it passes**
 
 Run: `pnpm vitest run --project server apps/server/test/integration/bot.test.ts`
-Expected: PASS — 16 tests.
+Expected: PASS — 17 tests.
 
 - [ ] **Step 7: Run the whole suite and the static checks**
 

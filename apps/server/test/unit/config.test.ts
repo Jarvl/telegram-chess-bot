@@ -18,6 +18,9 @@ describe('loadConfig', () => {
     expect(config.LOG_LEVEL).toBe('info');
     expect(config.PORT).toBe(3000);
     expect(config.LICHESS_TOKEN).toBeUndefined();
+    expect(config.TELEGRAM_POLLING).toBe(false);
+    expect(config.TELEGRAM_API_ROOT).toBeUndefined();
+    expect(config.LICHESS_API_URL).toBe('https://lichess.org');
   });
 
   it('parses a subset of roles and a numeric port', () => {
