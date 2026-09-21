@@ -1640,7 +1640,7 @@ describe('createApiClient', () => {
     const client = createApiClient({ fetch });
     client.setToken('tok');
     const out = await client.post('/api/echo', { a: 1 }, Hello);
-    expect(out).toEqual({ hello: 'world', extra: 1 });
+    expect(out).toEqual({ hello: 'world' }); // the schema strips unknown keys
     expect(calls[0]).toMatchObject({ method: 'POST', path: '/api/echo', body: { a: 1 } });
     expect(calls[0]?.headers.get('authorization')).toBe('Bearer tok');
     expect(calls[0]?.headers.get('content-type')).toBe('application/json');
@@ -1778,10 +1778,11 @@ describe('launch', () => {
 
 ```ts
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { GameDto } from '@group-chess/shared';
 import { GameStream } from '../src/api/stream';
 import { FakeEventSource } from './support/fakeEventSource';
 
-const dto = (version: number) => ({
+const dto = (version: number): GameDto => ({
   id: 'AbCdEfGhIj',
   group: { id: 'GrOuPiDxYz', title: 'G' },
   status: 'active',
@@ -1972,7 +1973,7 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
     return `${baseUrl}${path}${params ? `?${params}` : ''}`;
   };
 
-  async function once<T>(
+  async function once(
     method: string,
     path: string,
     body: unknown,
