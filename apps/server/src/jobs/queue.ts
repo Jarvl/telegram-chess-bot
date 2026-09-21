@@ -33,6 +33,7 @@ export async function enqueue(tx: DbOrTx, input: EnqueueInput): Promise<void> {
     .onConflictDoUpdate({
       target: jobs.dedupKey,
       targetWhere: sql`done_at is null`,
-      set: { runAt: sql`excluded.run_at` },
+      // The re-arm is a new cause, so the attempt count starts over.
+      set: { runAt: sql`excluded.run_at`, attempts: 0, lastError: null },
     });
 }

@@ -95,6 +95,14 @@ async function upsertStates(
 }
 
 /**
+ * Rating writes of one group are serialised: two game ends that share a player, or a rebuild that
+ * races a game end, must not interleave their read-compute-write (each would overwrite the other).
+ */
+async function lockGroupRatings(tx: DbOrTx, groupId: number): Promise<void> {
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`ratings:${groupId}`}))`);
+}
+
+/**
  * Each rated result is its own rating period for both players (spec §7.5). Returns null and
  * touches nothing for casual games and for results that do not change ratings (aborts, voids).
  */
@@ -105,6 +113,7 @@ export async function applyGameResultToRatings(
 ): Promise<RatingSnapshot | null> {
   if (!game.rated || !isRatedResult(game.result)) return null;
   if (!game.endReason || !isRatedEndReason(game.endReason)) return null;
+  await lockGroupRatings(tx, game.groupId);
   const white = String(game.whiteId);
   const black = String(game.blackId);
   const states = new Map<string, PlayerRatingState>([
@@ -124,6 +133,7 @@ export async function rebuildGroupRatings(
   tx: DbOrTx,
   groupId: number,
 ): Promise<{ changedGameIds: number[] }> {
+  await lockGroupRatings(tx, groupId);
   const rows = await tx
     .select()
     .from(games)

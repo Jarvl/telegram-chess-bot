@@ -55,6 +55,16 @@ describe('users', () => {
     expect(prefs).toMatchObject({ confirmMoves: false, closeAfterMove: true, boardTheme: 'wood' });
   });
 
+  it('validates preference updates and drops unknown keys', async () => {
+    const user = await ensureUser(db, { telegramUserId: 42, firstName: 'Alice' });
+    const prefs = await updatePrefs(db, user.id, { pieceSet: 'merida', nope: 1 } as never);
+    expect(prefs).not.toHaveProperty('nope');
+    expect(prefs.pieceSet).toBe('merida');
+    await expect(updatePrefs(db, user.id, { confirmMoves: 'yes' } as never)).rejects.toMatchObject({
+      code: 'validation',
+    });
+  });
+
   it('records the write-access prompt result', async () => {
     const user = await ensureUser(db, { telegramUserId: 42, firstName: 'Alice' });
     await recordWriteAccess(db, user.id, true);

@@ -68,7 +68,8 @@ function player(
 /** The full game DTO of spec §9; the same function serves the REST route and every SSE push. */
 export function buildGameDto(input: GameDtoInput): GameDto {
   const { game, moves, group, now } = input;
-  const finishedRated = game.status === 'finished' && game.rated;
+  // A void reverts the rated effect (spec §7.1), so the delta disappears from the DTO with it.
+  const finishedRated = game.status === 'finished' && game.rated && game.voidedAt === null;
   const active = game.status === 'active';
   const dto: GameDto = {
     id: game.publicId,

@@ -78,5 +78,11 @@ describe('prune', () => {
       sql`select extract(epoch from (run_at - now())) as seconds from jobs where kind = 'prune'`,
     );
     expect(Number(row?.seconds)).toBeGreaterThan(86_000);
+
+    await ensurePruneScheduled(db);
+    const [again] = await db.execute(
+      sql`select extract(epoch from (run_at - now())) as seconds from jobs where kind = 'prune'`,
+    );
+    expect(Number(again?.seconds)).toBeGreaterThan(86_000);
   });
 });

@@ -21,6 +21,9 @@ async function setup(overrides: GameOverrides = {}) {
   return { group, alice, bob, game };
 }
 
+/** After 1. e4 e5 2. Nf3: Black to move. */
+const AFTER_NF3 = 'rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2';
+
 let n = 0;
 const play = (gameId: string, userId: number, uci: string, expectedPly: number) =>
   playMove(deps, { gameId, userId, uci, expectedPly, clientMoveId: `draw-test-${(n += 1)}` });
@@ -72,6 +75,25 @@ describe('draw offers', () => {
     });
     expect(await db.select().from(ratings)).toHaveLength(2);
   });
+
+  it('applies a passed deadline before a draw acceptance by the flagged player', async () => {
+    const { game, bob } = await setup({
+      fen: AFTER_NF3,
+      plyCount: 3,
+      drawOfferBy: 'white',
+      drawOfferPly: 3,
+      deadlineInSeconds: -1,
+    });
+    const dto = await acceptDraw(deps, { gameId: game.publicId, userId: bob.id });
+    expect(dto).toMatchObject({ status: 'finished', result: '1-0', endReason: 'timeout' });
+    expect(await db.select().from(ratings)).toHaveLength(2);
+  });
+
+  it('applies a passed deadline before an offer', async () => {
+    const { game, bob } = await setup({ fen: AFTER_NF3, plyCount: 3, deadlineInSeconds: -1 });
+    const dto = await offerDraw(deps, { gameId: game.publicId, userId: bob.id });
+    expect(dto).toMatchObject({ status: 'finished', result: '1-0', endReason: 'timeout' });
+  });
 });
 
 describe('draw claims', () => {
@@ -96,6 +118,12 @@ describe('draw claims', () => {
     const { game, bob } = await setup({ fen: '8/8/8/8/8/8/1R6/K6k w - - 100 60', plyCount: 120 });
     const dto = await claimDraw(deps, { gameId: game.publicId, userId: bob.id });
     expect(dto).toMatchObject({ status: 'finished', endReason: 'fifty_move_claim' });
+  });
+
+  it('applies a passed deadline before a draw claim', async () => {
+    const { game, bob } = await setup({ fen: AFTER_NF3, plyCount: 3, deadlineInSeconds: -1 });
+    const dto = await claimDraw(deps, { gameId: game.publicId, userId: bob.id });
+    expect(dto).toMatchObject({ status: 'finished', result: '1-0', endReason: 'timeout' });
   });
 
   it('refuses a claim when neither rule applies', async () => {

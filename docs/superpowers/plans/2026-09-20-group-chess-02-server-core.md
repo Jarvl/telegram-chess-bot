@@ -4531,3 +4531,17 @@ git commit -m "feat(server): add the ratings rebuild and prune job handlers"
 **Type consistency:** `Deps = { db, bus, log }` is the single context type; `DomainError(code, message, details)` with `details.reason` strings listed per task; `EndInput` is defined in Task 7 and consumed by Task 8; `lockActiveGame` is created in Task 7 and exported in Task 8; `positionKeys` lives in `gameDto.ts` and is used by `games.ts` and `draws.ts`; `deadlineExpression`/`reminderExpression` in `limits.ts` are used by Tasks 6 and 7; job dedup keys follow one grammar — `card:send:<challengePublicId>`, `card:ch:<challengePublicId>`, `card:g:<gamePublicId>`, `dm:<userId>:ch:<challengePublicId>`, `dm:<userId>:g:<gamePublicId>:turn:<ply>`, `dm:<userId>:g:<gamePublicId>:end`, `dm:<userId>:g:<gamePublicId>:reminder:<ply>`, `lichess:<gamePublicId>`, `ratings:<groupPublicId>`, `prune`.
 
 **Review Focus:** all five lines have their tests in the named tasks.
+
+## Post-review fixes
+
+The fresh-context review of the executed plan (ledger: `.superpowers/sdd/2026-09-20-group-chess-02-server-core/final-review.md`) found no Critical and four Important issues; all four, and the cheap Minor ones, were fixed in one TDD pass after Task 10. The behaviour now differs from the task text above in these points:
+
+- **Task 7/8 — every game action applies a passed deadline.** `lockActiveGame` returns `{ game, colour, now, ended }`; when `deadline_at < now()` it applies the timeout itself and `ended` is true, so `playMove`, `resign`, `abortGame`, `offerDraw`, `acceptDraw`, `declineDraw` and `claimDraw` all return the finished game instead of acting (review focus 1 now covers every action, not only moves). Tests: "applies a passed deadline before a resignation by the player who is not flagged", "… before a draw acceptance by the flagged player", "… before an offer", "… before a draw claim".
+- **Task 5 — rating writes are serialised per group.** `applyGameResultToRatings` and `rebuildGroupRatings` take `pg_advisory_xact_lock(hashtext('ratings:<groupId>'))` first. Test: "serialises two game ends that share a player so neither update is lost".
+- **Task 7 — a voided game hides its reverted rating delta.** `buildGameDto` uses the snapshots only while `voided_at` is null. Test: "hides the reverted rating delta of a voided game".
+- **Task 6 — `setChallengeMessage` also sets the game's `card_message_id`** when the challenge was accepted before its card was sent (only while the game has none). Test: "hands a late card message id to the game that was accepted before the card was sent".
+- **Task 7 — a void enqueues no Lichess import** (`lichess_import_status` stays null for a voided game).
+- **Task 3 — jobs:** an unknown kind is retried after a minute instead of failed (rolling deploys, split roles); a dedup re-arm resets `attempts` and `last_error`; the worker and the scanners double their poll delay per consecutive failure up to a minute (`pollBackoffMs`); `ensurePruneScheduled` leaves an already scheduled prune alone.
+- **Task 2 — `LocalBus`:** a stale unsubscribe called twice no longer removes newer subscribers.
+- **Task 4 — `updatePrefs`** validates the patch with `PrefsSchema.partial()` (unknown keys dropped, bad values → `validation`).
+- Accepted as is: count-based limits may overshoot by one under concurrency (spec §7.8 limits are soft); a game-ending move increments `version` twice (monotonic is all SSE needs); `DomainError.details` may carry display names and is documented as never logged.

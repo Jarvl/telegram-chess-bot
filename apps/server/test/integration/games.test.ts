@@ -214,6 +214,14 @@ describe('resign, abort, void', () => {
     expect(await db.select().from(ratings)).toHaveLength(2);
   });
 
+  it('applies a passed deadline before a resignation by the player who is not flagged', async () => {
+    const { game, bob } = await setup({ deadlineInSeconds: -1, fen: AFTER_E4_E5, plyCount: 2 });
+    await insertMove(db, game.id, 1, 'e2e4', 'e4', AFTER_E4);
+    await insertMove(db, game.id, 2, 'e7e5', 'e5', AFTER_E4_E5);
+    const dto = await resign(deps, { gameId: game.publicId, userId: bob.id });
+    expect(dto).toMatchObject({ status: 'finished', result: '0-1', endReason: 'timeout' });
+  });
+
   it('allows an abort only before both players have moved', async () => {
     const { game, alice, bob } = await setup();
     await move(game.publicId, alice.id, 'e2e4', 0);
@@ -238,6 +246,8 @@ describe('resign, abort, void', () => {
       endReason: 'voided',
       voided: true,
     });
+    expect((await jobList()).map((job) => job.kind)).not.toContain('lichess_import');
+    expect(voided.lichessUrl).toBeUndefined();
 
     const done = await setup({
       status: 'finished',
@@ -308,5 +318,27 @@ describe('getGameDto', () => {
       provisionalAfter: true,
     });
     expect(dto.black).toMatchObject({ rating: 1500, ratingAfter: 1466 });
+  });
+
+  it('hides the reverted rating delta of a voided game', async () => {
+    const { game } = await setup({
+      status: 'finished',
+      result: '1-0',
+      endReason: 'resignation',
+      finishedAt: new Date(),
+      voidedAt: new Date(),
+      whiteRatingBefore: 1500,
+      whiteRatingAfter: 1534.4,
+      whiteRdBefore: 350,
+      whiteRdAfter: 290,
+      blackRatingBefore: 1500,
+      blackRatingAfter: 1465.6,
+      blackRdBefore: 350,
+      blackRdAfter: 290,
+    });
+    const dto = await getGameDto(deps, { gameId: game.publicId, viewerUserId: null });
+    expect(dto.voided).toBe(true);
+    expect(dto.white).toMatchObject({ rating: 1500, ratingAfter: null, provisionalAfter: null });
+    expect(dto.black).toMatchObject({ rating: 1500, ratingAfter: null, provisionalAfter: null });
   });
 });

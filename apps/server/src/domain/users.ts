@@ -1,4 +1,4 @@
-import { PREFS_DEFAULTS, type Prefs } from '@group-chess/shared';
+import { PREFS_DEFAULTS, PrefsSchema, type Prefs } from '@group-chess/shared';
 import { eq, sql } from 'drizzle-orm';
 import type { DbOrTx } from '../db/client';
 import { users, type UserRow } from '../db/schema';
@@ -45,14 +45,21 @@ export function prefsOf(user: Pick<UserRow, 'prefs'>): Prefs {
   return { ...PREFS_DEFAULTS, ...user.prefs };
 }
 
+/** Merges a validated patch over the stored preferences; unknown keys are dropped, bad values refused. */
 export async function updatePrefs(
   tx: DbOrTx,
   userId: number,
   patch: Partial<Prefs>,
 ): Promise<Prefs> {
+  const parsed = PrefsSchema.partial().safeParse(patch);
+  if (!parsed.success) {
+    throw new DomainError('validation', 'invalid preferences', {
+      issues: parsed.error.issues.map((issue) => issue.path.join('.')),
+    });
+  }
   const [row] = await tx
     .update(users)
-    .set({ prefs: sql`${users.prefs} || ${JSON.stringify(patch)}::jsonb` })
+    .set({ prefs: sql`${users.prefs} || ${JSON.stringify(parsed.data)}::jsonb` })
     .where(eq(users.id, userId))
     .returning();
   if (!row) throw new DomainError('not_found', 'user not found', { userId });

@@ -23,6 +23,14 @@ export function backoffSeconds(attempts: number): number {
   return Math.min(5 * 2 ** attempts, 3600);
 }
 
+/** Spec §11: pollers back off while the database is unavailable; doubles per failure, capped at a minute. */
+export function pollBackoffMs(baseMs: number, consecutiveFailures: number): number {
+  return Math.min(baseMs * 2 ** consecutiveFailures, 60_000);
+}
+
+/** How long an unknown job kind waits for a worker that knows it (rolling deploys, split roles). */
+const UNKNOWN_KIND_RETRY_MS = 60_000;
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -43,14 +51,21 @@ export class JobWorker {
 
   start(): void {
     if (this.timer || this.stopped) return;
+    let failures = 0;
     const tick = async (): Promise<void> => {
       this.inFlight = this.runOnce()
-        .then(() => undefined)
+        .then(() => {
+          failures = 0;
+        })
         .catch((error: unknown) => {
-          this.options.log.error({ err: error }, 'job worker poll failed');
+          failures += 1;
+          this.options.log.error({ err: error, failures }, 'job worker poll failed');
         });
       await this.inFlight;
-      if (!this.stopped) this.timer = setTimeout(() => void tick(), this.options.pollMs ?? 1000);
+      if (!this.stopped) {
+        const delay = pollBackoffMs(this.options.pollMs ?? 1000, failures);
+        this.timer = setTimeout(() => void tick(), delay);
+      }
     };
     this.timer = setTimeout(() => void tick(), 0);
   }
@@ -100,7 +115,13 @@ export class JobWorker {
     const handler = handlers[job.kind as JobKind];
     let outcome: Outcome;
     if (!handler) {
-      outcome = { outcome: 'fail', error: `no handler for kind ${job.kind}` };
+      // Another worker (a newer deploy, or the process with this role) may know the kind.
+      log.warn({ jobId: job.id, kind: job.kind }, 'no handler for job kind; leaving it pending');
+      outcome = {
+        outcome: 'retry',
+        delayMs: UNKNOWN_KIND_RETRY_MS,
+        error: `no handler for kind ${job.kind}`,
+      };
     } else {
       try {
         outcome = (await handler({ job, db, log })) ?? { outcome: 'done' };

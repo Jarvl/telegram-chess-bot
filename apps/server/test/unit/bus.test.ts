@@ -22,6 +22,17 @@ describe('LocalBus', () => {
     expect(calls).toBe(1);
   });
 
+  it('leaves newer subscribers alone when a stale unsubscribe runs twice', () => {
+    const bus = new LocalBus();
+    let later = 0;
+    const off = bus.subscribe('g', () => undefined);
+    off();
+    bus.subscribe('g', () => (later += 1));
+    off();
+    bus.publish('g');
+    expect(later).toBe(1);
+  });
+
   it('keeps a throwing listener from blocking the others', () => {
     const bus = new LocalBus();
     const seen: string[] = [];

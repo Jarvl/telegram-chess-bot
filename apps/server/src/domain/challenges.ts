@@ -1,6 +1,6 @@
 import { randomInt } from 'node:crypto';
 import { INITIAL_FEN, opposite, type ColourChoice, type TimePerMove } from '@group-chess/shared';
-import { and, asc, eq, lte, sql } from 'drizzle-orm';
+import { and, asc, eq, isNull, lte, sql } from 'drizzle-orm';
 import { dbNow, type DbOrTx } from '../db/client';
 import { generatePublicId } from '../db/ids';
 import { challenges, games, type ChallengeRow, type GameRow, type UserRow } from '../db/schema';
@@ -87,12 +87,26 @@ export async function getChallengeByPublicId(
   return row ?? null;
 }
 
+/**
+ * Records the card's message id. A game accepted before the card was sent has no message id yet,
+ * so the first id also becomes that game's card (later edits must be able to find it).
+ */
 export async function setChallengeMessage(
   tx: DbOrTx,
   challengeId: number,
   messageId: number,
 ): Promise<void> {
-  await tx.update(challenges).set({ messageId }).where(eq(challenges.id, challengeId));
+  const [challenge] = await tx
+    .update(challenges)
+    .set({ messageId })
+    .where(eq(challenges.id, challengeId))
+    .returning({ gameId: challenges.gameId });
+  if (challenge?.gameId != null) {
+    await tx
+      .update(games)
+      .set({ cardMessageId: messageId })
+      .where(and(eq(games.id, challenge.gameId), isNull(games.cardMessageId)));
+  }
 }
 
 function editCard(tx: DbOrTx, challenge: Pick<ChallengeRow, 'id' | 'publicId'>): Promise<void> {

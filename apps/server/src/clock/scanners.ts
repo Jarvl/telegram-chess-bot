@@ -6,6 +6,7 @@ import { expireChallenges } from '../domain/challenges';
 import type { Deps } from '../domain/deps';
 import { applyTimeout } from '../domain/games';
 import { enqueue } from '../jobs/queue';
+import { pollBackoffMs } from '../jobs/worker';
 
 /** Spec §7.3 forfeit scanner: rows are the state; the transaction re-checks each deadline against now(). */
 export async function forfeitOverdueGames(deps: Deps, limit = 100): Promise<number> {
@@ -78,17 +79,20 @@ export function startScanners(
   let stopped = false;
   let timer: NodeJS.Timeout | null = null;
   let inFlight: Promise<void> = Promise.resolve();
+  let failures = 0;
   const tick = async (): Promise<void> => {
     inFlight = runScannersOnce(deps)
       .then((counts) => {
+        failures = 0;
         if (counts.forfeits || counts.reminders || counts.expiries)
           deps.log.info(counts, 'scanners applied transitions');
       })
       .catch((error: unknown) => {
-        deps.log.error({ err: error }, 'scanner pass failed');
+        failures += 1;
+        deps.log.error({ err: error, failures }, 'scanner pass failed');
       });
     await inFlight;
-    if (!stopped) timer = setTimeout(() => void tick(), intervalMs);
+    if (!stopped) timer = setTimeout(() => void tick(), pollBackoffMs(intervalMs, failures));
   };
   timer = setTimeout(() => void tick(), 0);
   return {

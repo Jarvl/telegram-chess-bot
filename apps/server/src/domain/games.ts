@@ -93,6 +93,8 @@ export async function finishGame(
   end: EndInput,
   now: Date,
 ): Promise<GameRow> {
+  // A voided game is not worth an import; the fallback analysis link still works (review finding 10).
+  const importable = game.plyCount > 0 && end.endReason !== 'voided';
   const [updated] = await tx
     .update(games)
     .set({
@@ -104,7 +106,7 @@ export async function finishGame(
       reminderAt: null,
       drawOfferBy: null,
       drawOfferPly: null,
-      lichessImportStatus: game.plyCount > 0 ? 'pending' : null,
+      lichessImportStatus: importable ? 'pending' : null,
       version: sql`${games.version} + 1`,
     })
     .where(eq(games.id, game.id))
@@ -123,7 +125,7 @@ export async function finishGame(
       dedupKey: `dm:${userId}:g:${game.publicId}:end`,
     });
   }
-  if (game.plyCount > 0) {
+  if (importable) {
     await enqueue(tx, {
       kind: 'lichess_import',
       payload: { gameId: game.id },
@@ -146,16 +148,34 @@ export async function applyTimeout(tx: DbOrTx, game: GameRow, now: Date): Promis
   return finishGame(tx, game, timeoutEnd(game), now);
 }
 
+export type LockedGame = {
+  game: GameRow;
+  colour: 'white' | 'black';
+  /** The database clock; constant for the rest of the transaction. */
+  now: Date;
+  /** True when the deadline had already passed: `game` is then the finished row and the action must not proceed. */
+  ended: boolean;
+};
+
+/**
+ * Locks an active game for one of its players. A deadline that passed before this transaction is
+ * applied right here, so no action (move, resign, abort, draw offer, acceptance or claim) can beat
+ * the forfeit scanner (spec §7.3, §7.4).
+ */
 export async function lockActiveGame(
   tx: DbOrTx,
   publicId: string,
   userId: number,
-): Promise<{ game: GameRow; colour: 'white' | 'black' }> {
+): Promise<LockedGame> {
   const game = await requireGameByPublicId(tx, publicId, { forUpdate: true });
   const colour = colourOf(game, userId);
   if (!colour) throw new DomainError('forbidden', 'only the players can do that');
   if (game.status !== 'active') throw new DomainError('stale_state', 'the game is over');
-  return { game, colour };
+  const now = await dbNow(tx);
+  if (game.deadlineAt && game.deadlineAt.getTime() < now.getTime()) {
+    return { game: await applyTimeout(tx, game, now), colour, now, ended: true };
+  }
+  return { game, colour, now, ended: false };
 }
 
 export type PlayMoveInput = {
@@ -169,7 +189,8 @@ export type PlayMoveInput = {
 /** The move transaction of spec §7.4, step for step. */
 export async function playMove(deps: Deps, input: PlayMoveInput): Promise<GameDto> {
   const dto = await deps.db.transaction(async (tx) => {
-    const { game, colour } = await lockActiveGame(tx, input.gameId, input.userId);
+    const { game, colour, now, ended } = await lockActiveGame(tx, input.gameId, input.userId);
+    if (ended) return loadGameDto(tx, game, input.userId);
     // A retried request must return the current state even though it is now the opponent's turn,
     // and a stale client learns that before it learns whose turn it is.
     const history = await listMoves(tx, game.id);
@@ -180,10 +201,6 @@ export async function playMove(deps: Deps, input: PlayMoveInput): Promise<GameDt
       throw new DomainError('stale_state', 'the position has changed', { plyCount: game.plyCount });
     }
     if (sideToMove(game.fen) !== colour) throw new DomainError('not_your_turn', 'not your turn');
-    const now = await dbNow(tx);
-    if (game.deadlineAt && game.deadlineAt.getTime() < now.getTime()) {
-      return loadGameDto(tx, await applyTimeout(tx, game, now), input.userId);
-    }
     const result = applyMove(game.fen, positionKeys(history), input.uci);
     if (!result.legal) throw new DomainError('illegal_move', 'illegal move');
 
@@ -244,8 +261,8 @@ export async function resign(
   input: { gameId: string; userId: number },
 ): Promise<GameDto> {
   const dto = await deps.db.transaction(async (tx) => {
-    const { game, colour } = await lockActiveGame(tx, input.gameId, input.userId);
-    const now = await dbNow(tx);
+    const { game, colour, now, ended } = await lockActiveGame(tx, input.gameId, input.userId);
+    if (ended) return loadGameDto(tx, game, input.userId);
     const end: EndInput = { result: colour === 'white' ? '0-1' : '1-0', endReason: 'resignation' };
     return loadGameDto(tx, await finishGame(tx, game, end, now), input.userId);
   });
@@ -259,12 +276,12 @@ export async function abortGame(
   input: { gameId: string; userId: number },
 ): Promise<GameDto> {
   const dto = await deps.db.transaction(async (tx) => {
-    const { game } = await lockActiveGame(tx, input.gameId, input.userId);
+    const { game, now, ended } = await lockActiveGame(tx, input.gameId, input.userId);
+    if (ended) return loadGameDto(tx, game, input.userId);
     if (game.plyCount >= 2)
       throw new DomainError('forbidden', 'abort is no longer available', {
         reason: 'abort_unavailable',
       });
-    const now = await dbNow(tx);
     return loadGameDto(
       tx,
       await finishGame(tx, game, { result: '*', endReason: 'abort' }, now),

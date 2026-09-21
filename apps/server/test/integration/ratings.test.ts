@@ -1,4 +1,4 @@
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { games, ratings, type GameRow } from '../../src/db/schema';
 import { touchMember } from '../../src/domain/members';
@@ -7,10 +7,13 @@ import {
   getLeaderboard,
   rebuildGroupRatings,
 } from '../../src/domain/ratings';
-import { openTestDb, truncateAll } from '../helpers/db';
+import { resign } from '../../src/domain/games';
+import { openTestDb, testDeps, truncateAll } from '../helpers/db';
 import { insertGame, insertGroup, insertUser } from '../helpers/fixtures';
 
 const { db, close } = openTestDb();
+const deps = testDeps(db);
+const AFTER_E4_E5 = 'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2';
 
 beforeEach(() => truncateAll(db));
 afterAll(() => close());
@@ -78,6 +81,41 @@ describe('applyGameResultToRatings', () => {
     const game = await finished(group.id, alice.id, bob.id, '*', 'abort', 1);
     expect(await applyGameResultToRatings(db, game, finishedAt(1))).toBeNull();
     expect(await db.select().from(ratings)).toHaveLength(0);
+  });
+});
+
+describe('concurrent results', () => {
+  it('serialises two game ends that share a player so neither update is lost', async () => {
+    for (let round = 0; round < 3; round += 1) {
+      await truncateAll(db);
+      const group = await insertGroup(db);
+      const [alice, bob, carol] = await Promise.all([
+        insertUser(db),
+        insertUser(db),
+        insertUser(db),
+      ]);
+      for (const user of [alice, bob, carol]) await touchMember(db, group.id, user.id);
+      const a = await insertGame(db, group.id, alice.id, bob.id, { fen: AFTER_E4_E5, plyCount: 2 });
+      const b = await insertGame(db, group.id, alice.id, carol.id, {
+        fen: AFTER_E4_E5,
+        plyCount: 2,
+      });
+      await Promise.all([
+        resign(deps, { gameId: a.publicId, userId: bob.id }),
+        resign(deps, { gameId: b.publicId, userId: carol.id }),
+      ]);
+      const [aliceRow] = await db
+        .select()
+        .from(ratings)
+        .where(and(eq(ratings.groupId, group.id), eq(ratings.userId, alice.id)));
+      expect(aliceRow?.gamesPlayed).toBe(2);
+      const [first, second] = [await reload(a.id), await reload(b.id)].sort(
+        (x, y) => x.whiteRatingBefore! - y.whiteRatingBefore!,
+      );
+      expect(first!.whiteRatingBefore).toBe(1500);
+      expect(second!.whiteRatingBefore).toBeCloseTo(first!.whiteRatingAfter!, 6);
+      expect(aliceRow?.rating).toBeCloseTo(second!.whiteRatingAfter!, 6);
+    }
   });
 });
 

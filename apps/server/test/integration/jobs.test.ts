@@ -2,7 +2,7 @@ import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { jobs } from '../../src/db/schema';
 import { enqueue } from '../../src/jobs/queue';
-import { JobWorker } from '../../src/jobs/worker';
+import { JobWorker, pollBackoffMs } from '../../src/jobs/worker';
 import type { JobHandlers } from '../../src/jobs/types';
 import { createLogger } from '../../src/logger';
 import { openTestDb, truncateAll } from '../helpers/db';
@@ -22,6 +22,14 @@ const secondsFromNow = async (column: 'run_at' | 'locked_until' | 'done_at', id:
   );
   return Number(row?.seconds);
 };
+
+describe('pollBackoffMs', () => {
+  it('doubles the poll interval per consecutive failure up to a minute', () => {
+    expect(pollBackoffMs(1_000, 0)).toBe(1_000);
+    expect(pollBackoffMs(1_000, 3)).toBe(8_000);
+    expect(pollBackoffMs(5_000, 10)).toBe(60_000);
+  });
+});
 
 describe('enqueue', () => {
   it('inserts a pending job that is due now', async () => {
@@ -102,12 +110,47 @@ describe('JobWorker', () => {
     expect(await secondsFromNow('run_at', job!.id)).toBeGreaterThan(25);
   });
 
-  it('fails a job of a kind with no handler', async () => {
+  it('leaves a job of an unknown kind for a worker that has its handler', async () => {
     await enqueue(db, { kind: 'send_welcome' });
     await worker({}).runOnce();
     const [job] = await rows();
-    expect(job?.failedAt).not.toBeNull();
+    expect(job?.failedAt).toBeNull();
+    expect(job?.doneAt).toBeNull();
+    expect(job?.attempts).toBe(0);
     expect(job?.lastError).toMatch(/no handler/);
+    expect(await secondsFromNow('run_at', job!.id)).toBeGreaterThan(30);
+  });
+
+  it('restarts the attempt count when a pending job is re-armed', async () => {
+    await enqueue(db, { kind: 'edit_card', dedupKey: 'card:g:9' });
+    await db.update(jobs).set({ attempts: 7, lastError: 'boom' });
+    await enqueue(db, { kind: 'edit_card', dedupKey: 'card:g:9' });
+    const [job] = await rows();
+    expect(job).toMatchObject({ attempts: 0, lastError: null, doneAt: null });
+  });
+
+  it('processes jobs in the background until stopped', async () => {
+    const seen: number[] = [];
+    const w = new JobWorker({
+      db,
+      log,
+      workerId: 'loop',
+      pollMs: 20,
+      handlers: {
+        prune: async ({ job }) => {
+          seen.push(job.id);
+        },
+      },
+    });
+    w.start();
+    await enqueue(db, { kind: 'prune' });
+    const deadline = Date.now() + 5_000;
+    while (seen.length === 0 && Date.now() < deadline) await new Promise((r) => setTimeout(r, 20));
+    await w.stop();
+    expect(seen).toHaveLength(1);
+    await enqueue(db, { kind: 'prune' });
+    await new Promise((r) => setTimeout(r, 100));
+    expect(seen).toHaveLength(1);
   });
 
   it('skips a job leased by another worker until the lease expires', async () => {

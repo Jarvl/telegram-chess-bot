@@ -1,6 +1,5 @@
 import { computeClaims, type Colour, type GameDto } from '@group-chess/shared';
 import { eq, sql } from 'drizzle-orm';
-import { dbNow } from '../db/client';
 import { games, type GameRow } from '../db/schema';
 import type { Deps } from './deps';
 import { DomainError } from './errors';
@@ -27,7 +26,8 @@ type Input = { gameId: string; userId: number };
 
 export async function offerDraw(deps: Deps, input: Input): Promise<GameDto> {
   const dto = await deps.db.transaction(async (tx) => {
-    const { game, colour } = await lockActiveGame(tx, input.gameId, input.userId);
+    const { game, colour, ended } = await lockActiveGame(tx, input.gameId, input.userId);
+    if (ended) return loadGameDto(tx, game, input.userId);
     if (!canOfferDraw(game, colour)) {
       throw new DomainError('forbidden', 'a draw offer is not available now', {
         reason: 'draw_offer_unavailable',
@@ -60,9 +60,9 @@ function requireOpponentOffer(game: GameRow, colour: Colour): void {
 
 export async function acceptDraw(deps: Deps, input: Input): Promise<GameDto> {
   const dto = await deps.db.transaction(async (tx) => {
-    const { game, colour } = await lockActiveGame(tx, input.gameId, input.userId);
+    const { game, colour, now, ended } = await lockActiveGame(tx, input.gameId, input.userId);
+    if (ended) return loadGameDto(tx, game, input.userId);
     requireOpponentOffer(game, colour);
-    const now = await dbNow(tx);
     const end: EndInput = { result: '1/2-1/2', endReason: 'draw_agreement' };
     return loadGameDto(tx, await finishGame(tx, game, end, now), input.userId);
   });
@@ -72,7 +72,8 @@ export async function acceptDraw(deps: Deps, input: Input): Promise<GameDto> {
 
 export async function declineDraw(deps: Deps, input: Input): Promise<GameDto> {
   const dto = await deps.db.transaction(async (tx) => {
-    const { game, colour } = await lockActiveGame(tx, input.gameId, input.userId);
+    const { game, colour, ended } = await lockActiveGame(tx, input.gameId, input.userId);
+    if (ended) return loadGameDto(tx, game, input.userId);
     requireOpponentOffer(game, colour);
     const [updated] = await tx
       .update(games)
@@ -89,13 +90,13 @@ export async function declineDraw(deps: Deps, input: Input): Promise<GameDto> {
 /** Spec §7.1: a claim succeeds only when the arbiter reports the current position claimable. */
 export async function claimDraw(deps: Deps, input: Input): Promise<GameDto> {
   const dto = await deps.db.transaction(async (tx) => {
-    const { game } = await lockActiveGame(tx, input.gameId, input.userId);
+    const { game, now, ended } = await lockActiveGame(tx, input.gameId, input.userId);
+    if (ended) return loadGameDto(tx, game, input.userId);
     const claims = computeClaims(game.fen, positionKeys(await listMoves(tx, game.id)));
     let end: EndInput;
     if (claims.threefold) end = { result: '1/2-1/2', endReason: 'threefold_claim' };
     else if (claims.fiftyMove) end = { result: '1/2-1/2', endReason: 'fifty_move_claim' };
     else throw new DomainError('forbidden', 'no draw can be claimed here', { reason: 'no_claim' });
-    const now = await dbNow(tx);
     return loadGameDto(tx, await finishGame(tx, game, end, now), input.userId);
   });
   deps.bus.publish(input.gameId);

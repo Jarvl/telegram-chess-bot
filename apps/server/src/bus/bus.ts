@@ -28,7 +28,8 @@ export class LocalBus implements Bus {
     set.add(listener);
     return () => {
       set.delete(listener);
-      if (set.size === 0) this.listeners.delete(gameId);
+      // Only remove the set this closure owns; a stale second call must not evict newer subscribers.
+      if (set.size === 0 && this.listeners.get(gameId) === set) this.listeners.delete(gameId);
     };
   }
 }

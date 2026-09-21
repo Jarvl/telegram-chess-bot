@@ -1,4 +1,4 @@
-import { and, isNotNull, sql } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull, sql } from 'drizzle-orm';
 import type { DbOrTx } from '../../db/client';
 import { jobs, telegramUpdates } from '../../db/schema';
 import type { Deps } from '../../domain/deps';
@@ -9,7 +9,14 @@ const PRUNE_KEY = 'prune';
 const DAY_SECONDS = 86_400;
 
 /** Called at startup by the jobs role: makes sure one prune job is pending. */
+/** Arms the daily prune once; a prune already scheduled (by this or another replica) is left alone. */
 export async function ensurePruneScheduled(db: DbOrTx): Promise<void> {
+  const [pending] = await db
+    .select({ id: jobs.id })
+    .from(jobs)
+    .where(and(eq(jobs.dedupKey, PRUNE_KEY), isNull(jobs.doneAt)))
+    .limit(1);
+  if (pending) return;
   await enqueue(db, { kind: 'prune', dedupKey: PRUNE_KEY });
 }
 

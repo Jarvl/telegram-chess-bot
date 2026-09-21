@@ -8,6 +8,7 @@ import {
   createRematch,
   declineChallenge,
   expireChallenges,
+  setChallengeMessage,
 } from '../../src/domain/challenges';
 import { updateGroupSettings } from '../../src/domain/groups';
 import { blockUser, touchMember } from '../../src/domain/members';
@@ -174,6 +175,21 @@ describe('acceptChallenge', () => {
       ['edit_card', `card:g:${game.publicId}`],
       ['send_dm', `dm:${bob.id}:g:${game.publicId}:turn:0`],
     ]);
+  });
+
+  it('hands a late card message id to the game that was accepted before the card was sent', async () => {
+    const { group, alice, bob } = await setup();
+    const challenge = await direct(group.id, alice.id, bob.id);
+    const { game } = await acceptChallenge(deps, { challengeId: challenge.id, userId: bob.id });
+    expect(game.cardMessageId).toBeNull();
+
+    await setChallengeMessage(db, challenge.id, 901);
+    await setChallengeMessage(db, challenge.id, 902);
+
+    const [storedChallenge] = await db.select().from(challenges);
+    const [storedGame] = await db.select().from(games);
+    expect(storedChallenge?.messageId).toBe(902);
+    expect(storedGame?.cardMessageId).toBe(901);
   });
 
   it('gives a random colour to both players and no reminder without DMs', async () => {
