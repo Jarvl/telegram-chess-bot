@@ -1,0 +1,68 @@
+import { INITIAL_FEN } from '@group-chess/shared';
+import { describe, expect, it } from 'vitest';
+import { parsePlacement, renderBoardPng, renderBoardSvg } from '../../src/images/board';
+import { boardImageKey } from '../../src/images/cache';
+
+const AFTER_E4 = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1';
+/** Fool's mate: the white king on e1 is in check from h4. */
+const CHECK = 'rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3';
+const white = { lastMove: null, check: false, orientation: 'white' as const };
+
+describe('parsePlacement', () => {
+  it('reads the initial position into files and ranks', () => {
+    const pieces = parsePlacement(INITIAL_FEN);
+    expect(pieces).toHaveLength(32);
+    expect(pieces).toContainEqual({ file: 4, rank: 0, piece: 'wK' });
+    expect(pieces).toContainEqual({ file: 3, rank: 7, piece: 'bQ' });
+  });
+});
+
+describe('renderBoardSvg', () => {
+  it('draws 64 squares with a dark a1 and 32 pieces for the initial position', () => {
+    const svg = renderBoardSvg({ fen: INITIAL_FEN, ...white });
+    expect(svg.match(/<rect /g)).toHaveLength(64);
+    expect(svg).toContain('<rect x="0" y="700" width="100" height="100" fill="#b58863"/>');
+    expect(svg.match(/<g class="piece /g)).toHaveLength(32);
+    expect(svg).toContain('class="piece wK" transform="translate(400 700)');
+  });
+
+  it('highlights the last move squares and the checked king', () => {
+    const svg = renderBoardSvg({ fen: CHECK, lastMove: 'd8h4', check: true, orientation: 'white' });
+    expect(svg).toContain('<rect class="last-move" x="300" y="0"');
+    expect(svg).toContain('<rect class="last-move" x="700" y="400"');
+    expect(svg).toContain('<rect class="check" x="400" y="700"');
+  });
+
+  it('puts the sharer colour at the bottom', () => {
+    const svg = renderBoardSvg({
+      fen: AFTER_E4,
+      lastMove: 'e2e4',
+      check: false,
+      orientation: 'black',
+    });
+    expect(svg).toContain('class="piece wK" transform="translate(300 0)');
+    expect(svg).toContain('<rect class="last-move" x="300" y="300"');
+  });
+});
+
+describe('renderBoardPng', () => {
+  it('rasterises to a 1024 × 1024 PNG', () => {
+    const png = renderBoardPng(renderBoardSvg({ fen: INITIAL_FEN, ...white }));
+    expect([...png.subarray(0, 8)]).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    expect(png.readUInt32BE(16)).toBe(1024);
+    expect(png.readUInt32BE(20)).toBe(1024);
+  });
+});
+
+describe('boardImageKey', () => {
+  it('ignores the move counters and changes with orientation, highlight and check', () => {
+    const base = { fen: AFTER_E4, lastMove: 'e2e4', check: false, orientation: 'white' as const };
+    const sameBoard = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 5 9';
+    expect(boardImageKey(base)).toMatch(/^[0-9a-f]{64}$/);
+    expect(boardImageKey(base)).toBe(boardImageKey({ ...base, fen: sameBoard }));
+    expect(boardImageKey(base)).not.toBe(boardImageKey({ ...base, orientation: 'black' }));
+    expect(boardImageKey(base)).not.toBe(boardImageKey({ ...base, lastMove: null }));
+    expect(boardImageKey(base)).not.toBe(boardImageKey({ ...base, check: true }));
+    expect(boardImageKey(base)).not.toBe(boardImageKey(base, 'blue'));
+  });
+});

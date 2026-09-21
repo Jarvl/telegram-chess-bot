@@ -43,7 +43,7 @@ export type TelegramHandlerContext = { deps: Deps; api: TelegramApi; config: Con
 type CallResult<T> = { ok: true; value: T } | { ok: false; failure: TelegramFailure };
 
 /** Runs one Bot API call and applies the chat-level consequences of spec §11. */
-async function call<T>(
+export async function call<T>(
   ctx: TelegramHandlerContext,
   chatId: number | null,
   fn: () => Promise<T>,
@@ -81,7 +81,7 @@ export function telegramFailureOutcome(failure: TelegramFailure): JobResult | 't
   }
 }
 
-function settle(result: CallResult<unknown>): JobResult {
+export function settle(result: CallResult<unknown>): JobResult {
   if (result.ok) return { outcome: 'done' };
   const outcome = telegramFailureOutcome(result.failure);
   if (outcome === 'throw')

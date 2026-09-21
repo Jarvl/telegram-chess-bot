@@ -12,6 +12,8 @@ export type WorkerOptions = {
   batchSize?: number;
   leaseSeconds?: number;
   pollMs?: number;
+  /** Called when a job is failed permanently (explicit `fail` or exhausted attempts). */
+  onFailed?: (job: JobRow, error: string) => void;
 };
 
 type LeasedJob = JobRow & { runAtText: string };
@@ -163,6 +165,7 @@ export class JobWorker {
           .set({ failedAt: sql`now()`, doneAt: sql`now()`, lastError: outcome.error, ...unlock })
           .where(eq(jobs.id, job.id));
         log.error({ jobId: job.id, kind: job.kind, error: outcome.error }, 'job failed');
+        this.options.onFailed?.(job, outcome.error);
         return;
       case 'error': {
         const attempts = job.attempts + 1;
@@ -181,6 +184,7 @@ export class JobWorker {
             { jobId: job.id, kind: job.kind, error: outcome.error, attempts },
             'job exhausted',
           );
+          this.options.onFailed?.(job, outcome.error);
         } else {
           await db
             .update(jobs)

@@ -29,10 +29,11 @@ export class FakeTelegram {
         let body: Record<string, unknown> = {};
         const multipart = contentType.startsWith('multipart/form-data');
         if (multipart) {
+          // latin1 keeps the binary file part intact; text fields are converted back to UTF-8.
           const text = raw.toString('latin1');
           for (const match of text.matchAll(/name="([^"]+)"\r\n\r\n([^\r]*)\r\n/g))
-            body[match[1]!] = match[2];
-          if (/filename="/.test(text)) body.__file = true;
+            body[match[1]!] = Buffer.from(match[2]!, 'latin1').toString('utf8');
+          if (/filename=/.test(text)) body.__file = true;
         } else if (raw.length > 0) {
           body = JSON.parse(raw.toString('utf8')) as Record<string, unknown>;
         }

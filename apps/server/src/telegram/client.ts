@@ -1,6 +1,7 @@
 import { apiThrottler } from '@grammyjs/transformer-throttler';
 import { Api, GrammyError } from 'grammy';
 import type { Config } from '../config';
+import type { Metrics } from '../metrics';
 
 export type TelegramApi = Api;
 
@@ -56,4 +57,13 @@ export function classifyTelegramError(error: unknown): TelegramFailure | null {
     return { kind: 'chat_gone' };
   }
   return { kind: 'other', description };
+}
+/** Counts every Bot API call by method and status, and every 429 (spec §14). */
+export function instrumentTelegramApi(api: Api, metrics: Metrics): void {
+  api.config.use(async (prev, method, payload, signal) => {
+    const response = await prev(method, payload, signal);
+    metrics.telegramCalls.inc({ method, status: response.ok ? 'ok' : String(response.error_code) });
+    if (!response.ok && response.error_code === 429) metrics.telegram429.inc();
+    return response;
+  });
 }

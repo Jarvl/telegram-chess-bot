@@ -741,9 +741,11 @@ export class FakeTelegram {
         let body: Record<string, unknown> = {};
         const multipart = contentType.startsWith('multipart/form-data');
         if (multipart) {
+          // latin1 keeps the binary file part intact; text fields are converted back to UTF-8.
           const text = raw.toString('latin1');
-          for (const match of text.matchAll(/name="([^"]+)"\r\n\r\n([^\r]*)\r\n/g)) body[match[1]!] = match[2];
-          if (/filename="/.test(text)) body.__file = true;
+          for (const match of text.matchAll(/name="([^"]+)"\r\n\r\n([^\r]*)\r\n/g))
+            body[match[1]!] = Buffer.from(match[2]!, 'latin1').toString('utf8');
+          if (/filename=/.test(text)) body.__file = true;
         } else if (raw.length > 0) {
           body = JSON.parse(raw.toString('utf8')) as Record<string, unknown>;
         }
@@ -4263,7 +4265,7 @@ In `apps/server/test/helpers/api.ts` import `gameRoutes` from `../../src/api/rou
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `pnpm vitest run --project server apps/server/test/integration/api-games.test.ts`
-Expected: PASS — 12 tests.
+Expected: PASS — 11 tests.
 
 - [ ] **Step 5: Run the whole suite and the static checks**
 
@@ -4282,7 +4284,7 @@ git commit -m "feat(server): add the game, group, stream, sharing, PGN and admin
 
 **Files:**
 - Create: `scripts/vendor-pieces.mjs`, `apps/server/src/images/pieces.ts` (generated), `apps/server/src/images/ATTRIBUTION.md`, `apps/server/src/images/board.ts`, `apps/server/src/images/cache.ts`, `apps/server/src/jobs/handlers/sharePhoto.ts`, `apps/server/src/jobs/handlers/lichess.ts`, `apps/server/src/api/staticApp.ts`, `apps/server/src/main.ts`, `apps/server/src/index.ts`
-- Modify: `apps/server/package.json` (add `@resvg/resvg-js`, `chess.js`, `start` and `dev` scripts), `apps/server/src/jobs/handlers/telegram.ts` (export `call` and `settle`), `apps/server/src/jobs/handlers/index.ts` (re-export the new factories), `apps/server/src/jobs/worker.ts` (optional `onFailed` hook), `apps/server/src/telegram/client.ts` (`instrumentTelegramApi`), `apps/server/src/api/app.ts` (`Cache-Control` only when the handler set none), `.env.example`
+- Modify: `apps/server/package.json` (add `@resvg/resvg-js`, `chess.js`, `start` and `dev` scripts), `apps/server/src/jobs/handlers/telegram.ts` (export `call` and `settle`), `apps/server/src/jobs/handlers/index.ts` (re-export the new factories), `apps/server/src/jobs/worker.ts` (optional `onFailed` hook), `apps/server/src/telegram/client.ts` (`instrumentTelegramApi`), `apps/server/src/api/app.ts` (`Cache-Control` only when the handler set none), `eslint.config.js` (Node globals for plain scripts), `.env.example`
 - Test: `apps/server/test/unit/board.test.ts`, `apps/server/test/unit/staticApp.test.ts`, `apps/server/test/integration/share-photo.test.ts`, `apps/server/test/integration/lichess.test.ts`, `apps/server/test/integration/main.test.ts`
 
 **Interfaces:**
@@ -4734,7 +4736,8 @@ export function staticAppRoutes(dir: string, mountPath = '/app'): Hono {
     }
     c.header('Content-Type', type);
     c.header('Cache-Control', cache);
-    return c.body(body);
+    // A fresh Uint8Array: Hono's body type wants an ArrayBuffer-backed view, not a Node Buffer.
+    return c.body(new Uint8Array(body));
   });
   return app;
 }

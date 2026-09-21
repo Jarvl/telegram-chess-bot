@@ -35,7 +35,7 @@ export function createApiApp(ctx: ApiContext, extra: RegisterRoutes[] = []): Hon
 
   app.use('*', async (c, next) => {
     await next();
-    c.header('Cache-Control', 'no-store');
+    if (!c.res.headers.has('Cache-Control')) c.header('Cache-Control', 'no-store');
     c.header('X-Content-Type-Options', 'nosniff');
   });
 

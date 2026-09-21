@@ -17,5 +17,8 @@ export default defineConfig([
   {
     files: ['**/*.{js,mjs,cjs}'],
     extends: [js.configs.recommended],
+    languageOptions: {
+      globals: { console: 'readonly', fetch: 'readonly', process: 'readonly', URL: 'readonly' },
+    },
   },
 ]);
