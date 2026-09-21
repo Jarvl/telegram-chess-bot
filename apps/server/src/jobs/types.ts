@@ -23,6 +23,8 @@ export type JobResult =
   | { outcome: 'done' }
   /** Try again later without counting an attempt (Telegram 429, Lichess busy). */
   | { outcome: 'retry'; delayMs: number; error?: string }
+  /** Counts an attempt and waits `delayMs` instead of the default backoff; fails when exhausted. */
+  | { outcome: 'retry_attempt'; delayMs: number; error: string }
   | { outcome: 'fail'; error: string };
 
 export type JobContext = { job: JobRow; db: Db; log: Logger };

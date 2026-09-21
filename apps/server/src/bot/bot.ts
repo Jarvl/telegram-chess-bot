@@ -125,7 +125,8 @@ export async function createBot(deps: Deps, config: Config): Promise<Bot> {
     (kind: 'lobby' | 'settings') =>
     async (ctx: Context & { chat: GroupChat; msg: NonNullable<Context['msg']> }) => {
       if (!ctx.from || ctx.from.is_bot) return;
-      if (!linkLimiter.allow(`${kind}:${ctx.chat.id}`)) return;
+      // /chess and /settings share one link per group per minute (spec §7.8).
+      if (!linkLimiter.allow(`link:${ctx.chat.id}`)) return;
       const group = await ensureGroup(deps.db, chatInfo(ctx.chat));
       const user = await ensureUser(deps.db, userInfo(ctx.from));
       await touchMember(deps.db, group.id, user.id);

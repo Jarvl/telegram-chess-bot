@@ -1,4 +1,5 @@
 import {
+  analysisUrl,
   endReasonLabel,
   formatTimeLeft,
   isProvisional,
@@ -269,10 +270,7 @@ async function dmContent(
         : t('dm.game_end', params);
     const moves = game.plyCount > 0 ? await listMoves(deps.db, game.id) : [];
     const analysis =
-      game.lichessUrl ??
-      (moves.length > 0
-        ? (await import('@group-chess/shared')).analysisUrl(moves.map((m) => m.san))
-        : null);
+      game.lichessUrl ?? (moves.length > 0 ? analysisUrl(moves.map((m) => m.san)) : null);
     const buttons: InlineKeyboardButton[][] = [[openGame]];
     if (analysis && analysis.length <= 2000)
       buttons.push([{ text: t('button.analyse'), url: analysis }]);

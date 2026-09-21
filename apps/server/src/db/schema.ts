@@ -260,6 +260,8 @@ export const jobs = pgTable(
 export const telegramUpdates = pgTable('telegram_updates', {
   updateId: bigint({ mode: 'number' }).primaryKey(),
   receivedAt: tz().notNull().defaultNow(),
+  /** Set when the handler finished; a stale row without it is an attempt that died and runs again. */
+  processedAt: tz(),
 });
 
 export const adminActions = pgTable('admin_actions', {

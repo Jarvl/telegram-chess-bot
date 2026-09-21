@@ -22,6 +22,8 @@ export type LichessHandlerContext = {
 
 const DEFAULT_SPACING_MS = 2_000;
 const DEFAULT_PAUSE_MS = 60_000;
+/** Spec §7.6: up to 8 attempts over 24 h, so three hours between attempts. */
+const RETRY_SPACING_MS = 3 * 3_600_000;
 
 /** "Only make one request at a time", spaced out, with a pause after a 429 (spec §7.6). Per process. */
 export class LichessPacer {
@@ -53,7 +55,10 @@ export class LichessPacer {
 const payloadSchema = z.object({ gameId: z.number().int() });
 const importResponse = z.object({ url: z.url() });
 
-/** Counts an attempt; on the last one the game is marked failed so the card keeps the fallback link. */
+/**
+ * Counts an attempt three hours apart (spec §7.6: eight over 24 h); on the last one the game is
+ * marked failed so the card keeps the fallback link.
+ */
 async function failed(
   ctx: LichessHandlerContext,
   job: { attempts: number; maxAttempts: number },
@@ -68,7 +73,7 @@ async function failed(
     ctx.metrics?.lichessImports.inc({ outcome: 'failed' });
     return { outcome: 'fail', error };
   }
-  throw new Error(error);
+  return { outcome: 'retry_attempt', delayMs: RETRY_SPACING_MS, error };
 }
 
 const lichessImport =
@@ -104,9 +109,10 @@ const lichessImport =
     }
     pacer.end();
     if (response.status === 429) {
+      // The kind pauses for a minute; the job itself counts the attempt like any other failure.
       pacer.pause(pauseMs);
       ctx.metrics?.lichessImports.inc({ outcome: 'rate_limited' });
-      return { outcome: 'retry', delayMs: pauseMs, error: 'lichess 429' };
+      return failed(ctx, job, game.id, 'lichess 429');
     }
     if (!response.ok) return failed(ctx, job, game.id, `lichess HTTP ${response.status}`);
     const parsed = importResponse.safeParse(await response.json().catch(() => null));

@@ -1,4 +1,4 @@
-import { PublicIdSchema } from '@group-chess/shared';
+import { PublicIdSchema, UserIdSchema } from '@group-chess/shared';
 import type { Context, MiddlewareHandler } from 'hono';
 import { DomainError } from '../domain/errors';
 import { getUserById } from '../domain/users';
@@ -28,6 +28,13 @@ export function userRateLimit(ctx: ApiContext): MiddlewareHandler<ApiEnv> {
       throw new DomainError('rate_limited', 'too many requests');
     await next();
   };
+}
+
+/** A user id path parameter; a malformed one is an unknown resource, never a 500. */
+export function userIdParam(c: Context, name: string): number {
+  const parsed = UserIdSchema.safeParse(c.req.param(name));
+  if (!parsed.success) throw new DomainError('not_found', `unknown ${name}`);
+  return Number(parsed.data);
 }
 
 export function publicIdParam(c: Context, name: string): string {

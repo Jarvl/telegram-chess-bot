@@ -1,7 +1,7 @@
 import { LaunchResponseSchema, LobbyDtoSchema } from '@group-chess/shared';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { challenges, games, users } from '../../src/db/schema';
+import { challenges, games, groupMembers, users } from '../../src/db/schema';
 import { touchMember } from '../../src/domain/members';
 import { startTestApi, type TestApi } from '../helpers/api';
 import { openTestDb, truncateAll } from '../helpers/db';
@@ -88,6 +88,8 @@ describe('POST /api/launch', () => {
       group: { id: group.publicId, title: group.title },
     });
     api.fake.members.set(33, 'member');
+    // The denial is cached for a minute; pretend that minute has passed.
+    await db.update(groupMembers).set({ verifiedAt: sql`now() - interval '2 minutes'` });
     const asMember = LaunchResponseSchema.parse(
       await (await launch({ user: stranger, startParam: `g_${game.publicId}` })).json(),
     );

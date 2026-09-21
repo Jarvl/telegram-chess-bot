@@ -54,6 +54,18 @@ describe('startServer', () => {
     const text = await (await fetch(`${base}/metrics`)).text();
     expect(text).toContain('process_cpu_seconds_total');
     expect(text).toMatch(/telegram_api_calls_total\{method="setWebhook",status="ok"\} 1/);
+    for (const name of [
+      'webhook_updates_total',
+      'jobs_pending',
+      'jobs_oldest_age_seconds',
+      'scanner_lag_seconds',
+      'games_started_total',
+      'shares_total',
+      'active_groups',
+      'move_latency_seconds',
+    ]) {
+      expect(text).toContain(name);
+    }
   });
 
   it('serves the Mini App with immutable assets and an uncached index', async () => {

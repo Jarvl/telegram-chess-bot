@@ -8,10 +8,11 @@ export type TelegramApi = Api;
 /** One outbound client per process; the throttler implements Telegram's published limits (spec §5.8). */
 export function createTelegramApi(
   config: Pick<Config, 'BOT_TOKEN'>,
-  options: { apiRoot?: string } = {},
+  options: { apiRoot?: string; throttle?: boolean } = {},
 ): Api {
   const api = new Api(config.BOT_TOKEN, options.apiRoot ? { apiRoot: options.apiRoot } : {});
-  api.config.use(apiThrottler());
+  // Read-only lookups (getChatMember, getChatAdministrators) must not queue behind message pacing.
+  if (options.throttle !== false) api.config.use(apiThrottler());
   return api;
 }
 

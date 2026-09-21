@@ -1,8 +1,4 @@
-import {
-  BlockRequestSchema,
-  GroupSettingsUpdateRequestSchema,
-  UserIdSchema,
-} from '@group-chess/shared';
+import { BlockRequestSchema, GroupSettingsUpdateRequestSchema } from '@group-chess/shared';
 import type { Context, Hono } from 'hono';
 import {
   adminBlock,
@@ -14,7 +10,7 @@ import { requireGameByPublicId, voidGame } from '../../domain/games';
 import { requireGroup, requireGroupByPublicId } from '../../domain/groups';
 import { requireAdmin } from '../access';
 import type { ApiContext, ApiEnv } from '../context';
-import { publicIdParam } from '../middleware';
+import { publicIdParam, userIdParam } from '../middleware';
 import { validate } from '../validate';
 
 /** Spec §7.11/§12: every read and write re-checks admin rights through the cached ladder. */
@@ -46,12 +42,7 @@ export function adminRoutes(api: Hono<ApiEnv>, ctx: ApiContext): void {
 
   api.delete('/groups/:g/blocks/:u', async (c) => {
     const group = await adminGroup(c);
-    await adminUnblock(
-      ctx.deps,
-      group,
-      c.get('user').id,
-      Number(UserIdSchema.parse(c.req.param('u'))),
-    );
+    await adminUnblock(ctx.deps, group, c.get('user').id, userIdParam(c, 'u'));
     return c.json({ ok: true });
   });
 

@@ -4,6 +4,8 @@ import { getMember, markLeft, touchMember } from '../domain/members';
 import type { TelegramApi } from './client';
 
 const VERDICT_TTL_MS = 10 * 60_000;
+/** A denial is cached briefly: enough to stop a request flood, short enough that a user who was just added is not locked out. */
+const DENIAL_TTL_MS = 60_000;
 const ADMIN_TTL_MS = 60_000;
 
 /** The verification ladder of spec §5.6 and the admin check used on every settings request. */
@@ -26,8 +28,9 @@ export class Membership {
   async verify(group: GroupRow, user: UserRow): Promise<boolean> {
     if (user.deletedAt || user.telegramUserId === null) return false;
     const member = await getMember(this.deps.db, group.id, user.id);
-    if (member?.verifiedAt && Date.now() - member.verifiedAt.getTime() < VERDICT_TTL_MS) {
-      return member.status === 'member';
+    if (member?.verifiedAt) {
+      const ttl = member.status === 'member' ? VERDICT_TTL_MS : DENIAL_TTL_MS;
+      if (Date.now() - member.verifiedAt.getTime() < ttl) return member.status === 'member';
     }
     try {
       const result = await this.api.getChatMember(group.telegramChatId, user.telegramUserId);
@@ -40,7 +43,7 @@ export class Membership {
         await touchMember(this.deps.db, group.id, user.id, { verified: true });
         return true;
       }
-      await markLeft(this.deps.db, group.id, user.id);
+      await markLeft(this.deps.db, group.id, user.id, { verified: true });
       return false;
     } catch (error) {
       this.deps.log.debug(

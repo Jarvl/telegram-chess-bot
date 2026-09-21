@@ -100,6 +100,25 @@ describe('JobWorker', () => {
     expect(job?.doneAt).not.toBeNull();
   });
 
+  it('counts an attempt and waits the requested delay on retry_attempt, failing when exhausted', async () => {
+    await enqueue(db, { kind: 'lichess_import' });
+    const w = worker({
+      lichess_import: async () => ({ outcome: 'retry_attempt', delayMs: 3_600_000, error: 'busy' }),
+    });
+    await w.runOnce();
+    let [job] = await rows();
+    expect(job).toMatchObject({ attempts: 1, lastError: 'busy', doneAt: null, failedAt: null });
+    expect(await secondsFromNow('run_at', job!.id)).toBeGreaterThan(3_500);
+    await db
+      .update(jobs)
+      .set({ attempts: 7, runAt: sql`now()` })
+      .where(eq(jobs.id, job!.id));
+    await w.runOnce();
+    [job] = await rows();
+    expect(job?.attempts).toBe(8);
+    expect(job?.failedAt).not.toBeNull();
+  });
+
   it('honours a handler-requested retry without counting an attempt', async () => {
     await enqueue(db, { kind: 'lichess_import' });
     await worker({

@@ -137,7 +137,7 @@ describe('lichess_import', () => {
     expect(lichess.requests[0]?.headers.authorization).toBeUndefined();
   });
 
-  it('pauses a minute after a 429 without counting an attempt, and holds other imports meanwhile', async () => {
+  it('counts a 429 as an attempt, retries hours later and holds other imports for a minute', async () => {
     const first = await finishedGame();
     const second = await finishedGame();
     await importJob(first.id, first.publicId);
@@ -145,10 +145,10 @@ describe('lichess_import', () => {
     const worker = workerWith();
     await worker.runOnce();
     const [job] = await jobRows();
-    expect(job?.attempts).toBe(0);
+    expect(job?.attempts).toBe(1);
     expect(job?.doneAt).toBeNull();
     expect(job?.lastError).toBe('lichess 429');
-    expect(job!.runAt.getTime()).toBeGreaterThan(Date.now() + 50_000);
+    expect(job!.runAt.getTime()).toBeGreaterThan(Date.now() + 2 * 3_600_000);
     expect((await gameRow(first.id)).lichessImportStatus).toBe('pending');
 
     await importJob(second.id, second.publicId);
@@ -182,6 +182,7 @@ describe('lichess_import', () => {
     expect(job?.attempts).toBe(1);
     expect(job?.doneAt).toBeNull();
     expect(job?.lastError).toBe('lichess HTTP 500');
+    expect(job!.runAt.getTime()).toBeGreaterThan(Date.now() + 2 * 3_600_000);
     expect((await gameRow(game.id)).lichessImportStatus).toBe('pending');
   });
 
@@ -198,6 +199,22 @@ describe('lichess_import', () => {
     const [job] = await jobRows();
     expect(job?.failedAt).not.toBeNull();
     expect(job?.lastError).toBe('lichess HTTP 503');
+    expect((await gameRow(game.id)).lichessImportStatus).toBe('failed');
+  });
+
+  it('marks the game failed after the eighth rate limit', async () => {
+    const game = await finishedGame();
+    await db.insert(jobs).values({
+      kind: 'lichess_import',
+      payload: { gameId: game.id },
+      attempts: 7,
+      maxAttempts: 8,
+    });
+    lichess.failNext(429);
+    await workerWith().runOnce();
+    const [job] = await jobRows();
+    expect(job?.failedAt).not.toBeNull();
+    expect(job?.lastError).toBe('lichess 429');
     expect((await gameRow(game.id)).lichessImportStatus).toBe('failed');
   });
 

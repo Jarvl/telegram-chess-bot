@@ -265,6 +265,8 @@ describe('GET /api/games/:id/events', () => {
     );
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toContain('text/event-stream');
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    expect(res.headers.get('x-accel-buffering')).toBe('no');
     const reader = res.body!.getReader();
     const decoder = new TextDecoder();
     const first = decoder.decode((await reader.read()).value);
@@ -381,5 +383,19 @@ describe('unknown ids', () => {
     );
     const [row] = await db.execute(sql`select 1 as one`);
     expect(row?.one).toBe(1);
+  });
+
+  it('answers 404, not 500, for a malformed user id in a path', async () => {
+    const { group, tokens } = await world();
+    api.fake.admins = [33];
+    const player = await api.request('GET', `/api/groups/${group.publicId}/players/abc`, {
+      token: tokens.alice,
+    });
+    expect(player.status).toBe(404);
+    const unblock = await api.request('DELETE', `/api/groups/${group.publicId}/blocks/abc`, {
+      token: tokens.carol,
+    });
+    expect(unblock.status).toBe(404);
+    expect(await unblock.json()).toMatchObject({ error: { code: 'not_found' } });
   });
 });

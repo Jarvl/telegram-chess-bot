@@ -167,6 +167,7 @@ export class JobWorker {
         log.error({ jobId: job.id, kind: job.kind, error: outcome.error }, 'job failed');
         this.options.onFailed?.(job, outcome.error);
         return;
+      case 'retry_attempt':
       case 'error': {
         const attempts = job.attempts + 1;
         if (attempts >= job.maxAttempts) {
@@ -190,7 +191,11 @@ export class JobWorker {
             .update(jobs)
             .set({
               attempts,
-              runAt: sql`now() + make_interval(secs => ${backoffSeconds(job.attempts)})`,
+              runAt: sql`now() + make_interval(secs => ${
+                outcome.outcome === 'retry_attempt'
+                  ? outcome.delayMs / 1000
+                  : backoffSeconds(job.attempts)
+              })`,
               lastError: outcome.error,
               ...unlock,
             })

@@ -55,12 +55,18 @@ export async function startServer(config: Config): Promise<RunningServer> {
   await runMigrations(config.DATABASE_URL);
   const { db, close } = createDb(config.DATABASE_URL);
   const deps: Deps = { db, bus: new LocalBus(), log };
-  const metrics = new Metrics();
+  const metrics = new Metrics({ db });
 
   const bot: Bot | null = has('bot') ? await createBot(deps, config) : null;
   const api = bot ? bot.api : createTelegramApi(config, { apiRoot: config.TELEGRAM_API_ROOT });
   instrumentTelegramApi(api, metrics);
-  const membership = new Membership(deps, api);
+  // Membership lookups get their own client without the message throttler (spec §4.3, §5.8).
+  const lookupApi = createTelegramApi(config, {
+    apiRoot: config.TELEGRAM_API_ROOT,
+    throttle: false,
+  });
+  instrumentTelegramApi(lookupApi, metrics);
+  const membership = new Membership(deps, lookupApi);
   const apiCtx: ApiContext = {
     deps,
     config,
@@ -71,7 +77,7 @@ export async function startServer(config: Config): Promise<RunningServer> {
   };
 
   const app = createApiApp(apiCtx, has('api') ? gameRoutes : []);
-  if (bot && !config.TELEGRAM_POLLING) app.route('/', webhookRoutes(bot, deps, config));
+  if (bot && !config.TELEGRAM_POLLING) app.route('/', webhookRoutes(bot, deps, config, metrics));
   if (config.MINI_APP_DIR) app.route('/app', staticAppRoutes(config.MINI_APP_DIR));
   const server = await listen(app, config.PORT);
   const port = (server.address() as { port: number }).port;

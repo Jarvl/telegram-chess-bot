@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import type { Bot } from 'grammy';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -15,6 +15,7 @@ import {
 } from '../../src/db/schema';
 import { updateGroupSettings } from '../../src/domain/groups';
 import { touchMember } from '../../src/domain/members';
+import { Metrics } from '../../src/metrics';
 import { testConfig } from '../helpers/config';
 import { openTestDb, testDeps, truncateAll } from '../helpers/db';
 import { FakeTelegram } from '../helpers/fakeTelegram';
@@ -35,6 +36,7 @@ const deps = testDeps(db);
 let fake: FakeTelegram;
 let bot: Bot;
 let app: Hono;
+const metrics = new Metrics();
 const config = testConfig();
 
 const chat = supergroup(-1001000000001);
@@ -45,7 +47,7 @@ const carol = tgUser(33, 'Carol', 'carol');
 beforeAll(async () => {
   fake = await FakeTelegram.start();
   bot = await createBot(deps, { ...config, TELEGRAM_API_ROOT: fake.url });
-  app = new Hono().route('/', webhookRoutes(bot, deps, config));
+  app = new Hono().route('/', webhookRoutes(bot, deps, config, metrics));
 });
 beforeEach(async () => {
   await truncateAll(db);
@@ -89,6 +91,23 @@ describe('webhook', () => {
     expect((await db.select().from(telegramUpdates)).map((row) => row.updateId)).toEqual([
       update.update_id,
     ]);
+    expect((await db.select().from(telegramUpdates))[0]?.processedAt).not.toBeNull();
+    expect(await metrics.render()).toMatch(/webhook_updates_total\{type="message"\} \d+/);
+  });
+
+  it('reprocesses an update whose earlier attempt never finished, but not one still in flight', async () => {
+    const update = commandUpdate({ chat, from: alice, text: '/play', replyTo: { from: bob } });
+    await db.insert(telegramUpdates).values({ updateId: update.update_id });
+    expect((await post(update)).status).toBe(200);
+    expect(await db.select().from(challenges)).toHaveLength(0);
+
+    await db
+      .update(telegramUpdates)
+      .set({ receivedAt: sql`now() - interval '2 minutes'` })
+      .where(eq(telegramUpdates.updateId, update.update_id));
+    expect((await post(update)).status).toBe(200);
+    expect(await db.select().from(challenges)).toHaveLength(1);
+    expect((await db.select().from(telegramUpdates))[0]?.processedAt).not.toBeNull();
   });
 });
 
@@ -167,9 +186,10 @@ describe('/play', () => {
 });
 
 describe('/chess, /settings and /start', () => {
-  it('posts an Open Chess button once per group per minute', async () => {
+  it('posts an Open Chess button once per group per minute, sharing the budget with /settings', async () => {
     await post(commandUpdate({ chat, from: alice, text: '/chess' }));
     await post(commandUpdate({ chat, from: bob, text: '/chess' }));
+    await post(commandUpdate({ chat, from: bob, text: '/settings' }));
     const [group] = await db.select().from(groups);
     const sent = await messagesSent();
     expect(sent).toHaveLength(1);
@@ -185,7 +205,8 @@ describe('/chess, /settings and /start', () => {
   });
 
   it('posts an Open settings button', async () => {
-    await post(commandUpdate({ chat, from: alice, text: '/settings' }));
+    const other = supergroup(-1001000000077);
+    await post(commandUpdate({ chat: other, from: alice, text: '/settings' }));
     const [group] = await db.select().from(groups);
     expect((await messagesSent())[0]).toMatchObject({
       buttons: [

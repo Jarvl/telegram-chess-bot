@@ -21,11 +21,21 @@ export async function touchMember(
     });
 }
 
-export async function markLeft(tx: DbOrTx, groupId: number, userId: number): Promise<void> {
+/** `verified` records that the verdict came from Telegram, so a denial is cached like a grant. */
+export async function markLeft(
+  tx: DbOrTx,
+  groupId: number,
+  userId: number,
+  options: { verified?: boolean } = {},
+): Promise<void> {
+  const verified = options.verified ? { verifiedAt: sql`now()` } : {};
   await tx
-    .update(groupMembers)
-    .set({ status: 'left' })
-    .where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.userId, userId)));
+    .insert(groupMembers)
+    .values({ groupId, userId, status: 'left', ...verified })
+    .onConflictDoUpdate({
+      target: [groupMembers.groupId, groupMembers.userId],
+      set: { status: 'left', ...verified },
+    });
 }
 
 export async function getMember(

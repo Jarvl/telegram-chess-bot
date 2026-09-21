@@ -20,6 +20,7 @@ export function eventsRoutes(api: Hono<ApiEnv>, ctx: ApiContext): void {
     const lastEventId = Number(c.req.header('last-event-id') ?? Number.NaN);
     c.header('X-Accel-Buffering', 'no');
     ctx.metrics.sseStreams.inc();
+    if (Number.isFinite(lastEventId)) ctx.metrics.sseReconnects.inc();
     let released = false;
     const release = () => {
       if (released) return;
@@ -27,7 +28,7 @@ export function eventsRoutes(api: Hono<ApiEnv>, ctx: ApiContext): void {
       ctx.streams.release(user.id);
       ctx.metrics.sseStreams.dec();
     };
-    return streamSSE(
+    const response = streamSSE(
       c,
       async (stream) => {
         let chain = Promise.resolve();
@@ -64,5 +65,8 @@ export function eventsRoutes(api: Hono<ApiEnv>, ctx: ApiContext): void {
         release();
       },
     );
+    // Hono's helper sets no-cache; spec §9 wants no-store on every response.
+    response.headers.set('Cache-Control', 'no-store');
+    return response;
   });
 }

@@ -21,7 +21,9 @@ export async function resolveLaunchRoute(
     if (!colourOf(game, user.id) && !(await ctx.membership.verify(group, user))) {
       return { kind: 'locked', group: { id: group.publicId, title: group.title } };
     }
-    return { kind: 'game', game: await loadGameDto(db, game, user.id) };
+    const dto = await loadGameDto(db, game, user.id);
+    ctx.metrics.gameOpens.inc({ role: dto.viewerRole });
+    return { kind: 'game', game: dto };
   }
   const group = await requireGroupByPublicId(db, param.groupId);
   if (!(await ctx.membership.verify(group, user)))

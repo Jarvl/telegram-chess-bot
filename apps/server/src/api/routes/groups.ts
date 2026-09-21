@@ -1,7 +1,6 @@
 import {
   ChallengeRequestSchema,
   FinishedQuerySchema,
-  UserIdSchema,
   type PlayersPickerDto,
 } from '@group-chess/shared';
 import { eq } from 'drizzle-orm';
@@ -15,7 +14,7 @@ import { getLeaderboard } from '../../domain/ratings';
 import { challengeDtoRows, challengeToDto } from '../../domain/summaries';
 import { requireMember } from '../access';
 import type { ApiContext, ApiEnv } from '../context';
-import { publicIdParam } from '../middleware';
+import { publicIdParam, userIdParam } from '../middleware';
 import { validate } from '../validate';
 
 export function groupsRoutes(api: Hono<ApiEnv>, ctx: ApiContext): void {
@@ -49,8 +48,8 @@ export function groupsRoutes(api: Hono<ApiEnv>, ctx: ApiContext): void {
 
   api.get('/groups/:g/players/:u', async (c) => {
     const group = await memberGroup(c);
-    const userId = UserIdSchema.parse(c.req.param('u'));
-    return c.json(await playerPage(ctx.deps, group.id, c.get('user').id, Number(userId)));
+    const userId = userIdParam(c, 'u');
+    return c.json(await playerPage(ctx.deps, group.id, c.get('user').id, userId));
   });
 
   api.get('/groups/:g/finished', validate('query', FinishedQuerySchema), async (c) => {

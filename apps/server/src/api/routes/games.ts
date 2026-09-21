@@ -30,15 +30,21 @@ export function gamesRoutes(api: Hono<ApiEnv>, ctx: ApiContext): void {
   const gameId = (c: Ctx) => publicIdParam(c, 'id');
   const userId = (c: Ctx) => c.get('user').id;
 
-  api.get('/games/:id', async (c) => c.json(await loadGameDto(db, await accessible(c), userId(c))));
+  api.get('/games/:id', async (c) => {
+    const dto = await loadGameDto(db, await accessible(c), userId(c));
+    ctx.metrics.gameOpens.inc({ role: dto.viewerRole });
+    return c.json(dto);
+  });
 
   api.post('/games/:id/moves', validate('json', MoveRequestSchema), async (c) => {
+    const started = performance.now();
     const dto = await playMove(ctx.deps, {
       gameId: gameId(c),
       userId: userId(c),
       ...c.req.valid('json'),
     });
     ctx.metrics.movesTotal.inc();
+    ctx.metrics.moveLatency.observe((performance.now() - started) / 1000);
     if (dto.status === 'finished' && dto.endReason)
       ctx.metrics.gamesFinished.inc({ end_reason: dto.endReason });
     return c.json(dto);

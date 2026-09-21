@@ -1,6 +1,4 @@
-import { eq } from 'drizzle-orm';
 import type { Context, Hono } from 'hono';
-import { challenges } from '../../db/schema';
 import {
   acceptChallenge,
   cancelChallenge,
@@ -43,7 +41,4 @@ export function challengeRoutes(api: Hono<ApiEnv>, ctx: ApiContext): void {
     await cancelChallenge(ctx.deps, { challengeId: challenge.id, userId: c.get('user').id });
     return c.json({ ok: true });
   });
-
-  void challenges;
-  void eq;
 }
