@@ -666,6 +666,7 @@ Logs are JSON (pino) with numeric and public ids only; bound query parameters ar
 - One process holds the per-user API limiter and the Lichess pacing; a second replica doubles both.
 - `/api/launch` has no pre-session rate limit; put one on the proxy if a flood of forged launch data ever matters (each attempt costs two HMAC rounds).
 - The membership verdict cache is per user and group (10 minutes for a grant, 1 minute for a denial); a user added to a group sees it within a minute.
+- Mini App launch failures are counted on the server (`miniapp_load_errors_total` rises when `POST /api/launch` fails); a launch that never reaches the API (Telegram's script failing to load) leaves no trace, because telemetry needs a session.
 ```
 
 - [ ] **Step 3: Tidy the environment example and check the links**
