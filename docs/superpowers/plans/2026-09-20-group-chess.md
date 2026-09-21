@@ -20,7 +20,7 @@ The spec covers several subsystems, each of which produces working, testable sof
 | 2 | [2026-09-20-group-chess-02-server-core.md](2026-09-20-group-chess-02-server-core.md) | `apps/server` skeleton: config, logging, Drizzle schema and migrations, public id generator, domain transactions (challenges, games, ratings, void rebuild), jobs outbox worker, clock scanners, local bus | vitest unit and integration tests on a real PostgreSQL |
 | 3 | [2026-09-20-group-chess-03-server-telegram-api.md](2026-09-20-group-chess-03-server-telegram-api.md) | Telegram outbound client and pacing, card renderer, grammY handlers and webhook, membership ladder, Hono API (launch auth, lobby, games, SSE, sharing, prefs, admin, delete-my-data), Lichess import, board images, DMs, metrics and health, static Mini App serving | vitest integration tests against a fake Bot API server |
 | 4 | [2026-09-20-group-chess-04-miniapp.md](2026-09-20-group-chess-04-miniapp.md) | `apps/miniapp`: Telegram wrapper, API and SSE client, board adapter, move state machine, routes (groups, lobby, new game, game, replay, players, settings, group settings), theme, haptics, version fallbacks | vitest unit tests and Playwright end-to-end tests with a fake `window.Telegram.WebApp` |
-| 5 | 2026-09-20-group-chess-05-delivery.md | Dockerfile, CI end-to-end and bundle-size jobs, release workflow, README, BotFather and deployment checklist | CI runs |
+| 5 | [2026-09-20-group-chess-05-delivery.md](2026-09-20-group-chess-05-delivery.md) | Dockerfile, CI end-to-end and bundle-size jobs, release workflow, README, BotFather and deployment checklist | CI runs |
 
 Plans 2 to 5 are written after the plan before them has been executed, so that they name the interfaces that actually exist.
 
