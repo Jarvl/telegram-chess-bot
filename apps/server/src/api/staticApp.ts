@@ -21,6 +21,9 @@ const TYPES: Record<string, string> = {
 
 const IMMUTABLE = 'public, max-age=31536000, immutable';
 const SHORT = 'public, max-age=300';
+/** Spec §12: no third-party scripts, fonts or analytics; chessground needs inline styles. */
+export const APP_CSP =
+  "default-src 'self'; script-src 'self' https://telegram.org; connect-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'";
 
 async function fileAt(path: string): Promise<Buffer | null> {
   try {
@@ -66,6 +69,7 @@ export function staticAppRoutes(dir: string, mountPath = '/app'): Hono {
     }
     c.header('Content-Type', type);
     c.header('Cache-Control', cache);
+    if (type === TYPES['.html']) c.header('Content-Security-Policy', APP_CSP);
     // A fresh Uint8Array: Hono's body type wants an ArrayBuffer-backed view, not a Node Buffer.
     return c.body(new Uint8Array(body));
   });

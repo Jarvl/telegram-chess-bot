@@ -5228,12 +5228,17 @@ class ChessgroundAdapter implements BoardAdapter {
 
   setPosition(position: BoardPosition): void {
     this.position = position;
+    // chessground drops `movable.dests` after a user move; a restored position brings them back.
     this.api.set({
       fen: position.fen,
       orientation: position.orientation,
       turnColor: position.turnColour,
       lastMove: position.lastMove ? (position.lastMove as [Key, Key]) : undefined,
       check: position.check,
+      movable: {
+        color: this.movable.colour === 'none' ? undefined : this.movable.colour,
+        dests: toDests(this.movable.dests),
+      },
     });
   }
 
@@ -6166,13 +6171,31 @@ export default defineConfig({
 
 ```ts
 import { expect, type Page } from '@playwright/test';
-import { signInitData } from '../../server/test/helpers/initData';
+import { createHmac } from 'node:crypto';
 import { installFakeWebApp, type FakeWebAppOptions, type FakeWebAppRecord } from '../test/support/fakeWebApp';
 
 export const BOT_TOKEN = '123456:TEST-TOKEN';
 export const HARNESS = 'http://127.0.0.1:4181';
 
 export type TelegramUser = { id: number; first_name: string; username: string };
+
+/** Signs init data the way Telegram does: the same recipe as the server's test helper, kept local so this project stays self-contained. */
+export function signInitData(
+  botToken: string,
+  fields: { user: TelegramUser; startParam?: string },
+): string {
+  const params = new URLSearchParams();
+  params.set('user', JSON.stringify(fields.user));
+  params.set('auth_date', String(Math.floor(Date.now() / 1000)));
+  if (fields.startParam) params.set('start_param', fields.startParam);
+  const dataCheckString = [...params.entries()]
+    .map(([key, value]) => `${key}=${value}`)
+    .sort()
+    .join('\n');
+  const secret = createHmac('sha256', 'WebAppData').update(botToken).digest();
+  params.set('hash', createHmac('sha256', secret).update(dataCheckString).digest('hex'));
+  return params.toString();
+}
 export type Seed = {
   group: { id: number; publicId: string };
   users: Record<'alice' | 'bob' | 'carol', { id: number; telegram: TelegramUser }>;
@@ -6314,7 +6337,10 @@ test('confirms or cancels a move', async ({ page }) => {
   expect((await harnessGame(world.game!.publicId)).plyCount).toBe(0);
   await expect.poll(async () => (await tgState(page)).mainButton.visible).toBe(false);
   await tapMove(page, 'e2', 'e4');
-  await expect.poll(async () => (await tgState(page)).mainButton.text).toBe('Confirm');
+  // The hidden button keeps its old text, so wait for it to show again before confirming.
+  await expect
+    .poll(async () => (await tgState(page)).mainButton)
+    .toMatchObject({ text: 'Confirm', visible: true });
   await clickMain(page);
   await expect.poll(async () => (await harnessGame(world.game!.publicId)).plyCount).toBe(1);
   await expect.poll(async () => (await tgState(page)).mainButton.visible).toBe(false);

@@ -10,7 +10,8 @@ export function requireSession(ctx: ApiContext): MiddlewareHandler<ApiEnv> {
   return async (c, next) => {
     const header = c.req.header('authorization');
     const bearer = header?.startsWith('Bearer ') ? header.slice(7).trim() : null;
-    const queryToken = c.req.path.endsWith('/events') ? (c.req.query('token') ?? null) : null;
+    const tokenInQuery = /\/(events|pgn)$/.test(c.req.path);
+    const queryToken = tokenInQuery ? (c.req.query('token') ?? null) : null;
     const token = bearer ?? queryToken;
     if (!token) throw new DomainError('unauthorized', 'missing session');
     const userId = await verifySessionToken(ctx.config.SESSION_SECRET, token);

@@ -244,6 +244,20 @@ describe('games', () => {
       challenger: { id: String(bob.id) },
     });
   });
+
+  it('serves the PGN with a query token for downloads', async () => {
+    const { group, alice, bob, tokens } = await world();
+    const game = await insertGame(db, group.id, alice.id, bob.id, {
+      status: 'finished',
+      result: '1-0',
+      endReason: 'resignation',
+      finishedAt: new Date(),
+    });
+    const res = await api.request('GET', `/api/games/${game.publicId}/pgn?token=${tokens.carol}`);
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain('[Result "1-0"]');
+    expect((await api.request('GET', `/api/games/${game.publicId}/pgn`)).status).toBe(401);
+  });
 });
 
 describe('GET /api/games/:id/events', () => {

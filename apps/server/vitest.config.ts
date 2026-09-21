@@ -11,6 +11,7 @@ export default defineConfig({
   test: {
     name: 'server',
     include: hasDatabase ? ['test/**/*.test.ts'] : ['test/unit/**/*.test.ts'],
+    exclude: ['test/e2e/**', '**/node_modules/**'],
     globalSetup: hasDatabase ? ['test/helpers/globalSetup.ts'] : [],
     fileParallelism: false,
     testTimeout: 20_000,

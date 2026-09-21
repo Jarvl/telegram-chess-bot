@@ -93,12 +93,17 @@ class ChessgroundAdapter implements BoardAdapter {
 
   setPosition(position: BoardPosition): void {
     this.position = position;
+    // chessground drops `movable.dests` after a user move; a restored position brings them back.
     this.api.set({
       fen: position.fen,
       orientation: position.orientation,
       turnColor: position.turnColour,
       lastMove: position.lastMove ? (position.lastMove as [Key, Key]) : undefined,
       check: position.check,
+      movable: {
+        color: this.movable.colour === 'none' ? undefined : this.movable.colour,
+        dests: toDests(this.movable.dests),
+      },
     });
   }
 

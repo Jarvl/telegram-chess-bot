@@ -58,4 +58,13 @@ describe('staticAppRoutes', () => {
     expect(response.status).toBe(404);
     expect(await response.text()).not.toContain('nope');
   });
+
+  it('sets the content security policy on the app HTML only', async () => {
+    const index = await app.request('/app/');
+    expect(index.headers.get('content-security-policy')).toBe(
+      "default-src 'self'; script-src 'self' https://telegram.org; connect-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'",
+    );
+    const asset = await app.request('/app/assets/app-1a2b3c.js');
+    expect(asset.headers.get('content-security-policy')).toBeNull();
+  });
 });
