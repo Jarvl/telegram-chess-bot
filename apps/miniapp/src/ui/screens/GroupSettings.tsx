@@ -89,7 +89,8 @@ export function GroupSettings(props: { groupId: string }) {
     await settings.reload();
   };
   const block = async (userId: string, name: string) => {
-    if (!(await confirmDialog(`${t('app.gsettings.block')}: ${name}?`, { danger: true }))) return;
+    if (!(await confirmDialog(t('app.gsettings.block_confirm', { name }), { danger: true })))
+      return;
     await client.post(`/api/groups/${props.groupId}/blocks`, { userId });
     await settings.reload();
   };

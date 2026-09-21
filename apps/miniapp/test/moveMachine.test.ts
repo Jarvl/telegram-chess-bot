@@ -105,5 +105,6 @@ describe('reduceMove', () => {
     expect(id).toMatch(/^[A-Za-z0-9_-]{8,64}$/);
     expect(newClientMoveId()).not.toBe(id);
     expect(newClientMoveId(() => 0)).toMatch(/^[A-Za-z0-9_-]{16}$/);
+    expect(newClientMoveId(() => 1)).toMatch(/^[A-Za-z0-9_-]{16}$/);
   });
 });

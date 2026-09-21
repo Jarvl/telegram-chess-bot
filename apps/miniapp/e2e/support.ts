@@ -59,6 +59,19 @@ export async function telegramCalls(): Promise<
   return (await (await fetch(`${HARNESS}/telegram/calls`)).json()) as never;
 }
 
+/** Drops every open connection on the server, the way a phone losing its network does. */
+export async function dropConnections(): Promise<void> {
+  const response = await fetch(`${HARNESS}/connections/close`, { method: 'POST' });
+  if (!response.ok) throw new Error(`closing connections failed: ${response.status}`);
+}
+
+/** The number of SSE streams the server holds open, from its Prometheus metrics. */
+export async function openStreams(): Promise<number> {
+  const text = await (await fetch('http://127.0.0.1:4180/metrics')).text();
+  const match = /^sse_streams (\d+)$/m.exec(text);
+  return match ? Number(match[1]) : Number.NaN;
+}
+
 /** Installs the fake WebApp with test-signed init data, stubs Telegram's script and opens the app. */
 export async function openApp(
   page: Page,

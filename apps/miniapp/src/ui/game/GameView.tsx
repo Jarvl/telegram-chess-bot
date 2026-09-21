@@ -10,7 +10,7 @@ import {
   promotionPieces,
   type PromotionPiece,
 } from '../../board/promotion';
-import { diffNotices, GameStore, type Notice } from '../../state/game';
+import { diffNotices, GameStore, positionAt, type Notice } from '../../state/game';
 import {
   reduceMove,
   type MoveEffect,
@@ -33,6 +33,12 @@ const PIECE_CLASS: Record<PromotionPiece, string> = {
   b: 'bishop',
   n: 'knight',
 };
+const PIECE_LABEL = {
+  q: 'app.game.piece.q',
+  r: 'app.game.piece.r',
+  b: 'app.game.piece.b',
+  n: 'app.game.piece.n',
+} as const;
 
 export function GameView(props: { initial: GameDto; onReload: () => Promise<GameDto> }) {
   const { client, tg, router } = useApp();
@@ -55,13 +61,25 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
     },
     [tg],
   );
+  const dispatchRef = useRef<(event: MoveEvent) => void>(() => undefined);
   const applyState = useCallback(
     (next: GameDto) => {
       const previous = store.dto.value;
       noteServerTime(next.serverTime);
-      if (store.apply(next)) for (const notice of diffNotices(previous, next)) notify(notice);
+      if (!store.apply(next)) return;
+      for (const notice of diffNotices(previous, next)) notify(notice);
+      // Spec §6.3: a check buzzes, whichever side gave it.
+      if (next.plyCount > previous.plyCount && positionAt(next, next.plyCount).check)
+        tg.hapticNotify('warning');
+      // A move waiting for Confirm is void once the game has moved on (the server would reject
+      // its expectedPly anyway): take it off the board and the buttons.
+      if (
+        moveRef.current.kind === 'pendingConfirm' &&
+        (next.plyCount !== previous.plyCount || next.status !== previous.status)
+      )
+        dispatchRef.current({ type: 'cancel' });
     },
-    [store, notify],
+    [store, notify, tg],
   );
 
   // Live updates for running games (spec §6.4); finished games are static.
@@ -90,14 +108,18 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
     });
   }, [store]);
 
+  // The effect runner closes over this render's props and callbacks; `dispatch` stays stable and
+  // always calls the latest one.
+  const runEffectRef = useRef<(effect: MoveEffect) => void>(() => undefined);
   const dispatch = useCallback((event: MoveEvent) => {
     const { state, effects } = reduceMove(moveRef.current, event, {
       confirmMoves: prefs.value.confirmMoves,
     });
     moveRef.current = state;
     setMoveState(state);
-    for (const effect of effects) runEffect(effect);
+    for (const effect of effects) runEffectRef.current(effect);
   }, []);
+  dispatchRef.current = dispatch;
 
   const runEffect = (effect: MoveEffect): void => {
     switch (effect.type) {
@@ -136,6 +158,8 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
         return;
     }
   };
+
+  runEffectRef.current = runEffect;
 
   const afterSent = (): void => {
     if (prefs.value.closeAfterMove && session.value?.launchedFrom?.kind === 'game') {
@@ -301,7 +325,12 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
   return (
     <div class="game">
       <PlayerBar dto={dto} colour={top} now={now} />
-      <Board store={store} onMove={onDrop} onReady={(adapter) => (adapterRef.current = adapter)}>
+      <Board
+        store={store}
+        onMove={onDrop}
+        onReady={(adapter) => (adapterRef.current = adapter)}
+        frozen={moveState.kind === 'pendingConfirm'}
+      >
         {promotion ? (
           <div
             class="promotion"
@@ -314,6 +343,7 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
                 key={piece}
                 data-promote={piece}
                 class={`cg-wrap ${PIECE_CLASS[piece]} ${dto.viewerRole === 'black' ? 'black' : 'white'}`}
+                aria-label={t(PIECE_LABEL[piece])}
                 onClick={() => promote(piece)}
               >
                 {h('piece', {
@@ -321,7 +351,11 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
                 })}
               </button>
             ))}
-            <button data-promote="cancel" onClick={() => promote(null)}>
+            <button
+              data-promote="cancel"
+              aria-label={t('app.game.cancel')}
+              onClick={() => promote(null)}
+            >
               ✕
             </button>
           </div>

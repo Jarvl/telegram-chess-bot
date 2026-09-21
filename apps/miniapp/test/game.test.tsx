@@ -119,6 +119,55 @@ describe('Game', () => {
     expect(r.calls.filter((c) => c.method === 'POST')).toHaveLength(1);
   });
 
+  it('buzzes a warning when a state arriving over the stream puts the viewer in check', async () => {
+    // Black rook a2, white king e1: no check with Black to move …
+    const quiet = gameDto({ fen: '4k3/8/8/8/8/8/r7/4K3 b - - 0 1', plyCount: 9, version: 9 });
+    const r = mount(quiet);
+    await r.flush();
+    // … then the rook slides to e2 and White is in check.
+    FakeEventSource.instances[0]!.send(
+      'state',
+      gameDto({ fen: '4k3/8/8/8/8/8/4r3/4K3 w - - 0 1', plyCount: 10, version: 10 }),
+      '10',
+    );
+    await r.flush();
+    expect(window.__tg!.haptics).toContain('notification:warning');
+    expect(adapter.positions.at(-1)?.check).toBe(true);
+  });
+
+  it('keeps a move awaiting confirmation on the board while snapshots arrive, and drops it when the game moves on', async () => {
+    wantPrefs.confirmMoves = true;
+    const initial = gameDto();
+    const r = mount(initial);
+    await r.flush();
+    adapter.drop('e2', 'e4');
+    await r.flush();
+    expect(window.__tg!.mainButton).toMatchObject({ text: 'Confirm', visible: true });
+    const before = adapter.positions.length;
+    // The refresh on resume returns the same snapshot; a draw offer bumps the version only.
+    FakeEventSource.instances[0]!.send('state', initial, '0');
+    FakeEventSource.instances[0]!.send(
+      'state',
+      gameDto({ version: 1, drawOffer: { by: 'black', atPly: 0 } }),
+      '1',
+    );
+    await r.flush();
+    expect(adapter.positions).toHaveLength(before);
+    expect(window.__tg!.mainButton).toMatchObject({ text: 'Confirm', visible: true });
+    expect(r.text()).toContain('Bob offers a draw');
+    // The opponent aborts: the pending move is void, the board and buttons are restored.
+    FakeEventSource.instances[0]!.send(
+      'state',
+      gameDto({ version: 2, status: 'finished', result: '*', endReason: 'abort' }),
+      '2',
+    );
+    await r.flush();
+    expect(adapter.positions.length).toBeGreaterThan(before);
+    expect(window.__tg!.mainButton.visible).toBe(false);
+    expect(window.__tg!.closingConfirmation).toBe(false);
+    expect(r.calls.filter((c) => c.method === 'POST')).toHaveLength(0);
+  });
+
   it('renders an in-page cancel below 7.10', async () => {
     wantPrefs.confirmMoves = true;
     const r = mount(gameDto(), okRoute(gameDto()), '7.0');

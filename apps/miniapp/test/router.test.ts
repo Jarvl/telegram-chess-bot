@@ -17,7 +17,7 @@ describe('Router', () => {
     expect(record.backButton.visible).toBe(false);
     router.push({ name: 'lobby', groupId: 'GrOuPiDxYz' });
     expect(record.backButton.visible).toBe(true);
-    router.replace({ name: 'lobby', groupId: 'GrOuPiDxYz', tab: 'players' });
+    router.replace({ name: 'newGame', groupId: 'GrOuPiDxYz' });
     expect(router.stack.value).toHaveLength(2);
     expect(router.back()).toBe(true);
     expect(router.current.value).toEqual({ name: 'groups' });

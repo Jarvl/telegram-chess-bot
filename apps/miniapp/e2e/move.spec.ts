@@ -1,11 +1,13 @@
 import { expect, test } from '@playwright/test';
 import {
+  boardBox,
   clickMain,
   clickSecondary,
   dragMove,
   harnessGame,
   openApp,
   seed,
+  squareCentre,
   tapMove,
   tgState,
 } from './support';
@@ -35,7 +37,13 @@ test('confirms or cancels a move', async ({ page }) => {
     user: world.users.alice.telegram,
     startParam: `g_${world.game!.publicId}`,
   });
-  await tapMove(page, 'e2', 'e4');
+  // Tapping a piece shows its destinations; the spectator specs assert this selector stays empty.
+  const box = await boardBox(page);
+  const e2 = squareCentre(box, 'e2');
+  await page.touchscreen.tap(e2.x, e2.y);
+  await expect(page.locator('square.move-dest')).toHaveCount(2);
+  const e4 = squareCentre(box, 'e4');
+  await page.touchscreen.tap(e4.x, e4.y);
   await expect
     .poll(async () => (await tgState(page)).mainButton)
     .toMatchObject({ text: 'Confirm', visible: true });

@@ -21,7 +21,7 @@ function byYourMoveFirst(games: GameSummary[]): GameSummary[] {
   return [...games].sort((a, b) => Number(b.yourTurn) - Number(a.yourTurn));
 }
 
-export function Lobby(props: { groupId: string; tab?: LobbyTab }) {
+export function Lobby(props: { groupId: string }) {
   const { client, router, prefetched } = useApp();
   const initial = prefetched.lobby?.group.id === props.groupId ? prefetched.lobby : undefined;
   if (initial) delete prefetched.lobby;
@@ -30,7 +30,7 @@ export function Lobby(props: { groupId: string; tab?: LobbyTab }) {
     () => client.get(`/api/groups/${props.groupId}`, LobbyDtoSchema),
     initial,
   );
-  const [tab, setTab] = useState<LobbyTab>(props.tab ?? 'active');
+  const [tab, setTab] = useState<LobbyTab>('active');
   const [loadingMore, setLoadingMore] = useState(false);
 
   if (lobby.error) return <ErrorScreen onRetry={() => void lobby.reload()} />;
@@ -70,6 +70,12 @@ export function Lobby(props: { groupId: string; tab?: LobbyTab }) {
         ...data,
         finished: { items: [...data.finished.items, ...page.items], nextCursor: page.nextCursor },
       });
+    } catch (error) {
+      toast(
+        error instanceof ApiError && error.isNetwork
+          ? t('app.common.offline')
+          : t('app.common.error'),
+      );
     } finally {
       setLoadingMore(false);
     }
@@ -147,7 +153,12 @@ export function Lobby(props: { groupId: string; tab?: LobbyTab }) {
             ))}
           </div>
           {data.finished.nextCursor ? (
-            <button class="btn secondary block" disabled={loadingMore} onClick={() => void more()}>
+            <button
+              class="btn secondary block"
+              data-action="more"
+              disabled={loadingMore}
+              onClick={() => void more()}
+            >
               {t('app.common.more')}
             </button>
           ) : null}

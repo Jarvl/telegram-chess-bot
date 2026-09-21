@@ -36,7 +36,13 @@ export const ALLOWED_UPDATES = [
   'chat_member',
 ] as const;
 
-export type RunningServer = { port: number; app: Hono<ApiEnv>; stop(): Promise<void> };
+export type RunningServer = {
+  port: number;
+  app: Hono<ApiEnv>;
+  /** Drops every open connection (SSE streams included); clients see a dead socket and reconnect. */
+  closeConnections(): void;
+  stop(): Promise<void>;
+};
 
 function listen(app: Hono<ApiEnv>, port: number): Promise<ServerType> {
   return new Promise((resolve) => {
@@ -119,6 +125,9 @@ export async function startServer(config: Config): Promise<RunningServer> {
   return {
     port,
     app,
+    closeConnections() {
+      if ('closeAllConnections' in server) server.closeAllConnections();
+    },
     async stop() {
       if (bot && polling) {
         await bot.stop();

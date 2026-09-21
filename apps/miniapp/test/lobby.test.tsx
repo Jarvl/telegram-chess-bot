@@ -80,6 +80,26 @@ describe('Lobby', () => {
     expect(r.text()).toContain('5 W · 1 D · 3 L');
   });
 
+  it('tells the user when the next page of finished games cannot be loaded', async () => {
+    const paged = { ...lobby, finished: { ...lobby.finished, nextCursor: 'c1' } };
+    const r = renderApp(
+      (app) => {
+        app.prefetched.lobby = paged;
+        return <Lobby groupId="GrOuPiDxYz" />;
+      },
+      ({ path }) =>
+        path.includes('/finished?cursor=')
+          ? { status: 500, body: { error: { code: 'internal', message: 'boom' } } }
+          : { status: 200, body: paged },
+    );
+    await r.flush();
+    await r.click('[data-tab="finished"]');
+    await r.click('[data-action="more"]');
+    expect(r.calls.at(-1)?.path).toBe('/api/groups/GrOuPiDxYz/finished?cursor=c1');
+    expect(document.querySelector('.toast')?.textContent).toBe('Something went wrong');
+    expect(r.root.querySelector<HTMLButtonElement>('[data-action="more"]')?.disabled).toBe(false);
+  });
+
   it('accepts a challenge through the API and opens the game', async () => {
     const r = renderApp(
       () => <Lobby groupId="GrOuPiDxYz" />,

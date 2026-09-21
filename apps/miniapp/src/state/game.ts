@@ -105,7 +105,10 @@ export class GameStore {
     );
   }
 
-  /** Applies a newer snapshot; an older or equal version is ignored. Returns whether it applied. */
+  /**
+   * Applies a newer snapshot; an older or equal version is ignored and leaves the signals alone,
+   * so a refresh that brings nothing new does not re-render the board. Returns whether it applied.
+   */
   apply(next: GameDto): boolean {
     const current = this.dto.value;
     if (next.version < current.version) return false;
@@ -114,7 +117,6 @@ export class GameStore {
       next.plyCount === current.plyCount &&
       next.status === current.status
     ) {
-      this.dto.value = next;
       return false;
     }
     const viewing = this.viewingPly.value;

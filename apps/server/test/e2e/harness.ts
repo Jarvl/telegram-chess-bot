@@ -142,6 +142,10 @@ async function main(): Promise<void> {
           }
           if (path === '/seed' && body) return reply(200, await seed(body));
           if (path === '/telegram/calls') return reply(200, fake.calls);
+          if (path === '/connections/close') {
+            server.closeConnections();
+            return reply(200, { ok: true });
+          }
           const match = /^\/games\/([A-Za-z0-9]{10})$/.exec(path);
           if (match) {
             const [row] = await db.select().from(games).where(eq(games.publicId, match[1]!));

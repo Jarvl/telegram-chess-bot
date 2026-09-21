@@ -10,7 +10,7 @@ export type Route =
   | { name: 'reopen' }
   | { name: 'locked'; group: GroupRef }
   | { name: 'groups' }
-  | { name: 'lobby'; groupId: string; tab?: LobbyTab }
+  | { name: 'lobby'; groupId: string }
   | { name: 'newGame'; groupId: string; defaults?: LobbyDto['settings'] }
   | { name: 'game'; gameId: string }
   | { name: 'player'; groupId: string; userId: string }

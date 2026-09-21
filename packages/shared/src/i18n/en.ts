@@ -96,7 +96,6 @@ export const en = {
   'dm.start':
     "Tap Open Chess to see your groups' games. You'll get a message here when it's your move.",
   'colour.random': 'Random',
-  'app.common.back': 'Back',
   'app.common.close': 'Close',
   'app.common.retry': 'Retry',
   'app.common.loading': 'Loading…',
@@ -136,8 +135,6 @@ export const en = {
   'app.new.sent': 'Challenge posted to the group',
   'app.new.no_players':
     "The bot hasn't seen anyone else here yet. Reply to their message with /play instead.",
-  'app.game.your_move': 'Your move',
-  'app.game.waiting': 'Waiting for {name}',
   'app.game.latest': 'Latest',
   'app.game.share': 'Share position',
   'app.game.shared': 'Shared to the group',
@@ -172,8 +169,11 @@ export const en = {
   'app.game.result.white': 'White won',
   'app.game.result.black': 'Black won',
   'app.game.result.aborted': 'Aborted',
-  'app.game.by': 'by {reason}',
   'app.game.promotion': 'Promote to',
+  'app.game.piece.q': 'Queen',
+  'app.game.piece.r': 'Rook',
+  'app.game.piece.b': 'Bishop',
+  'app.game.piece.n': 'Knight',
   'app.game.no_moves': 'No moves yet',
   'app.player.record': '{wins} W · {draws} D · {losses} L',
   'app.player.head_to_head': 'Against you: {wins} W · {draws} D · {losses} L',
@@ -202,6 +202,7 @@ export const en = {
   'app.gsettings.blocked': 'Blocked players',
   'app.gsettings.none_blocked': 'Nobody is blocked.',
   'app.gsettings.block': 'Block a player',
+  'app.gsettings.block_confirm': 'Block {name}?',
   'app.gsettings.unblock': 'Unblock',
   'app.gsettings.void': 'Void a game',
 } as const;

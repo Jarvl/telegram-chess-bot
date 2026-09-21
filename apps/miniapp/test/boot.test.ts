@@ -29,8 +29,9 @@ function setup(
   version: string,
   startParam: string | undefined,
   handler: Parameters<typeof fakeFetch>[0],
+  writeAccess = true,
 ) {
-  installFakeWebApp({ version, initData: 'user=x&hash=y', startParam, writeAccess: true });
+  installFakeWebApp({ version, initData: 'user=x&hash=y', startParam, writeAccess });
   const tg = createTg(window.Telegram!.WebApp);
   const { fetch, calls } = fakeFetch(handler);
   const client = createApiClient({ fetch });
@@ -64,6 +65,25 @@ describe('boot', () => {
       ['PUT', '/api/me/prefs'],
     ]);
     expect(calls[1]?.body).toEqual({ writeAccess: { allowed: true } });
+  });
+
+  it('records a declined write-access prompt too', async () => {
+    const { tg, client, router, prefetched, calls } = setup(
+      '8.0',
+      undefined,
+      ({ path }) =>
+        path === '/api/launch'
+          ? { status: 200, body: launchBody({ kind: 'groups', groups: { groups: [] } }, true) }
+          : { status: 200, body: { prefs: prefs.value, dmAllowed: false } },
+      false,
+    );
+    await boot({ tg, client, router, prefetched });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(calls.map((c) => [c.method, c.path])).toEqual([
+      ['POST', '/api/launch'],
+      ['PUT', '/api/me/prefs'],
+    ]);
+    expect(calls[1]?.body).toEqual({ writeAccess: { allowed: false } });
   });
 
   it('skips the write-access prompt on old clients and lands on the lobby or groups', async () => {

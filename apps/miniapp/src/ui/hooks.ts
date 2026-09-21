@@ -42,12 +42,26 @@ export function useResource<T>(key: string, load: () => Promise<T>, initial?: T)
 export function useMainButton(spec: ButtonSpec | null): boolean {
   const { tg } = useApp();
   const [inPage, setInPage] = useState(false);
+  // Screens pass a fresh handler every render; binding through a ref keeps the button steady and
+  // still runs the latest one.
+  const onClickRef = useRef(spec?.onClick);
+  onClickRef.current = spec?.onClick;
+  const present = spec !== null;
   useEffect(() => {
-    const bound = tg.setMainButton(spec);
-    setInPage(spec !== null && !bound);
+    const bound = tg.setMainButton(
+      spec
+        ? {
+            text: spec.text,
+            enabled: spec.enabled,
+            progress: spec.progress,
+            onClick: () => onClickRef.current?.(),
+          }
+        : null,
+    );
+    setInPage(present && !bound);
     return () => {
       tg.setMainButton(null);
     };
-  }, [tg, spec?.text, spec?.enabled, spec?.progress, spec?.onClick]);
+  }, [tg, present, spec?.text, spec?.enabled, spec?.progress]);
   return inPage;
 }
