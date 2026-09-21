@@ -2507,7 +2507,7 @@ describe('GameStore', () => {
   it('lets only the player to move move, and only at the latest position', () => {
     const white = new GameStore(afterPlies(2, { viewerRole: 'white' }));
     expect(white.canMove.value).toBe(true);
-    expect(white.dests.value.get('g1')).toEqual(['f3', 'h3']);
+    expect(white.dests.value.get('g1')).toEqual(['h3']); // f3 holds White's own pawn
     white.viewPly(1);
     expect(white.isLatest.value).toBe(false);
     expect(white.canMove.value).toBe(false);
