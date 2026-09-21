@@ -1,6 +1,7 @@
 import type { Hono } from 'hono';
 import { createApiApp, type RegisterRoutes } from '../../src/api/app';
 import type { ApiContext, ApiEnv } from '../../src/api/context';
+import { gameRoutes } from '../../src/api/routes/index';
 import { issueSessionToken } from '../../src/api/session';
 import { StreamGate } from '../../src/api/streams';
 import { RateLimiter } from '../../src/bot/rateLimit';
@@ -35,7 +36,7 @@ export type TestApi = {
   stop(): Promise<void>;
 };
 
-export async function startTestApi(db: Db, extra: RegisterRoutes[] = []): Promise<TestApi> {
+export async function startTestApi(db: Db, extra: RegisterRoutes[] = gameRoutes): Promise<TestApi> {
   const fake = await FakeTelegram.start();
   const config = testConfig({ TELEGRAM_API_ROOT: fake.url });
   const deps = testDeps(db);

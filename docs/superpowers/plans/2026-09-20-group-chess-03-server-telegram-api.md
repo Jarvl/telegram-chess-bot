@@ -3588,7 +3588,7 @@ git commit -m "feat(server): add the API foundation with init data validation, s
 import { ChallengeDtoSchema, GameDtoSchema, LobbyDtoSchema, PlayerPageDtoSchema } from '@group-chess/shared';
 import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { adminActions, games, groupMembers, jobs, shares } from '../../src/db/schema';
+import { adminActions, groupMembers, jobs, shares } from '../../src/db/schema';
 import { touchMember } from '../../src/domain/members';
 import { startTestApi, type TestApi } from '../helpers/api';
 import { openTestDb, truncateAll } from '../helpers/db';
@@ -3624,7 +3624,7 @@ async function world() {
 }
 
 const move = (token: string, gameId: string, uci: string, expectedPly: number) =>
-  api.request('POST', `/api/games/${gameId}/moves`, { token, body: { uci, expectedPly, clientMoveId: `m-${uci}-${expectedPly}-${Math.random()}` } });
+  api.request('POST', `/api/games/${gameId}/moves`, { token, body: { uci, expectedPly, clientMoveId: `m-${uci}-${expectedPly}-${Math.random().toString(36).slice(2)}` } });
 
 describe('challenges and lobby', () => {
   it('creates, accepts and lists a game through the API', async () => {
@@ -3731,7 +3731,7 @@ describe('GET /api/games/:id/events', () => {
   };
 
   it('sends the state on connect and again after a move', async () => {
-    const { group, alice, bob, tokens } = await world();
+    const { group, alice, bob, carol, tokens } = await world();
     const game = await insertGame(db, group.id, alice.id, bob.id);
     const controller = new AbortController();
     const res = await api.request('GET', `/api/games/${game.publicId}/events?token=${tokens.carol}`, { signal: controller.signal });
@@ -3748,7 +3748,7 @@ describe('GET /api/games/:id/events', () => {
     expect(received).toContain('"plyCount":1');
     controller.abort();
     await new Promise((resolve) => setTimeout(resolve, 20));
-    expect(api.ctx.streams.count(Number(tokens.carol.length) || 0)).toBe(0);
+    expect(api.ctx.streams.count(carol.id)).toBe(0);
   });
 
   it('refuses the stream to a non-member and caps open streams at four per user', async () => {
@@ -3771,7 +3771,7 @@ describe('GET /api/games/:id/events', () => {
 
 describe('admin routes', () => {
   it('guards settings, blocks and voids behind the admin check and audits them', async () => {
-    const { group, alice, bob, carol, tokens } = await world();
+    const { group, alice, bob, tokens } = await world();
     expect((await api.request('GET', `/api/groups/${group.publicId}/settings`, { token: tokens.carol })).status).toBe(403);
     api.fake.admins = [33];
     api.ctx.membership.invalidateAdmins(group.id);
@@ -3947,7 +3947,7 @@ export async function adminUnblock(deps: Deps, group: GroupRow, adminId: number,
 ```ts
 import { ChallengeRequestSchema, FinishedQuerySchema, UserIdSchema, type PlayersPickerDto } from '@group-chess/shared';
 import { eq } from 'drizzle-orm';
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { challenges } from '../../db/schema';
 import { createChallenge } from '../../domain/challenges';
 import { requireGroupByPublicId, settingsOf } from '../../domain/groups';
@@ -3962,7 +3962,7 @@ import { validate } from '../validate';
 
 export function groupsRoutes(api: Hono<ApiEnv>, ctx: ApiContext): void {
   const { db } = ctx.deps;
-  const memberGroup = async (c: Parameters<Parameters<typeof api.get>[1]>[0]) => {
+  const memberGroup = async (c: Context<ApiEnv>) => {
     const group = await requireGroupByPublicId(db, publicIdParam(c, 'g'));
     await requireMember(ctx, group, c.get('user'));
     return group;
@@ -4019,7 +4019,7 @@ export function groupsRoutes(api: Hono<ApiEnv>, ctx: ApiContext): void {
 
 ```ts
 import { eq } from 'drizzle-orm';
-import type { Hono } from 'hono';
+import type { Context, Hono } from 'hono';
 import { challenges } from '../../db/schema';
 import { acceptChallenge, cancelChallenge, declineChallenge, getChallengeByPublicId } from '../../domain/challenges';
 import { DomainError } from '../../domain/errors';
@@ -4031,7 +4031,7 @@ import { publicIdParam } from '../middleware';
 
 export function challengeRoutes(api: Hono<ApiEnv>, ctx: ApiContext): void {
   const { db } = ctx.deps;
-  const load = async (c: Parameters<Parameters<typeof api.post>[1]>[0]) => {
+  const load = async (c: Context<ApiEnv>) => {
     const challenge = await getChallengeByPublicId(db, publicIdParam(c, 'c'));
     if (!challenge) throw new DomainError('not_found', 'challenge not found');
     await requireMember(ctx, await requireGroup(db, challenge.groupId), c.get('user'));
@@ -4066,7 +4066,7 @@ export function challengeRoutes(api: Hono<ApiEnv>, ctx: ApiContext): void {
 ```ts
 import { MoveRequestSchema, ShareRequestSchema } from '@group-chess/shared';
 import { eq } from 'drizzle-orm';
-import type { Hono } from 'hono';
+import type { Context, Hono } from 'hono';
 import { challenges } from '../../db/schema';
 import { createRematch } from '../../domain/challenges';
 import { acceptDraw, claimDraw, declineDraw, offerDraw } from '../../domain/draws';
@@ -4081,7 +4081,7 @@ import { validate } from '../validate';
 
 export function gamesRoutes(api: Hono<ApiEnv>, ctx: ApiContext): void {
   const { db } = ctx.deps;
-  type Ctx = Parameters<Parameters<typeof api.get>[1]>[0];
+  type Ctx = Context<ApiEnv>;
   const accessible = async (c: Ctx) => {
     const game = await requireGameByPublicId(db, publicIdParam(c, 'id'));
     await requireGameAccess(ctx, game, c.get('user'));
@@ -4175,7 +4175,12 @@ export function eventsRoutes(api: Hono<ApiEnv>, ctx: ApiContext): void {
         if (!Number.isFinite(lastEventId) || lastEventId < game.version) await send();
         const unsubscribe = ctx.deps.bus.subscribe(publicId, () => void send());
         const ping = setInterval(() => void stream.writeSSE({ event: 'ping', data: '' }).catch(() => undefined), PING_MS);
+        // Hono links the request signal to the stream only on old Bun; link it here too, so a
+        // dropped connection releases the slot whether the runtime cancels the body or the signal.
+        const onSignalAbort = () => void stream.abort();
+        c.req.raw.signal.addEventListener('abort', onSignalAbort, { once: true });
         await new Promise<void>((resolve) => stream.onAbort(resolve));
+        c.req.raw.signal.removeEventListener('abort', onSignalAbort);
         clearInterval(ping);
         unsubscribe();
         release();
@@ -4192,7 +4197,7 @@ export function eventsRoutes(api: Hono<ApiEnv>, ctx: ApiContext): void {
 
 ```ts
 import { BlockRequestSchema, GroupSettingsUpdateRequestSchema, UserIdSchema } from '@group-chess/shared';
-import type { Hono } from 'hono';
+import type { Context, Hono } from 'hono';
 import { adminBlock, adminUnblock, adminUpdateSettings, groupSettingsDto } from '../../domain/admin';
 import { requireGameByPublicId, voidGame } from '../../domain/games';
 import { requireGroup, requireGroupByPublicId } from '../../domain/groups';
@@ -4204,7 +4209,7 @@ import { validate } from '../validate';
 /** Spec §7.11/§12: every read and write re-checks admin rights through the cached ladder. */
 export function adminRoutes(api: Hono<ApiEnv>, ctx: ApiContext): void {
   const { db } = ctx.deps;
-  type Ctx = Parameters<Parameters<typeof api.get>[1]>[0];
+  type Ctx = Context<ApiEnv>;
   const adminGroup = async (c: Ctx) => {
     const group = await requireGroupByPublicId(db, publicIdParam(c, 'g'));
     await requireAdmin(ctx, group, c.get('user'));
