@@ -17,4 +17,8 @@ export class RateLimiter {
     this.hits.set(key, recent);
     return true;
   }
+
+  reset(): void {
+    this.hits.clear();
+  }
 }

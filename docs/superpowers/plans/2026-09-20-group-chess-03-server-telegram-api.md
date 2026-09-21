@@ -1226,6 +1226,10 @@ export class RateLimiter {
     this.hits.set(key, recent);
     return true;
   }
+
+  reset(): void {
+    this.hits.clear();
+  }
 }
 ```
 
@@ -2395,7 +2399,7 @@ git commit -m "feat(server): add the Telegram job handlers and the membership la
 
 **Interfaces:**
 - Consumes: plan 2 domain, Task 3 `Membership`, Task 2 `RateLimiter`, shared schemas (`LaunchRequestSchema`, `LaunchResponse`, `LobbyDto`, `GameSummary`, `ChallengeDto`, `MeGroupsDto`, `PlayerPageDto`, `FinishedPageDto`, `GroupSettingsDto`, `PrefsUpdateRequestSchema`, `TelemetryRequestSchema`, `apiErrorBody`, `HTTP_STATUS_BY_ERROR_CODE`).
-- Produces: `validateInitData(raw, botToken, { now?, maxAgeSeconds? }): ParsedInitData`, `initDataHash(params: URLSearchParams, botToken): string`, `INIT_DATA_MAX_AGE_SECONDS = 86400`; `issueSessionToken(secret, userId, now?): Promise<string>`, `verifySessionToken(secret, token): Promise<number>`, `SESSION_TTL_SECONDS = 86400`; `type ApiContext = { deps; config; membership: Membership; metrics: Metrics; streams: StreamGate }`, `type ApiEnv = { Variables: { user: UserRow } }`; `validate(target, schema)`; `requireSession(ctx)`, `userRateLimit(ctx)`; `class StreamGate { constructor(max = 4); acquire(userId): boolean; release(userId): void; count(userId): number }`; `resolveLaunchRoute(ctx, user, param): Promise<LaunchRoute>`; `createApiApp(ctx): Hono<ApiEnv>` (mounts `/api/launch`, `/api/me/*`, `/api/telemetry`, `/healthz`, `/readyz`, `/metrics`; Task 5 adds the rest through `registerGameRoutes`); summaries — `gameSummaryRows(tx, where, orderBy, limit)`, `toGameSummary(row, viewerId): GameSummary`, `challengeToDto(...)`; lobby — `buildLobby(deps, group, viewer, { isAdmin }): Promise<LobbyDto>`, `listFinished(deps, groupId, viewerId, cursor: string | null): Promise<FinishedPageDto>`, `meGroups(deps, userId): Promise<MeGroupsDto>`, `playerPage(deps, groupId, viewerId, userId): Promise<PlayerPageDto>`, `pendingChallenges(tx, groupId, viewerId): Promise<ChallengeDto[]>`; admin — `groupSettingsDto(tx, group): Promise<GroupSettingsDto>`; account — `deleteMyData(deps, userId): Promise<void>`; `class Metrics` with `webhookUpdates{type}`, `movesTotal`, `telegramCalls{method,status}`, `telegram429`, `jobsFailed{kind}`, `sseStreams` (gauge), `lichessImports{outcome}`, `gamesFinished{end_reason}`, `miniappLoadErrors`, `miniappMoveFailures`, `render(): Promise<string>`, `contentType`; test helpers `signInitData(botToken, { user, authDate?, startParam?, queryId? }): string`, `startTestApi(): Promise<TestApi>` with `{ app, fake, config, ctx, deps, sessionFor(user), request(method, path, { token?, body? }), stop() }`.
+- Produces: `validateInitData(raw, botToken, { now?, maxAgeSeconds? }): ParsedInitData`, `initDataHash(params: URLSearchParams, botToken): string`, `INIT_DATA_MAX_AGE_SECONDS = 86400`; `issueSessionToken(secret, userId, now?): Promise<string>`, `verifySessionToken(secret, token): Promise<number>`, `SESSION_TTL_SECONDS = 86400`; `type ApiContext = { deps; config; membership: Membership; metrics: Metrics; streams: StreamGate; rateLimiter: RateLimiter }`, `type ApiEnv = { Variables: { user: UserRow } }`; `validate(target, schema)`; `requireSession(ctx)`, `userRateLimit(ctx)` (counting on `ctx.rateLimiter`); `class StreamGate { constructor(max = 4); acquire(userId): boolean; release(userId): void; count(userId): number }`; `resolveLaunchRoute(ctx, user, param): Promise<LaunchRoute>`; `createApiApp(ctx): Hono<ApiEnv>` (mounts `/api/launch`, `/api/me/*`, `/api/telemetry`, `/healthz`, `/readyz`, `/metrics`; Task 5 adds the rest through `registerGameRoutes`); summaries — `gameSummaryRows(tx, where, orderBy, limit)`, `toGameSummary(row, viewerId): GameSummary`, `challengeToDto(...)`; lobby — `buildLobby(deps, group, viewer, { isAdmin }): Promise<LobbyDto>`, `listFinished(deps, groupId, viewerId, cursor: string | null): Promise<FinishedPageDto>`, `meGroups(deps, userId): Promise<MeGroupsDto>`, `playerPage(deps, groupId, viewerId, userId): Promise<PlayerPageDto>`, `pendingChallenges(tx, groupId, viewerId): Promise<ChallengeDto[]>`; admin — `groupSettingsDto(tx, group): Promise<GroupSettingsDto>`; account — `deleteMyData(deps, userId): Promise<void>`; `class Metrics` with `webhookUpdates{type}`, `movesTotal`, `telegramCalls{method,status}`, `telegram429`, `jobsFailed{kind}`, `sseStreams` (gauge), `lichessImports{outcome}`, `gamesFinished{end_reason}`, `miniappLoadErrors`, `miniappMoveFailures`, `render(): Promise<string>`, `contentType`; test helpers `signInitData(botToken, { user, authDate?, startParam?, queryId? }): string`, `startTestApi(): Promise<TestApi>` with `{ app, fake, config, ctx, deps, sessionFor(user), request(method, path, { token?, body? }), stop() }`.
 
 - [ ] **Step 1: Dependencies and the `internal` error code**
 
@@ -2683,6 +2687,7 @@ export class StreamGate {
 `apps/server/src/api/context.ts`:
 
 ```ts
+import type { RateLimiter } from '../bot/rateLimit';
 import type { Config } from '../config';
 import type { UserRow } from '../db/schema';
 import type { Deps } from '../domain/deps';
@@ -2696,6 +2701,8 @@ export type ApiContext = {
   membership: Membership;
   metrics: Metrics;
   streams: StreamGate;
+  /** Spec §7.8: 120 API requests per user per minute; one instance per process. */
+  rateLimiter: RateLimiter;
 };
 
 export type ApiEnv = { Variables: { user: UserRow } };
@@ -2725,7 +2732,6 @@ export function validate<T extends ZodType>(target: 'json' | 'query' | 'param', 
 ```ts
 import { PublicIdSchema } from '@group-chess/shared';
 import type { Context, MiddlewareHandler } from 'hono';
-import { RateLimiter } from '../bot/rateLimit';
 import { DomainError } from '../domain/errors';
 import { getUserById } from '../domain/users';
 import type { ApiContext, ApiEnv } from './context';
@@ -2747,11 +2753,11 @@ export function requireSession(ctx: ApiContext): MiddlewareHandler<ApiEnv> {
   };
 }
 
-/** Spec §7.8: 120 API requests per user per minute. */
-export function userRateLimit(limit = 120, windowMs = 60_000): MiddlewareHandler<ApiEnv> {
-  const limiter = new RateLimiter(limit, windowMs);
+/** Spec §7.8: 120 API requests per user per minute, counted on the shared limiter. */
+export function userRateLimit(ctx: ApiContext): MiddlewareHandler<ApiEnv> {
   return async (c, next) => {
-    if (!limiter.allow(String(c.get('user').id))) throw new DomainError('rate_limited', 'too many requests');
+    if (!ctx.rateLimiter.allow(String(c.get('user').id)))
+      throw new DomainError('rate_limited', 'too many requests');
     await next();
   };
 }
@@ -3258,6 +3264,7 @@ export function healthRoutes(ctx: ApiContext): Hono {
 import { apiErrorBody, HTTP_STATUS_BY_ERROR_CODE } from '@group-chess/shared';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
+import { HTTPException } from 'hono/http-exception';
 import type { StatusCode } from 'hono/utils/http-status';
 import { isDomainError } from '../domain/errors';
 import type { ApiContext, ApiEnv } from './context';
@@ -3278,6 +3285,12 @@ export function createApiApp(ctx: ApiContext, extra: RegisterRoutes[] = []): Hon
       c.status(status as 400);
       return c.json(apiErrorBody(error.code, error.message));
     }
+    if (error instanceof HTTPException) {
+      // Framework rejections (the body limit above all) keep their status in the spec's error shape.
+      c.status(error.status);
+      const code = error.status === 413 ? 'validation' : 'internal';
+      return c.json(apiErrorBody(code, error.message || 'request rejected'));
+    }
     ctx.deps.log.error({ err: error, path: c.req.path }, 'unhandled request error');
     c.status(500);
     return c.json(apiErrorBody('internal', 'internal error'));
@@ -3295,7 +3308,7 @@ export function createApiApp(ctx: ApiContext, extra: RegisterRoutes[] = []): Hon
   api.use('*', bodyLimit({ maxSize: 64 * 1024 }));
   api.route('/', launchRoutes(ctx));
   api.use('*', requireSession(ctx));
-  api.use('*', userRateLimit());
+  api.use('*', userRateLimit(ctx));
   api.route('/', meRoutes(ctx));
   for (const register of extra) register(api, ctx);
   app.route('/api', api);
@@ -3318,6 +3331,7 @@ import { createApiApp, type RegisterRoutes } from '../../src/api/app';
 import type { ApiContext, ApiEnv } from '../../src/api/context';
 import { issueSessionToken } from '../../src/api/session';
 import { StreamGate } from '../../src/api/streams';
+import { RateLimiter } from '../../src/bot/rateLimit';
 import type { Config } from '../../src/config';
 import type { Db } from '../../src/db/client';
 import type { UserRow } from '../../src/db/schema';
@@ -3345,7 +3359,14 @@ export async function startTestApi(db: Db, extra: RegisterRoutes[] = []): Promis
   const config = testConfig({ TELEGRAM_API_ROOT: fake.url });
   const deps = testDeps(db);
   const membership = new Membership(deps, createTelegramApi(config, { apiRoot: fake.url }));
-  const ctx: ApiContext = { deps, config, membership, metrics: new Metrics(), streams: new StreamGate() };
+  const ctx: ApiContext = {
+    deps,
+    config,
+    membership,
+    metrics: new Metrics(),
+    streams: new StreamGate(),
+    rateLimiter: new RateLimiter(120, 60_000),
+  };
   const app = createApiApp(ctx, extra);
   return {
     app,
@@ -3354,7 +3375,7 @@ export async function startTestApi(db: Db, extra: RegisterRoutes[] = []): Promis
     ctx,
     deps,
     sessionFor: (user) => issueSessionToken(config.SESSION_SECRET, user.id),
-    request: (method, path, options = {}) =>
+    request: async (method, path, options = {}) =>
       app.request(path, {
         method,
         headers: {
@@ -3393,6 +3414,7 @@ beforeEach(async () => {
   await truncateAll(db);
   api.fake.reset();
   api.ctx.membership.clearCaches();
+  api.ctx.rateLimiter.reset();
 });
 afterAll(async () => {
   await api.stop();
@@ -3583,6 +3605,7 @@ beforeEach(async () => {
   await truncateAll(db);
   api.fake.reset();
   api.ctx.membership.clearCaches();
+  api.ctx.rateLimiter.reset();
 });
 afterAll(async () => {
   await api.stop();
@@ -5450,6 +5473,7 @@ import { gameRoutes } from './api/routes/index';
 import { staticAppRoutes } from './api/staticApp';
 import { StreamGate } from './api/streams';
 import { createBot } from './bot/bot';
+import { RateLimiter } from './bot/rateLimit';
 import { webhookRoutes } from './bot/webhook';
 import { LocalBus } from './bus/bus';
 import { startScanners } from './clock/scanners';
@@ -5498,7 +5522,14 @@ export async function startServer(config: Config): Promise<RunningServer> {
   const api = bot ? bot.api : createTelegramApi(config, { apiRoot: config.TELEGRAM_API_ROOT });
   instrumentTelegramApi(api, metrics);
   const membership = new Membership(deps, api);
-  const apiCtx: ApiContext = { deps, config, membership, metrics, streams: new StreamGate() };
+  const apiCtx: ApiContext = {
+    deps,
+    config,
+    membership,
+    metrics,
+    streams: new StreamGate(),
+    rateLimiter: new RateLimiter(120, 60_000),
+  };
 
   const app = createApiApp(apiCtx, has('api') ? gameRoutes : []);
   if (bot && !config.TELEGRAM_POLLING) app.route('/', webhookRoutes(bot, deps, config));

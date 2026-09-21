@@ -1,0 +1,210 @@
+import { LaunchResponseSchema, LobbyDtoSchema } from '@group-chess/shared';
+import { eq } from 'drizzle-orm';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { challenges, games, users } from '../../src/db/schema';
+import { touchMember } from '../../src/domain/members';
+import { startTestApi, type TestApi } from '../helpers/api';
+import { openTestDb, truncateAll } from '../helpers/db';
+import { insertChallenge, insertGame, insertGroup, insertUser } from '../helpers/fixtures';
+import { signInitData } from '../helpers/initData';
+
+const { db, close } = openTestDb();
+let api: TestApi;
+
+beforeAll(async () => {
+  api = await startTestApi(db);
+});
+beforeEach(async () => {
+  await truncateAll(db);
+  api.fake.reset();
+  api.ctx.membership.clearCaches();
+  api.ctx.rateLimiter.reset();
+});
+afterAll(async () => {
+  await api.stop();
+  await close();
+});
+
+const alice = { id: 11, first_name: 'Alice', username: 'alice' };
+const launch = (fields: Parameters<typeof signInitData>[1]) =>
+  api.request('POST', '/api/launch', {
+    body: { initData: signInitData(api.config.BOT_TOKEN, fields) },
+  });
+
+describe('POST /api/launch', () => {
+  it('creates the user, issues a session and lands on the groups screen', async () => {
+    const res = await launch({ user: alice });
+    expect(res.status).toBe(200);
+    const body = LaunchResponseSchema.parse(await res.json());
+    expect(body.route.kind).toBe('groups');
+    expect(body.user).toEqual({ id: expect.any(String), name: 'Alice', username: 'alice' });
+    expect(body.askWriteAccess).toBe(true);
+    expect(body.bot).toEqual({ username: 'TestChessBot', miniAppShortName: 'chess' });
+    const me = await api.request('GET', '/api/me/groups', { token: body.token });
+    expect(me.status).toBe(200);
+  });
+
+  it('marks DMs allowed when init data says the user allows messages', async () => {
+    await launch({ user: { ...alice, allows_write_to_pm: true } });
+    expect((await db.select().from(users))[0]?.dmAllowed).toBe(true);
+  });
+
+  it('rejects tampered or stale init data with 401 and the error body', async () => {
+    const good = signInitData(api.config.BOT_TOKEN, { user: alice });
+    const res = await api.request('POST', '/api/launch', {
+      body: { initData: good.replace('Alice', 'Alicf') },
+    });
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({
+      error: { code: 'unauthorized', message: expect.any(String) },
+    });
+    const stale = signInitData(api.config.BOT_TOKEN, {
+      user: alice,
+      authDate: Math.floor(Date.now() / 1000) - 90_000,
+    });
+    expect((await api.request('POST', '/api/launch', { body: { initData: stale } })).status).toBe(
+      401,
+    );
+  });
+
+  it('opens a game link for a player, locks it for a stranger and shows it to a member', async () => {
+    const group = await insertGroup(db);
+    const white = await insertUser(db, { telegramUserId: 11 });
+    const black = await insertUser(db, { telegramUserId: 22 });
+    const game = await insertGame(db, group.id, white.id, black.id);
+    const asPlayer = LaunchResponseSchema.parse(
+      await (await launch({ user: alice, startParam: `g_${game.publicId}` })).json(),
+    );
+    expect(asPlayer.route).toMatchObject({
+      kind: 'game',
+      game: { id: game.publicId, viewerRole: 'white' },
+    });
+    const stranger = { id: 33, first_name: 'Sam' };
+    const locked = LaunchResponseSchema.parse(
+      await (await launch({ user: stranger, startParam: `g_${game.publicId}` })).json(),
+    );
+    expect(locked.route).toEqual({
+      kind: 'locked',
+      group: { id: group.publicId, title: group.title },
+    });
+    api.fake.members.set(33, 'member');
+    const asMember = LaunchResponseSchema.parse(
+      await (await launch({ user: stranger, startParam: `g_${game.publicId}` })).json(),
+    );
+    expect(asMember.route).toMatchObject({ kind: 'game', game: { viewerRole: 'spectator' } });
+  });
+
+  it('opens the lobby for a member and the settings for an admin', async () => {
+    const group = await insertGroup(db);
+    api.fake.members.set(11, 'member');
+    const lobby = LaunchResponseSchema.parse(
+      await (await launch({ user: alice, startParam: `l_${group.publicId}` })).json(),
+    );
+    expect(lobby.route.kind).toBe('lobby');
+    if (lobby.route.kind === 'lobby')
+      expect(LobbyDtoSchema.parse(lobby.route.lobby).isAdmin).toBe(false);
+    const notAdmin = LaunchResponseSchema.parse(
+      await (await launch({ user: alice, startParam: `s_${group.publicId}` })).json(),
+    );
+    expect(notAdmin.route.kind).toBe('lobby');
+    api.fake.admins = [11];
+    api.ctx.membership.invalidateAdmins(group.id);
+    const admin = LaunchResponseSchema.parse(
+      await (await launch({ user: alice, startParam: `s_${group.publicId}` })).json(),
+    );
+    expect(admin.route).toMatchObject({
+      kind: 'settings',
+      settings: { group: { id: group.publicId }, botIsAdmin: false },
+    });
+  });
+});
+
+describe('sessions and limits', () => {
+  it('refuses requests without a valid session', async () => {
+    expect((await api.request('GET', '/api/me/groups')).status).toBe(401);
+    expect((await api.request('GET', '/api/me/groups', { token: 'garbage' })).status).toBe(401);
+  });
+
+  it('limits a user to 120 requests per minute', async () => {
+    const user = await insertUser(db);
+    const token = await api.sessionFor(user);
+    let last = 0;
+    for (let i = 0; i < 121; i += 1)
+      last = (await api.request('GET', '/api/me/groups', { token })).status;
+    expect(last).toBe(429);
+  });
+
+  it('rejects a body over 64 KB', async () => {
+    const res = await api.request('POST', '/api/launch', {
+      body: { initData: 'x'.repeat(70_000) },
+    });
+    expect(res.status).toBe(413);
+  });
+});
+
+describe('me routes', () => {
+  it('merges preferences and records the write-access answer', async () => {
+    const user = await insertUser(db);
+    const token = await api.sessionFor(user);
+    const res = await api.request('PUT', '/api/me/prefs', {
+      token,
+      body: { prefs: { confirmMoves: false }, writeAccess: { allowed: true } },
+    });
+    expect(await res.json()).toMatchObject({
+      prefs: { confirmMoves: false, closeAfterMove: true },
+      dmAllowed: true,
+    });
+    const [row] = await db.select().from(users).where(eq(users.id, user.id));
+    expect(row?.writeAccessAskedAt).not.toBeNull();
+  });
+
+  it('deletes my data: resigns games, cancels challenges, anonymises, and ends the session', async () => {
+    const group = await insertGroup(db);
+    const me = await insertUser(db, { telegramUserId: 11, firstName: 'Alice', username: 'alice' });
+    const other = await insertUser(db, { telegramUserId: 22 });
+    await touchMember(db, group.id, me.id);
+    const game = await insertGame(db, group.id, me.id, other.id, {
+      fen: 'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2',
+      plyCount: 2,
+    });
+    await insertChallenge(db, group.id, me.id, other.id);
+    const token = await api.sessionFor(me);
+    expect((await api.request('DELETE', '/api/me', { token })).status).toBe(200);
+    expect((await db.select().from(games).where(eq(games.id, game.id)))[0]).toMatchObject({
+      status: 'finished',
+      result: '0-1',
+      endReason: 'resignation',
+    });
+    expect((await db.select().from(challenges))[0]?.status).toBe('cancelled');
+    const [row] = await db.select().from(users).where(eq(users.id, me.id));
+    expect(row).toMatchObject({
+      telegramUserId: null,
+      username: null,
+      firstName: 'Deleted player',
+      dmAllowed: false,
+    });
+    expect(row?.deletedAt).not.toBeNull();
+    expect((await api.request('GET', '/api/me/groups', { token })).status).toBe(401);
+  });
+
+  it('accepts telemetry and counts it', async () => {
+    const user = await insertUser(db);
+    const token = await api.sessionFor(user);
+    const res = await api.request('POST', '/api/telemetry', {
+      token,
+      body: { events: [{ kind: 'launch_failed', code: 'script' }] },
+    });
+    expect(res.status).toBe(200);
+    expect(await api.ctx.metrics.render()).toContain('miniapp_load_errors_total 1');
+  });
+});
+
+describe('health', () => {
+  it('serves healthz, readyz and metrics', async () => {
+    expect((await api.request('GET', '/healthz')).status).toBe(200);
+    expect((await api.request('GET', '/readyz')).status).toBe(200);
+    const metrics = await api.request('GET', '/metrics');
+    expect(metrics.status).toBe(200);
+    expect(await metrics.text()).toContain('process_cpu_user_seconds_total');
+  });
+});

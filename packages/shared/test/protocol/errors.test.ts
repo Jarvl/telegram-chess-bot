@@ -28,6 +28,7 @@ describe('HTTP_STATUS_BY_ERROR_CODE', () => {
     ['rate_limited', 429],
     ['unauthorized', 401],
     ['validation', 400],
+    ['internal', 500],
   ] as const)('%s maps to %d', (code, status) => {
     expect(HTTP_STATUS_BY_ERROR_CODE[code]).toBe(status);
   });

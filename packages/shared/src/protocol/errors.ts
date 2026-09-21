@@ -11,6 +11,8 @@ export const ERROR_CODES = [
   'limit_exceeded',
   'rate_limited',
   'validation',
+  /** An unhandled server error; not a domain outcome, the app treats it like a network failure. */
+  'internal',
 ] as const;
 
 export const ErrorCodeSchema = z.enum(ERROR_CODES);
@@ -38,6 +40,7 @@ export const HTTP_STATUS_BY_ERROR_CODE: Readonly<Record<ErrorCode, number>> = {
   illegal_move: 422,
   rate_limited: 429,
   validation: 400,
+  internal: 500,
 };
 
 export function apiErrorBody(code: ErrorCode, message: string): ApiErrorBody {

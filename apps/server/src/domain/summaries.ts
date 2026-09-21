@@ -1,0 +1,154 @@
+import {
+  sideToMove,
+  type ChallengeDto,
+  type GameSummary,
+  type TimePerMove,
+} from '@group-chess/shared';
+import { and, eq, type SQL } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
+import type { DbOrTx } from '../db/client';
+import {
+  challenges,
+  games,
+  ratings,
+  users,
+  type ChallengeRow,
+  type GameRow,
+  type RatingRow,
+  type UserRow,
+} from '../db/schema';
+import { toPlayerRef } from './players';
+
+export const whiteUser = alias(users, 'white_user');
+export const blackUser = alias(users, 'black_user');
+export const whiteRating = alias(ratings, 'white_rating');
+export const blackRating = alias(ratings, 'black_rating');
+
+export type GameSummaryRow = {
+  game: GameRow;
+  white: UserRow;
+  black: UserRow;
+  whiteRating: RatingRow | null;
+  blackRating: RatingRow | null;
+};
+
+/** Games with both players and their current ratings in one query. */
+export async function gameSummaryRows(
+  tx: DbOrTx,
+  where: SQL | undefined,
+  orderBy: SQL[],
+  limit: number,
+): Promise<GameSummaryRow[]> {
+  return tx
+    .select({ game: games, white: whiteUser, black: blackUser, whiteRating, blackRating })
+    .from(games)
+    .innerJoin(whiteUser, eq(whiteUser.id, games.whiteId))
+    .innerJoin(blackUser, eq(blackUser.id, games.blackId))
+    .leftJoin(
+      whiteRating,
+      and(eq(whiteRating.groupId, games.groupId), eq(whiteRating.userId, games.whiteId)),
+    )
+    .leftJoin(
+      blackRating,
+      and(eq(blackRating.groupId, games.groupId), eq(blackRating.userId, games.blackId)),
+    )
+    .where(where)
+    .orderBy(...orderBy)
+    .limit(limit);
+}
+
+export function toGameSummary(row: GameSummaryRow, viewerId: number | null): GameSummary {
+  const { game } = row;
+  const side = sideToMove(game.fen);
+  const toMove = side === 'white' ? game.whiteId : game.blackId;
+  return {
+    id: game.publicId,
+    white: toPlayerRef(row.white, row.whiteRating),
+    black: toPlayerRef(row.black, row.blackRating),
+    status: game.status,
+    timePerMove: game.timePerMove as TimePerMove,
+    rated: game.rated,
+    plyCount: game.plyCount,
+    sideToMove: side,
+    yourTurn: game.status === 'active' && viewerId !== null && toMove === viewerId,
+    deadlineAt: game.status === 'active' && game.deadlineAt ? game.deadlineAt.toISOString() : null,
+    lastMoveAt: game.lastMoveAt ? game.lastMoveAt.toISOString() : null,
+    startedAt: game.startedAt.toISOString(),
+    finishedAt: game.finishedAt ? game.finishedAt.toISOString() : null,
+    result: game.result,
+    endReason: game.endReason,
+    voided: game.voidedAt !== null,
+  };
+}
+
+export const challengerUser = alias(users, 'challenger_user');
+export const opponentUser = alias(users, 'opponent_user');
+export const challengerRating = alias(ratings, 'challenger_rating');
+export const opponentRating = alias(ratings, 'opponent_rating');
+
+export type ChallengeDtoRow = {
+  challenge: ChallengeRow;
+  challenger: UserRow;
+  opponent: UserRow | null;
+  challengerRating: RatingRow | null;
+  opponentRating: RatingRow | null;
+};
+
+export async function challengeDtoRows(
+  tx: DbOrTx,
+  where: SQL | undefined,
+  limit: number,
+): Promise<ChallengeDtoRow[]> {
+  return tx
+    .select({
+      challenge: challenges,
+      challenger: challengerUser,
+      opponent: opponentUser,
+      challengerRating,
+      opponentRating,
+    })
+    .from(challenges)
+    .innerJoin(challengerUser, eq(challengerUser.id, challenges.challengerId))
+    .leftJoin(opponentUser, eq(opponentUser.id, challenges.opponentId))
+    .leftJoin(
+      challengerRating,
+      and(
+        eq(challengerRating.groupId, challenges.groupId),
+        eq(challengerRating.userId, challenges.challengerId),
+      ),
+    )
+    .leftJoin(
+      opponentRating,
+      and(
+        eq(opponentRating.groupId, challenges.groupId),
+        eq(opponentRating.userId, challenges.opponentId),
+      ),
+    )
+    .where(where)
+    .orderBy(challenges.createdAt)
+    .limit(limit);
+}
+
+export function challengeToDto(row: ChallengeDtoRow, viewerId: number): ChallengeDto {
+  const { challenge } = row;
+  const pending = challenge.status === 'pending';
+  return {
+    id: challenge.publicId,
+    challenger: toPlayerRef(row.challenger, row.challengerRating),
+    opponent: row.opponent ? toPlayerRef(row.opponent, row.opponentRating) : null,
+    timePerMove: challenge.timePerMove as TimePerMove,
+    challengerColour: challenge.challengerColour,
+    rated: challenge.rated,
+    status: challenge.status,
+    createdAt: challenge.createdAt.toISOString(),
+    expiresAt: challenge.expiresAt.toISOString(),
+    viewer: {
+      canAccept:
+        pending &&
+        (challenge.opponentId === viewerId ||
+          (challenge.opponentId === null && challenge.challengerId !== viewerId)),
+      canDecline: pending && challenge.opponentId === viewerId,
+      canCancel: pending && challenge.challengerId === viewerId,
+    },
+  };
+}
