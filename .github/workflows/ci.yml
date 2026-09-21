@@ -23,6 +23,7 @@ jobs:
           --health-retries 10
     env:
       TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/group_chess_test
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -35,3 +36,7 @@ jobs:
       - run: pnpm format:check
       - run: pnpm typecheck
       - run: pnpm test
+      - run: pnpm build
+      - run: pnpm check:budget
+      - run: pnpm check:licences
+      - run: pnpm audit --prod --audit-level=high

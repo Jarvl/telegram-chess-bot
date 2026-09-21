@@ -464,9 +464,12 @@ jobs:
     runs-on: ubuntu-latest
     environment: staging
     steps:
-      - run: curl --fail --silent --show-error -X POST "$HOOK" -H "Content-Type: application/json" -d "{\"tag\":\"${GITHUB_REF_NAME}\"}"
-        env:
+      - env:
           HOOK: ${{ secrets.STAGING_DEPLOY_HOOK }}
+        run: |
+          curl --fail --silent --show-error -X POST "$HOOK" \
+            -H 'Content-Type: application/json' \
+            -d "{\"tag\":\"${GITHUB_REF_NAME}\"}"
 ```
 
 `.github/dependabot.yml`:
