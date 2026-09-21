@@ -1,0 +1,28 @@
+{
+  "name": "@group-chess/miniapp",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "GPL-3.0-or-later",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "e2e": "vite build && playwright test"
+  },
+  "dependencies": {
+    "@group-chess/shared": "workspace:*",
+    "@preact/signals": "^2.11.2",
+    "chess.js": "1.4.0",
+    "chessground": "^9.2.1",
+    "preact": "^10.29.8",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "happy-dom": "^20.14.5",
+    "vite": "^8.3.0",
+    "vitest": "^5.0.1"
+  }
+}
