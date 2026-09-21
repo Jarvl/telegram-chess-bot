@@ -8,8 +8,10 @@
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
+    "@grammyjs/transformer-throttler": "^1.2.1",
     "@group-chess/shared": "workspace:*",
     "drizzle-orm": "^0.45.2",
+    "grammy": "^1.46.0",
     "pino": "^10.3.1",
     "postgres": "^3.4.9",
     "zod": "^4.6.5"

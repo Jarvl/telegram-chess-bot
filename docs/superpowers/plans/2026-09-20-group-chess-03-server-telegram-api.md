@@ -514,10 +514,6 @@ export function renderChallengeCard(view: ChallengeCardView): RenderedMessage {
   return { text: t(key, params), entities: [] };
 }
 
-function ratingSpan(rating: { before: string; after: string | null }): string {
-  return rating.after ? `${rating.before} → ${rating.after}` : rating.before;
-}
-
 export function renderGameCard(view: GameCardView): RenderedMessage {
   const white = view.white.name;
   const black = view.black.name;
@@ -622,7 +618,7 @@ export function renderShareCaption(view: {
 - [ ] **Step 5: Run the tests to verify they pass**
 
 Run: `pnpm vitest run apps/server/test/unit/telegram-client.test.ts apps/server/test/unit/cards.test.ts`
-Expected: PASS — 26 tests (client 13, cards 13).
+Expected: PASS — 28 tests (client 13, cards 15).
 
 - [ ] **Step 6: Run the whole suite and the static checks**
 
