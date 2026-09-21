@@ -770,6 +770,7 @@ export class FakeTelegram {
 
   reset(): void {
     this.calls = [];
+    this.nextMessageId = 100;
     this.failures.clear();
     this.admins = [];
     this.members.clear();
@@ -1762,7 +1763,8 @@ describe('edit_card', () => {
 describe('send_dm', () => {
   it('sends the turn DM with both buttons and skips users who declined DMs', async () => {
     const { group, alice, bob } = await people();
-    const game = await insertGame(db, group.id, alice.id, bob.id, { cardMessageId: 900, fen: AFTER_E4, plyCount: 1 });
+    // Bob is White and has moved; it is Alice's (Black's) turn, and only Alice allows DMs.
+    const game = await insertGame(db, group.id, bob.id, alice.id, { cardMessageId: 900, fen: AFTER_E4, plyCount: 1 });
     await insertMove(db, game.id, 1, 'e2e4', 'e4', AFTER_E4);
     await enqueue(db, { kind: 'send_dm', payload: { userId: bob.id, template: 'turn', gameId: game.id } });
     await enqueue(db, { kind: 'send_dm', payload: { userId: alice.id, template: 'turn', gameId: game.id } });

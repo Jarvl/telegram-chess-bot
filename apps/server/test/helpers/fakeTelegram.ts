@@ -59,6 +59,7 @@ export class FakeTelegram {
 
   reset(): void {
     this.calls = [];
+    this.nextMessageId = 100;
     this.failures.clear();
     this.admins = [];
     this.members.clear();
