@@ -87,6 +87,13 @@ describe('playMove', () => {
     await db.update(users).set({ dmAllowed: true }).where(eq(users.id, short.bob.id));
     await move(short.game.publicId, short.alice.id, 'e2e4', 0);
     expect(await secondsUntil('reminder_at', short.game.id)).toBeNull();
+    const muted = await setup();
+    await db
+      .update(users)
+      .set({ dmAllowed: true, prefs: { notifications: false } })
+      .where(eq(users.id, muted.bob.id));
+    await move(muted.game.publicId, muted.alice.id, 'e2e4', 0);
+    expect(await secondsUntil('reminder_at', muted.game.id)).toBeNull();
   });
 
   it('is idempotent for a retried client move id', async () => {

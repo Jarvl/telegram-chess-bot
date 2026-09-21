@@ -193,6 +193,24 @@ describe('edit_card', () => {
 });
 
 describe('send_dm', () => {
+  it('sends nothing to a user who turned notifications off, whatever the template', async () => {
+    const { group, alice, bob } = await people();
+    await db
+      .update(users)
+      .set({ prefs: { notifications: false } })
+      .where(eq(users.id, alice.id));
+    const game = await insertGame(db, group.id, bob.id, alice.id, { fen: AFTER_E4, plyCount: 1 });
+    await insertMove(db, game.id, 1, 'e2e4', 'e4', AFTER_E4);
+    for (const template of ['turn', 'reminder', 'game_end'] as const)
+      await enqueue(db, {
+        kind: 'send_dm',
+        payload: { userId: alice.id, template, gameId: game.id },
+      });
+    await worker.runOnce();
+    expect(fake.callsTo('sendMessage')).toHaveLength(0);
+    expect((await db.select().from(jobs)).every((job) => job.doneAt !== null)).toBe(true);
+  });
+
   it('sends the turn DM with both buttons and skips users who declined DMs', async () => {
     const { group, alice, bob } = await people();
     // Bob is White and has moved; it is Alice's (Black's) turn, and only Alice allows DMs.

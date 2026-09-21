@@ -18,7 +18,7 @@ import {
   reminderExpression,
 } from './limits';
 import { isBlocked } from './members';
-import { requireUser } from './users';
+import { requireUser, wantsDms } from './users';
 
 export type CreateChallengeInput = {
   groupId: number;
@@ -249,7 +249,7 @@ export async function acceptChallenge(
         rated: challenge.rated,
         fen: INITIAL_FEN,
         deadlineAt: deadlineExpression(timePerMove),
-        reminderAt: reminderExpression(timePerMove, white.dmAllowed),
+        reminderAt: reminderExpression(timePerMove, wantsDms(white)),
         cardMessageId: challenge.messageId,
         cardThreadId: challenge.threadId,
       })

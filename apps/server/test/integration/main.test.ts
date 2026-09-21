@@ -51,7 +51,8 @@ describe('startServer', () => {
     });
   });
 
-  it('still starts when Telegram refuses the command registration', async () => {
+  it('still starts when Telegram refuses the webhook or the command registration', async () => {
+    fake.failNext('setWebhook', { error_code: 429, description: 'Too Many Requests' });
     fake.failNext('setMyCommands', { error_code: 500, description: 'Internal Server Error' });
     const second = await startServer(testConfig({ TELEGRAM_API_ROOT: fake.url, PORT: 0 }));
     try {
@@ -84,8 +85,8 @@ describe('startServer', () => {
       'jobs_pending',
       'jobs_oldest_age_seconds',
       'scanner_lag_seconds',
-      'games_started_total',
-      'shares_total',
+      'games_started',
+      'shares',
       'active_groups',
       'move_latency_seconds',
     ]) {

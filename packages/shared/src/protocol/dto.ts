@@ -285,6 +285,11 @@ export const LaunchResponseSchema = z.object({
 
 export type LaunchResponse = z.infer<typeof LaunchResponseSchema>;
 
+/** A short-lived download link for a game's PGN; its token opens nothing else (spec §9). */
+export const PgnLinkDtoSchema = z.object({ url: z.string().min(1) });
+
+export type PgnLinkDto = z.infer<typeof PgnLinkDtoSchema>;
+
 export const OkDtoSchema = z.object({ ok: z.literal(true) });
 
 export type OkDto = z.infer<typeof OkDtoSchema>;

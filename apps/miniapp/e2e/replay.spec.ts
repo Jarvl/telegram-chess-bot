@@ -19,5 +19,7 @@ test('replays a finished game and reaches analysis and the PGN', async ({ page }
   await page.locator('[data-action="analyse"]').click();
   expect((await tgState(page)).links[0]).toContain('lichess.org/analysis/pgn/');
   await page.locator('[data-action="pgn"]').click();
-  expect((await tgState(page)).downloads[0]?.file_name).toBe(`${world.game!.publicId}.pgn`);
+  await expect
+    .poll(async () => (await tgState(page)).downloads[0]?.file_name)
+    .toBe(`${world.game!.publicId}.pgn`);
 });

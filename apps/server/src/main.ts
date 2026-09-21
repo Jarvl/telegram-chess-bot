@@ -134,10 +134,16 @@ export async function startServer(config: Config): Promise<RunningServer> {
       polling = bot.start({ allowed_updates: [...ALLOWED_UPDATES] });
       polling.catch((error: unknown) => log.error({ err: error }, 'long polling stopped'));
     } else {
-      await api.setWebhook(`${config.PUBLIC_URL.replace(/\/$/, '')}/telegram/webhook`, {
-        secret_token: config.WEBHOOK_SECRET,
-        allowed_updates: [...ALLOWED_UPDATES],
-      });
+      // Telegram keeps the last registration, so a failure here (an outage, a 429 during a
+      // rolling restart) must not stop the API from serving; it is logged loudly instead.
+      try {
+        await api.setWebhook(`${config.PUBLIC_URL.replace(/\/$/, '')}/telegram/webhook`, {
+          secret_token: config.WEBHOOK_SECRET,
+          allowed_updates: [...ALLOWED_UPDATES],
+        });
+      } catch (error) {
+        log.error({ err: error }, 'could not register the webhook; the last registration stands');
+      }
     }
   }
   log.info({ port, roles: config.ROLES, polling: polling !== null }, 'server started');

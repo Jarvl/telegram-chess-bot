@@ -1,4 +1,4 @@
-import { GameDtoSchema, t, type Colour, type GameDto } from '@group-chess/shared';
+import { GameDtoSchema, PgnLinkDtoSchema, t, type Colour, type GameDto } from '@group-chess/shared';
 import { h } from 'preact';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { ApiError } from '../../api/client';
@@ -304,12 +304,16 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
     const url = dto.lichessUrl ?? dto.analysisUrl;
     if (url) tg.openLink(url);
   };
-  const pgn = (): void => {
-    const url = new URL(
-      client.url(`/api/games/${gameId}/pgn`, { token: client.token ?? '' }),
-      window.location.origin,
-    ).toString();
-    if (!tg.downloadFile(url, `${gameId}.pgn`)) tg.openLink(url);
+  // The download goes to Telegram's downloader or the system browser, so it carries a short-lived
+  // link token from the server, never the session token (spec §9).
+  const pgn = async (): Promise<void> => {
+    try {
+      const link = await client.post(`/api/games/${gameId}/pgn-link`, {}, PgnLinkDtoSchema);
+      const url = new URL(client.url(link.url), window.location.origin).toString();
+      if (!tg.downloadFile(url, `${gameId}.pgn`)) tg.openLink(url);
+    } catch {
+      toast(t('app.common.error'));
+    }
   };
 
   const orientation = store.orientation.value;
@@ -486,7 +490,7 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
           </button>
         ) : null}
         {dto.status === 'finished' ? (
-          <button class="btn secondary" data-action="pgn" onClick={pgn}>
+          <button class="btn secondary" data-action="pgn" onClick={() => void pgn()}>
             {t('app.game.pgn')}
           </button>
         ) : null}

@@ -16,7 +16,7 @@ import { DomainError } from './errors';
 import { buildGameDto, colourOf, positionKeys } from './gameDto';
 import { deadlineExpression, reminderExpression } from './limits';
 import { applyGameResultToRatings, getPlayerRating } from './ratings';
-import { requireUser } from './users';
+import { requireUser, wantsDms } from './users';
 
 export type EndInput = { result: GameResult; endReason: EndReason };
 
@@ -226,7 +226,7 @@ export async function playMove(deps: Deps, input: PlayMoveInput): Promise<GameDt
         version: sql`${games.version} + 1`,
         lastMoveAt: now,
         deadlineAt: deadlineExpression(timePerMove),
-        reminderAt: reminderExpression(timePerMove, opponent.dmAllowed),
+        reminderAt: reminderExpression(timePerMove, wantsDms(opponent)),
         ...(offerLapses ? { drawOfferBy: null, drawOfferPly: null } : {}),
       })
       .where(eq(games.id, game.id))

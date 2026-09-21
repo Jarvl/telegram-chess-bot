@@ -14,7 +14,8 @@
 - One container, all four roles by default (`ROLES=api,bot,jobs,clock`). To split, run several containers with subsets; scanners and the job worker are safe to run in several instances (`SELECT … FOR UPDATE SKIP LOCKED`). With more than one `api` replica, SSE needs the `PgNotifyBus` upgrade named in the design (§4.3); the alpha runs one.
 - Migrations run at boot under an advisory lock, so several replicas can start at once. Rolling restarts are safe: clocks and jobs are rows; Telegram retries the webhook; SSE clients reconnect.
 - Health: `GET /healthz` (process up), `GET /readyz` (database reachable). Metrics: `GET /metrics` (Prometheus); keep it behind the network policy.
-- Reverse proxy: HTTPS only; forward `/telegram/webhook`, `/api/*`, `/app/*`, `/healthz`, `/readyz`. Disable response buffering for `/api/games/*/events` (the server sends `X-Accel-Buffering: no`, `Cache-Control: no-store` and a `ping` every 20 s). Redact the query string of that route in access logs (it carries the session token). Optionally restrict `/telegram/webhook` to Telegram's published address ranges.
+- Reverse proxy: HTTPS only; forward `/telegram/webhook`, `/api/*`, `/app/*`, `/healthz`, `/readyz`. Disable response buffering for `/api/games/*/events` (the server sends `X-Accel-Buffering: no`, `Cache-Control: no-store` and a `ping` every 20 s). Redact the query string of that route and of `/api/games/*/pgn` in access logs (the first carries the session token, the second a five-minute download token). Optionally restrict `/telegram/webhook` to Telegram's published address ranges.
+- Before the beta: run Lighthouse against the staging `/app/` URL on a throttled mobile profile and keep first board paint under 2 s (spec §6.5); the byte budget in CI is only a proxy for it.
 - Verification on staging after every deploy: open a game in the Mini App from two accounts, make a move on one and watch it appear on the other within 2 s without a refresh; if it appears only after a reload, the proxy is buffering the stream.
 - Database: daily snapshots kept 30 days, encrypted at rest; run one restore drill before the beta. Retention inside the database: `telegram_updates` 7 days, finished jobs 30 days (the daily `prune` job), games indefinitely.
 - Secrets: `BOT_TOKEN`, `WEBHOOK_SECRET`, `SESSION_SECRET`, `LICHESS_TOKEN` live in the platform's secret store, never in the image or the repository. Rotating `SESSION_SECRET` logs every Mini App session out; rotating `WEBHOOK_SECRET` needs a restart (the server re-registers the webhook).
@@ -31,7 +32,7 @@
 | `lichess_imports_total{outcome}` | Failure ratio above 50 % over an hour |
 | `miniapp_load_errors_total`, `miniapp_move_failures_total` | Load errors above 1 % of launches |
 | `jobs_failed_total{kind}` | Any increase: a job exhausted its attempts (`last_error` on the row says why) |
-| `moves_total`, `move_latency_seconds`, `sse_streams`, `sse_reconnects_total`, `game_opens_total{role}`, `games_started_total`, `games_finished_total{end_reason}`, `shares_total`, `active_groups` | Dashboards |
+| `moves_total`, `move_latency_seconds`, `sse_streams`, `sse_reconnects_total`, `game_opens_total{role}`, `games_started`, `games_finished_total{end_reason}`, `shares`, `active_groups` (the last three table-backed gauges carry no `_total` suffix, unlike spec §14's draft names) | Dashboards |
 
 Logs are JSON (pino) with numeric and public ids only; bound query parameters are stripped from error messages.
 

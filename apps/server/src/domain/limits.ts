@@ -78,8 +78,8 @@ export function countPendingChallenges(
 }
 
 /** `deadline_at − 0.1·T` expressed against the database clock; null when no reminder applies (spec §7.3). */
-export function reminderExpression(timePerMove: TimePerMove, dmAllowed: boolean): SQL | null {
-  if (timePerMove === null || timePerMove < REMINDER_MIN_TIME_PER_MOVE || !dmAllowed) return null;
+export function reminderExpression(timePerMove: TimePerMove, wantsDms: boolean): SQL | null {
+  if (timePerMove === null || timePerMove < REMINDER_MIN_TIME_PER_MOVE || !wantsDms) return null;
   return sql`now() + make_interval(secs => ${timePerMove * (1 - REMINDER_FRACTION)})`;
 }
 

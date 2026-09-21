@@ -26,6 +26,8 @@ const okRoute =
       return { status: 200, body: initial };
     if (call.method === 'POST' && /\/(draw\/\w+|resign|abort)$/.test(call.path))
       return { status: 200, body: initial };
+    if (call.method === 'POST' && call.path === `/api/games/${GAME}/pgn-link`)
+      return { status: 200, body: { url: `/api/games/${GAME}/pgn?token=scoped-link` } };
     return { status: 200, body: { ok: true } };
   };
 
@@ -289,7 +291,9 @@ describe('Game', () => {
     await r.click('[data-action="analyse"]');
     expect(window.__tg!.links).toContain('https://lichess.org/abcd1234');
     await r.click('[data-action="pgn"]');
-    expect(window.__tg!.links.at(-1)).toContain(`/api/games/${GAME}/pgn?token=jwt`);
+    expect(r.calls.at(-1)?.path).toBe(`/api/games/${GAME}/pgn-link`);
+    expect(window.__tg!.links.at(-1)).toContain(`/api/games/${GAME}/pgn?token=scoped-link`);
+    expect(window.__tg!.links.at(-1)).not.toContain('jwt');
     expect(window.__tg!.downloads).toEqual([]);
     await r.click('[data-action="rematch"]');
     expect(r.calls.at(-1)?.path).toBe(`/api/games/${GAME}/rematch`);

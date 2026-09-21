@@ -28,7 +28,22 @@ test('a 7.0 client opens the PGN as a link instead of a download', async ({ page
     version: '7.0',
   });
   await page.locator('[data-action="pgn"]').click();
-  const state = await tgState(page);
-  expect(state.downloads).toEqual([]);
-  expect(state.links[0]).toContain(`/api/games/${world.game!.publicId}/pgn?token=`);
+  // The app first asks the server for a short-lived link, then opens it.
+  await expect
+    .poll(async () => (await tgState(page)).links[0])
+    .toContain(`/api/games/${world.game!.publicId}/pgn?token=`);
+  expect((await tgState(page)).downloads).toEqual([]);
+  // The link works in a plain browser, and its token is not the session token.
+  const link = (await tgState(page)).links[0]!;
+  const response = await page.request.get(link);
+  expect(response.status()).toBe(200);
+  expect(await response.text()).toContain('[Result "0-1"]');
+  const token = new URL(link).searchParams.get('token')!;
+  expect(
+    (
+      await page.request.get(`/api/games/${world.game!.publicId}`, {
+        headers: { authorization: `Bearer ${token}` },
+      })
+    ).status(),
+  ).toBe(401);
 });

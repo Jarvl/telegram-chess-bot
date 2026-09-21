@@ -113,11 +113,11 @@ export class Metrics {
         self.set({ scanner: 'expiry' }, Number(expiry?.lag ?? 0));
       },
     );
-    gauge('games_started_total', 'Games ever started', [], async (self) => {
+    gauge('games_started', 'Games ever started', [], async (self) => {
       const [row] = await query(sql`select count(*)::int as n from games`);
       self.set(Number(row?.n ?? 0));
     });
-    gauge('shares_total', 'Positions ever shared', [], async (self) => {
+    gauge('shares', 'Positions ever shared', [], async (self) => {
       const [row] = await query(sql`select count(*)::int as n from shares`);
       self.set(Number(row?.n ?? 0));
     });

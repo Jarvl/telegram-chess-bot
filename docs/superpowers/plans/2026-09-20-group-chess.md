@@ -52,3 +52,15 @@ Each sub-plan carries its own Review Focus list with the tests that pin the item
 3. A Telegram 429 on a card edit must delay the edit, never drop it or duplicate it (plan 3).
 4. A phone that backgrounds the Mini App for minutes must show the latest position on resume without a manual refresh (plan 4).
 5. A deleted user must disappear from leaderboards and pickers while their opponents' histories stay intact (plan 3).
+
+## Post-branch-review fixes
+
+A fresh-context review of the whole branch (`f99d882..47f7976`, report in `.superpowers/sdd/branch-final-review.md`) found no Critical and four Important items; all checks it ran were green (516 tests, 12 e2e with the live spec repeated, gates, secrets and privacy scans). One fix pass:
+
+- **The `notifications` preference now gates DMs** (PRD §7.7). It was defined (plan 01), switchable (plan 04) and never read (plan 03). `wantsDms(user)` in `domain/users.ts` combines `dm_allowed`, `deleted_at` and the preference; `send_dm` and both reminder schedulers use it. Tests: `telegram-handlers.test.ts` "sends nothing to a user who turned notifications off", `games.test.ts` reminder case.
+- **A failed `setWebhook` at boot no longer crash-loops the container.** Telegram keeps the last registration; the error is logged and the API serves. Test: `main.test.ts` "still starts when Telegram refuses the webhook or the command registration".
+- **The PGN download no longer hands the session token to the browser** (spec §9 "scoped"). `POST /api/games/:id/pgn-link` returns a five-minute link whose token is scoped to that game's PGN; `requireSession` accepts a scoped token only there and refuses the session token in a query string on that route. Tests: `api-games.test.ts` "serves the PGN through a short-lived link whose token opens nothing else", `game.test.tsx`, `e2e/fallbacks.spec.ts` (the link works in a plain browser and its token opens nothing else).
+- **Gauge names.** `games_started` and `shares` (table-backed gauges) drop the `_total` suffix spec §14 sketched, so `rate()` panels are not built on gauges; `docs/operations.md` records the deviation.
+- **Lighthouse (spec §6.5, §15)** is recorded as a before-beta step in `docs/operations.md`; there is no staging URL yet and it is not a PRD §13 alpha-exit criterion.
+
+Everything else the five plan reviews deferred is listed in the branch report's table with a ruling (ship as-is, with reasons).

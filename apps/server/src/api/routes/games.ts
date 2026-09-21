@@ -1,4 +1,4 @@
-import { MoveRequestSchema, ShareRequestSchema } from '@group-chess/shared';
+import { MoveRequestSchema, ShareRequestSchema, type PgnLinkDto } from '@group-chess/shared';
 import { eq } from 'drizzle-orm';
 import type { Context, Hono } from 'hono';
 import { challenges } from '../../db/schema';
@@ -17,6 +17,7 @@ import { challengeDtoRows, challengeToDto } from '../../domain/summaries';
 import { requireGameAccess } from '../access';
 import type { ApiContext, ApiEnv } from '../context';
 import { publicIdParam } from '../middleware';
+import { issueScopedToken } from '../session';
 import { validate } from '../validate';
 
 export function gamesRoutes(api: Hono<ApiEnv>, ctx: ApiContext): void {
@@ -84,6 +85,20 @@ export function gamesRoutes(api: Hono<ApiEnv>, ctx: ApiContext): void {
     const challenge = await createRematch(ctx.deps, { gameId: game.id, userId: userId(c) });
     const [row] = await challengeDtoRows(db, eq(challenges.id, challenge.id), 1);
     return c.json(challengeToDto(row!, userId(c)));
+  });
+
+  // The app asks for a link and hands that to the browser or downloader, never its session token.
+  api.post('/games/:id/pgn-link', async (c) => {
+    const game = await accessible(c);
+    const token = await issueScopedToken(
+      ctx.config.SESSION_SECRET,
+      c.get('user').id,
+      `pgn:${game.publicId}`,
+    );
+    const dto: PgnLinkDto = {
+      url: `/api/games/${game.publicId}/pgn?token=${encodeURIComponent(token)}`,
+    };
+    return c.json(dto);
   });
 
   api.get('/games/:id/pgn', async (c) => {

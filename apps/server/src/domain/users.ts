@@ -45,6 +45,11 @@ export function prefsOf(user: Pick<UserRow, 'prefs'>): Prefs {
   return { ...PREFS_DEFAULTS, ...user.prefs };
 }
 
+/** PRD §7.7: DMs go only to users who allowed them in Telegram and keep notifications on. */
+export function wantsDms(user: Pick<UserRow, 'prefs' | 'dmAllowed' | 'deletedAt'>): boolean {
+  return user.dmAllowed && user.deletedAt === null && prefsOf(user).notifications;
+}
+
 /** Merges a validated patch over the stored preferences; unknown keys are dropped, bad values refused. */
 export async function updatePrefs(
   tx: DbOrTx,

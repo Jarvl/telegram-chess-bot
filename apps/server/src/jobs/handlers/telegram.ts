@@ -22,7 +22,7 @@ import type { Deps } from '../../domain/deps';
 import { listMoves, requireGameById } from '../../domain/games';
 import { markBotLeft } from '../../domain/groupLifecycle';
 import { migrateChatId, requireGroup } from '../../domain/groups';
-import { getUserById, requireUser, setDmAllowed } from '../../domain/users';
+import { getUserById, requireUser, setDmAllowed, wantsDms } from '../../domain/users';
 import {
   renderChallengeCard,
   renderGameCard,
@@ -315,8 +315,7 @@ const sendDm =
   async ({ job }) => {
     const payload = dmPayload.parse(job.payload);
     const user = await getUserById(ctx.deps.db, payload.userId);
-    if (!user || !user.dmAllowed || user.deletedAt || user.telegramUserId === null)
-      return { outcome: 'done' };
+    if (!user || !wantsDms(user) || user.telegramUserId === null) return { outcome: 'done' };
     const content = await dmContent(ctx, user, payload);
     if (!content) return { outcome: 'done' };
     const chatId = user.telegramUserId;

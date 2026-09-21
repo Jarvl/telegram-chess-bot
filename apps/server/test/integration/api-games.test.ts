@@ -1,4 +1,5 @@
 import {
+  PgnLinkDtoSchema,
   ChallengeDtoSchema,
   GameDtoSchema,
   LobbyDtoSchema,
@@ -245,7 +246,7 @@ describe('games', () => {
     });
   });
 
-  it('serves the PGN with a query token for downloads', async () => {
+  it('serves the PGN through a short-lived link whose token opens nothing else', async () => {
     const { group, alice, bob, tokens } = await world();
     const game = await insertGame(db, group.id, alice.id, bob.id, {
       status: 'finished',
@@ -253,10 +254,35 @@ describe('games', () => {
       endReason: 'resignation',
       finishedAt: new Date(),
     });
-    const res = await api.request('GET', `/api/games/${game.publicId}/pgn?token=${tokens.carol}`);
+    const other = await insertGame(db, group.id, bob.id, alice.id, { status: 'finished' });
+    const link = await api.request('POST', `/api/games/${game.publicId}/pgn-link`, {
+      token: tokens.carol,
+    });
+    expect(link.status).toBe(200);
+    const { url } = PgnLinkDtoSchema.parse(await link.json());
+    expect(url).toMatch(new RegExp(`^/api/games/${game.publicId}/pgn\\?token=`));
+    const scoped = new URL(url, 'http://x').searchParams.get('token')!;
+    expect(scoped).not.toBe(tokens.carol);
+    const res = await api.request('GET', url);
     expect(res.status).toBe(200);
     expect(await res.text()).toContain('[Result "1-0"]');
+    // The link's token is good for this one download only.
+    expect(
+      (await api.request('GET', `/api/games/${other.publicId}/pgn?token=${scoped}`)).status,
+    ).toBe(401);
+    expect(
+      (await api.request('GET', `/api/games/${game.publicId}`, { token: scoped })).status,
+    ).toBe(401);
+    expect((await api.request('GET', `/api/me/groups`, { token: scoped })).status).toBe(401);
+    // The session token itself never travels in a query string for a download.
+    expect(
+      (await api.request('GET', `/api/games/${game.publicId}/pgn?token=${tokens.carol}`)).status,
+    ).toBe(401);
     expect((await api.request('GET', `/api/games/${game.publicId}/pgn`)).status).toBe(401);
+    expect(
+      (await api.request('POST', `/api/games/${game.publicId}/pgn-link`, { token: tokens.dave }))
+        .status,
+    ).toBe(403);
   });
 });
 
