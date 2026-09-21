@@ -19,6 +19,8 @@ export type Rendered = {
   text(): string;
 };
 
+let lastRoot: HTMLElement | null = null;
+
 /** Mounts `ui` with a fake Telegram (8.0), a fake fetch and a fresh router; the session is preset. */
 export function renderApp(
   ui: (app: AppContextValue) => ComponentChildren,
@@ -44,8 +46,10 @@ export function renderApp(
   };
   const router = new Router(tg, { closeWhenEmpty: options.closeWhenEmpty ?? false });
   const app: AppContextValue = { tg, client, router, prefetched: {} };
+  if (lastRoot) render(null, lastRoot); // unmount the previous tree: its streams and timers stop
   document.body.innerHTML = '';
   const root = document.createElement('div');
+  lastRoot = root;
   document.body.appendChild(root);
   render(
     <AppProvider value={app}>

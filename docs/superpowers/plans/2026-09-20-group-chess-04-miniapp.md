@@ -2903,6 +2903,8 @@ export type Rendered = {
   text(): string;
 };
 
+let lastRoot: HTMLElement | null = null;
+
 /** Mounts `ui` with a fake Telegram (8.0), a fake fetch and a fresh router; the session is preset. */
 export function renderApp(
   ui: (app: AppContextValue) => ComponentChildren,
@@ -2928,8 +2930,10 @@ export function renderApp(
   };
   const router = new Router(tg, { closeWhenEmpty: options.closeWhenEmpty ?? false });
   const app: AppContextValue = { tg, client, router, prefetched: {} };
+  if (lastRoot) render(null, lastRoot); // unmount the previous tree: its streams and timers stop
   document.body.innerHTML = '';
   const root = document.createElement('div');
+  lastRoot = root;
   document.body.appendChild(root);
   render(
     <AppProvider value={app}>
@@ -4824,7 +4828,7 @@ describe('boardConfig', () => {
       true,
       () => undefined,
     );
-    expect(config.movable?.color).toBe('none');
+    expect(config.movable?.color).toBeUndefined();
     expect(config.viewOnly).toBe(true);
     expect(config.check).toBe(true);
   });
@@ -4895,8 +4899,11 @@ const okRoute =
     if (call.method === 'POST' && call.path === `/api/games/${GAME}/moves` && onMove) return onMove(call);
     if (call.method === 'POST' && call.path === `/api/games/${GAME}/moves`) return { status: 200, body: afterPlies(1) };
     if (call.method === 'GET' && call.path === `/api/games/${GAME}`) return { status: 200, body: initial };
+    if (call.method === 'POST' && /\/(draw\/\w+|resign|abort)$/.test(call.path)) return { status: 200, body: initial };
     return { status: 200, body: { ok: true } };
   };
+
+const wantPrefs = { confirmMoves: false, closeAfterMove: false };
 
 function mount(initial: ReturnType<typeof gameDto>, route: FakeRoute = okRoute(initial), version = '8.0') {
   const r = renderApp(
@@ -4907,6 +4914,8 @@ function mount(initial: ReturnType<typeof gameDto>, route: FakeRoute = okRoute(i
     route,
     { version },
   );
+  // renderApp resets the preferences; the screen reads them when a move is dropped.
+  prefs.value = { ...prefs.value, ...wantPrefs };
   return r;
 }
 
@@ -4914,11 +4923,15 @@ beforeEach(() => {
   adapter = stubAdapter();
   FakeEventSource.reset();
   vi.stubGlobal('EventSource', FakeEventSource);
-  prefs.value = { ...prefs.value, confirmMoves: false, closeAfterMove: false };
+  wantPrefs.confirmMoves = false;
+  wantPrefs.closeAfterMove = false;
 });
-afterEach(() => {
-  vi.unstubAllGlobals();
+afterEach(async () => {
+  // Preact flushes effects on animation frames; run the faked ones before real timers return,
+  // otherwise its effect queue stays scheduled forever and later tests never run their effects.
+  if (vi.isFakeTimers()) await vi.runOnlyPendingTimersAsync();
   vi.useRealTimers();
+  vi.unstubAllGlobals();
 });
 
 describe('Game', () => {
@@ -4951,7 +4964,7 @@ describe('Game', () => {
   });
 
   it('asks for confirmation when the setting is on: cancel restores, confirm sends exactly once', async () => {
-    prefs.value = { ...prefs.value, confirmMoves: true };
+    wantPrefs.confirmMoves = true;
     const r = mount(gameDto());
     await r.flush();
     adapter.drop('e2', 'e4');
@@ -4974,7 +4987,7 @@ describe('Game', () => {
   });
 
   it('renders an in-page cancel below 7.10', async () => {
-    prefs.value = { ...prefs.value, confirmMoves: true };
+    wantPrefs.confirmMoves = true;
     const r = mount(gameDto(), okRoute(gameDto()), '7.0');
     await r.flush();
     adapter.drop('e2', 'e4');
@@ -5016,28 +5029,28 @@ describe('Game', () => {
         return { status: 200, body: afterPlies(1) };
       }),
     );
-    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(100); // effects run on the next (faked) frame
     adapter.drop('e2', 'e4');
-    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(100); // effects run on the next (faked) frame
     expect(window.__tg!.mainButton).toMatchObject({ text: 'Retry', visible: true });
     const first = r.calls.find((c) => c.method === 'POST')?.body as { clientMoveId: string };
     await vi.advanceTimersByTimeAsync(1_000);
-    const posts = r.calls.filter((c) => c.method === 'POST');
+    const posts = r.calls.filter((c) => c.method === 'POST' && c.path.endsWith('/moves'));
     expect(posts).toHaveLength(2);
     expect((posts[1]?.body as { clientMoveId: string }).clientMoveId).toBe(first.clientMoveId);
     expect(r.calls.some((c) => c.path === '/api/telemetry')).toBe(true);
-    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(100); // effects run on the next (faked) frame
     expect(window.__tg!.mainButton.visible).toBe(false);
   });
 
   it('closes after a move when launched from a game link and the setting is on', async () => {
     vi.useFakeTimers();
-    prefs.value = { ...prefs.value, closeAfterMove: true };
+    wantPrefs.closeAfterMove = true;
     const r = mount(gameDto());
     session.value = { ...session.value!, launchedFrom: { kind: 'game', gameId: GAME } };
-    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(100); // effects run on the next (faked) frame
     adapter.drop('e2', 'e4');
-    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(100); // effects run on the next (faked) frame
     expect(window.__tg!.closed).toBe(false);
     await vi.advanceTimersByTimeAsync(300);
     expect(window.__tg!.closed).toBe(true);
@@ -5081,7 +5094,7 @@ describe('Game', () => {
     const r = mount(finished, okRoute(finished), '7.0');
     await r.flush();
     expect(r.text()).toContain('You won');
-    expect(r.text()).toContain('by checkmate');
+    expect(r.text()).toContain('You won · Checkmate');
     expect(r.text()).toContain('1500? → 1662?');
     expect(FakeEventSource.instances).toHaveLength(0);
     await r.click('[data-action="analyse"]');
@@ -5178,7 +5191,8 @@ export function boardConfig(
     animation: { enabled: true, duration: 150 },
     movable: {
       free: false,
-      color: movable.colour,
+      // chessground lifts nothing when the colour is undefined; 'none' is our explicit name for it.
+      color: movable.colour === 'none' ? undefined : movable.colour,
       dests: toDests(movable.dests),
       showDests: true,
       events: {
@@ -5225,7 +5239,9 @@ class ChessgroundAdapter implements BoardAdapter {
 
   setMovable(movable: Movable): void {
     this.movable = movable;
-    this.api.set({ movable: { color: movable.colour, dests: toDests(movable.dests) } });
+    this.api.set({
+      movable: { color: movable.colour === 'none' ? undefined : movable.colour, dests: toDests(movable.dests) },
+    });
   }
 
   setViewOnly(viewOnly: boolean): void {
@@ -5311,7 +5327,7 @@ export function resultForViewer(dto: GameDto): string {
 }
 
 export function reasonForViewer(dto: GameDto): string | null {
-  return dto.endReason ? t('app.game.by', { reason: endReasonLabel(dto.endReason) }) : null;
+  return dto.endReason ? endReasonLabel(dto.endReason) : null;
 }
 
 /** `1500? → 1662?` for the viewer of a finished rated game; null otherwise. */
@@ -5477,6 +5493,7 @@ export function Board(props: {
 
 ```tsx
 import { GameDtoSchema, t, type Colour, type GameDto } from '@group-chess/shared';
+import { h } from 'preact';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { ApiError } from '../../api/client';
 import { GameStream } from '../../api/stream';
@@ -5721,7 +5738,7 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
                 class={`cg-wrap ${PIECE_CLASS[piece]} ${dto.viewerRole === 'black' ? 'black' : 'white'}`}
                 onClick={() => promote(piece)}
               >
-                <piece class={`${PIECE_CLASS[piece]} ${dto.viewerRole === 'black' ? 'black' : 'white'}`} />
+                {h('piece', { class: `${PIECE_CLASS[piece]} ${dto.viewerRole === 'black' ? 'black' : 'white'}` })}
               </button>
             ))}
             <button data-promote="cancel" onClick={() => promote(null)}>
@@ -5753,7 +5770,7 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
         <div class="banner result">
           <span class="grow">
             {dto.voided ? t('app.game.voided') : resultForViewer(dto)}
-            {reasonForViewer(dto) ? ` ${reasonForViewer(dto)}` : ''}
+            {reasonForViewer(dto) ? ` · ${reasonForViewer(dto)}` : ''}
             {ratingChangeFor(dto) ? ` · ${ratingChangeFor(dto)}` : ''}
           </span>
         </div>
@@ -6363,7 +6380,7 @@ import { openApp, seed, tgState } from './support';
 test('replays a finished game and reaches analysis and the PGN', async ({ page }) => {
   const world = await seed('finished');
   await openApp(page, { user: world.users.carol.telegram, startParam: `g_${world.game!.publicId}` });
-  await expect(page.locator('.banner.result')).toContainText('Black won by checkmate');
+  await expect(page.locator('.banner.result')).toContainText('Black won · Checkmate');
   await expect(page.locator('.move-list [data-ply]')).toHaveCount(4);
   await page.locator('[data-ply="2"]').click();
   await expect(page.locator('[data-action="latest"]')).toBeVisible();
