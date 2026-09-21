@@ -705,3 +705,15 @@ git commit -m "docs: add the README and the deployment and operations guide"
 **Type consistency across tasks.** The root scripts named in Task 1 are the ones CI (Task 2) and the README (Task 3) call. The image's `MINI_APP_DIR` matches plan 03's static handler. `setMyCommands` uses grammY's `BotCommand` shape and the fake answers it with `ok(true)` (plan 03 fake).
 
 **Known limits carried forward.** The Docker build is verified in CI only (no daemon here). Lighthouse against staging (spec §6.5) needs a staging URL and is left to the operator's first deploy. The `pnpm audit` gate can turn red on a new advisory unrelated to a change; that is the intended behaviour of a supply-chain gate.
+
+## Post-review fixes
+
+The fresh-context review of `0963c91..cf9ed6f` (`.superpowers/sdd/2026-09-20-group-chess-05-delivery/final-review.md`) returned "With fixes". One fix pass:
+
+- **The image starts without pnpm.** `CMD ["pnpm", "start"]` ran as `USER node`, whose empty corepack cache made every container start download pnpm from the registry, and pnpm swallowed SIGTERM so `index.ts`'s shutdown never ran. The command is now `node --import tsx src/index.ts`; probed locally (`/readyz` ok, SIGTERM → `server stopped`, process exits). `LICENSE` is copied into the runtime stage, `CI=1` is confined to the build, and `.dockerignore` keeps the test trees out.
+- **CI proves the image starts.** The `docker` job loads the built image and runs it with environment variables only against a PostgreSQL service (`ROLES=api,jobs,clock` so no Bot API call is made), then checks `/readyz`, the `Content-Security-Policy` header on `/app/` and a clean `docker stop`.
+- **Command registration cannot block boot.** `setMyCommands` is wrapped; a Telegram error is logged and the server serves traffic. Test: `main.test.ts` "still starts when Telegram refuses the command registration".
+- **Quick start works on a fresh clone.** `scripts/local-postgres.sh start` creates `group_chess` as well as `group_chess_test` and prints both URLs; the compose file's `.env` is optional so `docker compose up db` runs before one exists; the README shows the URL for either path.
+- **Minors.** The release workflow's staging comment matches its gate and an empty hook is a no-op; `moves_total` joins the metrics table; the licence script documents its platform and SPDX limits; `permissions` and `concurrency` on the CI and end-to-end workflows; the inert Playwright variable is gone.
+
+Deferred with rulings in the ledger: `pnpm audit` stays a hard gate (spec §12); the `_total` suffix on three table-backed gauges is left for the whole-branch review.

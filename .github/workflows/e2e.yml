@@ -5,6 +5,13 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   playwright:
     runs-on: ubuntu-latest
@@ -45,15 +52,53 @@ jobs:
           retention-days: 7
 
   docker:
+    # Builds the image, then starts it with environment variables only (Review Focus 1): it must
+    # migrate, answer the probes, serve the Mini App with its CSP and stop cleanly on SIGTERM.
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: group_chess
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
       - uses: docker/build-push-action@v6
         with:
           context: .
-          push: false
+          load: true
           tags: group-chess:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      - name: Start the image
+        run: |
+          docker run -d --name app --network host \
+            -e BOT_TOKEN=123456:ci-only-token \
+            -e BOT_USERNAME=CiChessBot \
+            -e MINI_APP_SHORT_NAME=chess \
+            -e PUBLIC_URL=https://chess.example.com \
+            -e WEBHOOK_SECRET=ci-only-webhook-secret-0123456789 \
+            -e SESSION_SECRET=ci-only-session-secret-0123456789abcdef \
+            -e DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/group_chess \
+            -e ROLES=api,jobs,clock \
+            group-chess:ci
+      - name: Smoke test
+        run: |
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:3000/readyz && break; sleep 2; done
+          curl -fsS http://127.0.0.1:3000/readyz
+          curl -fsS -D headers.txt -o /dev/null http://127.0.0.1:3000/app/
+          grep -i '^content-security-policy:' headers.txt
+          docker stop --time 15 app
+          docker logs app 2>&1 | grep 'server stopped'
+      - name: Container logs
+        if: failure()
+        run: docker logs app 2>&1 || true

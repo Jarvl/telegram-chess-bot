@@ -31,7 +31,7 @@
 | `lichess_imports_total{outcome}` | Failure ratio above 50 % over an hour |
 | `miniapp_load_errors_total`, `miniapp_move_failures_total` | Load errors above 1 % of launches |
 | `jobs_failed_total{kind}` | Any increase: a job exhausted its attempts (`last_error` on the row says why) |
-| `move_latency_seconds`, `sse_streams`, `sse_reconnects_total`, `game_opens_total{role}`, `games_started_total`, `games_finished_total{end_reason}`, `shares_total`, `active_groups` | Dashboards |
+| `moves_total`, `move_latency_seconds`, `sse_streams`, `sse_reconnects_total`, `game_opens_total{role}`, `games_started_total`, `games_finished_total{end_reason}`, `shares_total`, `active_groups` | Dashboards |
 
 Logs are JSON (pino) with numeric and public ids only; bound query parameters are stripped from error messages.
 

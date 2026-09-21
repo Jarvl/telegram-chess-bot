@@ -27,8 +27,9 @@ A Telegram bot and Mini App for playing correspondence chess inside group chats.
 ```bash
 pnpm install
 cp .env.example .env            # fill in BOT_TOKEN, BOT_USERNAME, MINI_APP_SHORT_NAME, PUBLIC_URL, secrets
-scripts/local-postgres.sh start  # or: docker compose up -d db
+scripts/local-postgres.sh start  # creates group_chess and group_chess_test on :54329 and prints both URLs
 export DATABASE_URL=postgres://postgres@127.0.0.1:54329/group_chess
+# or: docker compose up -d db  →  DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/group_chess
 pnpm dev:server                  # migrations run at boot; the bot long-polls when TELEGRAM_POLLING=true
 pnpm dev:app                     # Vite on :5173, proxying /api to :3000
 ```

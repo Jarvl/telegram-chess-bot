@@ -37,8 +37,9 @@ jobs:
           cache-to: type=gha,mode=max
 
   staging:
-    # Spec §16: tags deploy staging; production is a manual promotion. The hook URL is a repository
-    # secret; when it is absent this job is skipped and the image is still published.
+    # Spec §16: tags deploy staging; production is a manual promotion. The job runs only when the
+    # repository variable STAGING_DEPLOY_HOOK_ENABLED is 'true'; the hook URL itself is the secret
+    # STAGING_DEPLOY_HOOK, and an empty one makes the step a no-op instead of a red release.
     needs: image
     if: ${{ vars.STAGING_DEPLOY_HOOK_ENABLED == 'true' }}
     runs-on: ubuntu-latest
@@ -47,6 +48,7 @@ jobs:
       - env:
           HOOK: ${{ secrets.STAGING_DEPLOY_HOOK }}
         run: |
+          [ -n "$HOOK" ] || { echo "STAGING_DEPLOY_HOOK is not set; nothing to call"; exit 0; }
           curl --fail --silent --show-error -X POST "$HOOK" \
             -H 'Content-Type: application/json' \
             -d "{\"tag\":\"${GITHUB_REF_NAME}\"}"

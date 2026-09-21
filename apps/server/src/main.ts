@@ -120,8 +120,15 @@ export async function startServer(config: Config): Promise<RunningServer> {
 
   let polling: Promise<void> | null = null;
   if (bot) {
-    await api.setMyCommands(BOT_COMMANDS.group, { scope: { type: 'all_group_chats' } });
-    await api.setMyCommands(BOT_COMMANDS.private, { scope: { type: 'all_private_chats' } });
+    // Command registration is idempotent and not needed to serve traffic: a Telegram outage or a
+    // 429 during a rolling restart must not keep the process from starting (spec §4.3 holds — the
+    // one-off boot calls are not per-update traffic).
+    try {
+      await api.setMyCommands(BOT_COMMANDS.group, { scope: { type: 'all_group_chats' } });
+      await api.setMyCommands(BOT_COMMANDS.private, { scope: { type: 'all_private_chats' } });
+    } catch (error) {
+      log.warn({ err: error }, 'could not register the bot commands; they keep their last value');
+    }
     if (config.TELEGRAM_POLLING) {
       await api.deleteWebhook();
       polling = bot.start({ allowed_updates: [...ALLOWED_UPDATES] });

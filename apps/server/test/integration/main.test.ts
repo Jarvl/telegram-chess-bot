@@ -51,6 +51,16 @@ describe('startServer', () => {
     });
   });
 
+  it('still starts when Telegram refuses the command registration', async () => {
+    fake.failNext('setMyCommands', { error_code: 500, description: 'Internal Server Error' });
+    const second = await startServer(testConfig({ TELEGRAM_API_ROOT: fake.url, PORT: 0 }));
+    try {
+      expect(await (await fetch(`http://127.0.0.1:${second.port}/healthz`)).text()).toBe('ok');
+    } finally {
+      await second.stop();
+    }
+  });
+
   it('registers the webhook with the secret and the allowed updates', () => {
     const [call] = fake.callsTo('setWebhook');
     expect(call?.body).toMatchObject({

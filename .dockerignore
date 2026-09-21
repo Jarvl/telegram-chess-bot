@@ -7,6 +7,8 @@ node_modules
 **/test-results
 **/playwright-report
 **/*.tsbuildinfo
+apps/*/test
+packages/*/test
 docs
 scripts/local-postgres.sh
 .env
