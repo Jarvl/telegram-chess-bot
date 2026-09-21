@@ -6,6 +6,7 @@ A Telegram bot and Mini App for playing correspondence chess inside group chats.
 - Technical design: [docs/superpowers/specs/2026-09-20-group-chess-technical-design.md](docs/superpowers/specs/2026-09-20-group-chess-technical-design.md)
 - Implementation plans: [docs/superpowers/plans/2026-09-20-group-chess.md](docs/superpowers/plans/2026-09-20-group-chess.md)
 - Deploying and running it: [docs/operations.md](docs/operations.md)
+- How it is tested, and what is left before alpha: [docs/testing.md](docs/testing.md)
 
 ## Layout
 
