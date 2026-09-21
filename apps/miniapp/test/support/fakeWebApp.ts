@@ -129,12 +129,19 @@ export function installFakeWebApp(options: FakeWebAppOptions): void {
   });
   const params = new URLSearchParams(options.initData);
   const rawUser = params.get('user');
+  const parseUser = (raw: string): unknown => {
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return undefined;
+    }
+  };
   const webApp: Record<string, unknown> & { viewportStableHeight: number; viewportHeight: number } =
     {
       initData: options.initData,
       initDataUnsafe: {
         start_param: options.startParam,
-        user: rawUser ? (JSON.parse(rawUser) as unknown) : undefined,
+        user: rawUser ? parseUser(rawUser) : undefined,
       },
       version: options.version,
       platform: options.platform ?? 'android',

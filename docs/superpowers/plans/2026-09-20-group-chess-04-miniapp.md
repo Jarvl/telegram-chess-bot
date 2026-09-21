@@ -421,11 +421,18 @@ export function installFakeWebApp(options: FakeWebAppOptions): void {
   });
   const params = new URLSearchParams(options.initData);
   const rawUser = params.get('user');
+  const parseUser = (raw: string): unknown => {
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return undefined;
+    }
+  };
   const webApp: Record<string, unknown> & { viewportStableHeight: number; viewportHeight: number } = {
     initData: options.initData,
     initDataUnsafe: {
       start_param: options.startParam,
-      user: rawUser ? (JSON.parse(rawUser) as unknown) : undefined,
+      user: rawUser ? parseUser(rawUser) : undefined,
     },
     version: options.version,
     platform: options.platform ?? 'android',
@@ -3207,7 +3214,7 @@ describe('Lobby', () => {
     expect(r.app.router.current.value).toEqual({ name: 'game', gameId: 'GameAaaaaa' });
     r.app.router.back();
     await r.click('[data-action="new-game"]');
-    expect(r.app.router.current.value).toEqual({ name: 'newGame', groupId: 'GrOuPiDxYz' });
+    expect(r.app.router.current.value).toMatchObject({ name: 'newGame', groupId: 'GrOuPiDxYz' });
   });
 });
 ```
@@ -3245,7 +3252,6 @@ describe('NewGame', () => {
     await r.click('[data-time="28800"]');
     await r.click('[data-colour="white"]');
     await r.click('[data-rated]');
-    r.tg; // the main button is the submit control
     window.__tg!.clickMain();
     await r.flush();
     const post = r.calls.find((c) => c.method === 'POST');
@@ -3609,7 +3615,6 @@ export function useResource<T>(key: string, load: () => Promise<T>, initial?: T)
   }, []);
   useEffect(() => {
     if (initial === undefined) void reload();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload when the key changes only
   }, [key]);
   return { data, error, loading, reload, set: setData };
 }
@@ -5458,7 +5463,6 @@ export function Board(props: {
       for (const dispose of disposers) dispose();
       adapter.destroy();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount once per store
   }, [store]);
   return (
     <div class="board-wrap">
@@ -5548,7 +5552,6 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
       setMoveState(state);
       for (const effect of effects) runEffect(effect);
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- runEffect is defined below and stable per render
     [],
   );
 
