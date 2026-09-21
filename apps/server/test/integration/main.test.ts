@@ -36,6 +36,21 @@ describe('startServer', () => {
     expect(await (await fetch(`${base}/readyz`)).text()).toBe('ok');
   });
 
+  it('registers the commands per scope at boot', () => {
+    const calls = fake.callsTo('setMyCommands');
+    expect(calls).toHaveLength(2);
+    const byScope = Object.fromEntries(
+      calls.map((call) => [
+        (call.body.scope as { type: string }).type,
+        (call.body.commands as { command: string }[]).map((c) => c.command),
+      ]),
+    );
+    expect(byScope).toEqual({
+      all_group_chats: ['play', 'chess', 'settings'],
+      all_private_chats: ['start'],
+    });
+  });
+
   it('registers the webhook with the secret and the allowed updates', () => {
     const [call] = fake.callsTo('setWebhook');
     expect(call?.body).toMatchObject({

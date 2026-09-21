@@ -95,6 +95,10 @@ export const en = {
   'command.settings': 'Group chess settings (admins only).',
   'dm.start':
     "Tap Open Chess to see your groups' games. You'll get a message here when it's your move.",
+  'command.play.description': 'Challenge someone: reply to their message',
+  'command.chess.description': 'Open the chess lobby',
+  'command.settings.description': 'Group chess settings (admins)',
+  'command.start.description': 'Allow move notifications',
   'colour.random': 'Random',
   'app.common.close': 'Close',
   'app.common.retry': 'Retry',

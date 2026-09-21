@@ -13,7 +13,13 @@
     "typecheck": "tsc -b",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "build": "pnpm --filter @group-chess/miniapp build",
+    "dev:server": "pnpm --filter @group-chess/server dev",
+    "dev:app": "pnpm --filter @group-chess/miniapp dev",
+    "e2e": "pnpm --filter @group-chess/miniapp e2e",
+    "check:budget": "node scripts/check-bundle-size.mjs",
+    "check:licences": "node scripts/check-licences.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.0",

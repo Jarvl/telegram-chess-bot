@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 // Spec §6.5: initial JavaScript ≤ 120 KB gzipped, CSS ≤ 25 KB gzipped, measured on the built app.
+import { existsSync } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
 import { gzipSync } from 'node:zlib';
 import { dirname, join, resolve } from 'node:path';
@@ -8,6 +9,10 @@ import { fileURLToPath } from 'node:url';
 const BUDGET = { js: 120 * 1024, css: 25 * 1024 };
 const dist = resolve(dirname(fileURLToPath(import.meta.url)), '../apps/miniapp/dist/assets');
 
+if (!existsSync(dist)) {
+  console.error(`no built app at ${dist}; run \`pnpm build\` first`);
+  process.exit(1);
+}
 const totals = { js: 0, css: 0 };
 for (const name of await readdir(dist)) {
   const kind = name.endsWith('.js') ? 'js' : name.endsWith('.css') ? 'css' : null;

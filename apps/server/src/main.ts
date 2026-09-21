@@ -1,3 +1,4 @@
+import { t } from '@group-chess/shared';
 import { serve, type ServerType } from '@hono/node-server';
 import type { Bot } from 'grammy';
 import type { Hono } from 'hono';
@@ -35,6 +36,16 @@ export const ALLOWED_UPDATES = [
   'my_chat_member',
   'chat_member',
 ] as const;
+
+/** Spec §5.1 step 3: three group commands, one private command, nothing in the default scope. */
+export const BOT_COMMANDS = {
+  group: [
+    { command: 'play', description: t('command.play.description') },
+    { command: 'chess', description: t('command.chess.description') },
+    { command: 'settings', description: t('command.settings.description') },
+  ],
+  private: [{ command: 'start', description: t('command.start.description') }],
+} as const;
 
 export type RunningServer = {
   port: number;
@@ -109,6 +120,8 @@ export async function startServer(config: Config): Promise<RunningServer> {
 
   let polling: Promise<void> | null = null;
   if (bot) {
+    await api.setMyCommands(BOT_COMMANDS.group, { scope: { type: 'all_group_chats' } });
+    await api.setMyCommands(BOT_COMMANDS.private, { scope: { type: 'all_private_chats' } });
     if (config.TELEGRAM_POLLING) {
       await api.deleteWebhook();
       polling = bot.start({ allowed_updates: [...ALLOWED_UPDATES] });

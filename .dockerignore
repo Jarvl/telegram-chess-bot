@@ -1,0 +1,13 @@
+.git
+.github
+.superpowers
+node_modules
+**/node_modules
+**/dist
+**/test-results
+**/playwright-report
+**/*.tsbuildinfo
+docs
+scripts/local-postgres.sh
+.env
+.env.*
