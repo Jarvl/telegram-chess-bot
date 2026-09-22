@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Scope** | An always-available Stockfish opponent that any user can challenge inside a group |
-| **Status** | Draft v0.1, for review |
+| **Status** | Draft v0.2, for review |
 | **Date** | 2026-09-21 |
 | **Method** | superpowers `brainstorming` skill, architectural path |
 | **Amends** | [docs/PRD.md](../../PRD.md) §3 — reverses the "engine opponents" non-goal (§3 below) |
@@ -19,7 +19,10 @@ first**: §3 reverses a documented product decision, and everything else follows
 
 Naming convention, because "bot" is already taken: the Telegram bot is **the bot**; this feature is
 **the engine** in code, configuration, metrics and this document, and **the bot** in user-facing
-copy. The database column is `engine_elo`, not `bot_level`.
+copy. The database column is `engine_level`, not `bot_level`.
+
+Revisions: v0.2 replaces the numeric strength ladder with four named levels (E5), which also removes
+the ladder's dependency on the unverified `UCI_Elo` floor.
 
 Conventions: "must" is a requirement, "should" is a strong default. A fact that could not be
 verified from the build sandbox is marked *verify at implementation* and collected in §13.
@@ -32,8 +35,8 @@ verified from the build sandbox is marked *verify at implementation* and collect
 | E2 | Where can a user play it? | Inside a group, like any other player. Engine games belong to that group | None. Reuses the existing group-scoped pipeline with no schema change to `games` beyond §5. Playing without a group remains impossible |
 | E3 | Do engine games affect ratings? | Never. Excluded from Glicko-2, from the leaderboard, and from W/D/L | None. Protects the integrity of human ratings. Practice does not "count" |
 | E4 | Which engine, and where does it run? | Native Stockfish binary in the image, driven over UCI | Chosen over WASM. Adds a pinned per-architecture binary, a licence-gate blind spot and a local install requirement for developers. All three are answered in §12 |
-| E5 | How is strength selected? | Numeric levels, 1400–2800 in steps of 200, stored as the number itself | `UCI_Elo` floors at ~1320, so **there is no beginner level**: the weakest bot plays like a solid club player and a true beginner will lose every game. Accepted knowingly (§7) |
-| E6 | Should weak levels use blunder injection? | No. Stockfish's own strength limiting only, kept simple | This is what forecloses levels below 1400. Reversible later: §7 records what adding it would take |
+| E5 | How is strength selected? | Four named levels — Beginner, Casual, Club, Strong — with no rating numbers shown | Chosen over a numeric ladder. Names make no measurement claim the project cannot back, and because the lower rungs use `Skill Level` the ladder no longer depends on the unverified `UCI_Elo` floor. The cost: a player cannot tell how strong a level is except by playing it (§7) |
+| E6 | Should weak levels use blunder injection? | No. Stockfish's own options only, kept simple | `Skill Level` is native, so the Beginner rung does not need it. What it forecloses is anything weaker than `Skill Level 0`, which is still not a true beginner opponent (§7, §14). Reversible later: §4.2 records what adding it would take |
 | E7 | What happens when the engine returns an illegal move? | Play a random legal move and continue the game. Do not abort. This is error recovery, not E6 blunder injection: it fires only on a defect, never as a strength mechanism | A silent failure mode: a bug in our UCI parsing would quietly become random moves. Mitigated by mandatory logging and a zero-tolerance alert (§9, §10) |
 
 ## 2. Scope
@@ -44,8 +47,8 @@ in the app, and never forfeits on the engine's side.
 
 **Out of scope.** Playing the engine outside a group. Rated engine games. Engine evaluation, hints
 or analysis anywhere in the app, at any time — PRD §7.8 still holds, and this feature must not
-become a back door to it. Strength calibration: the level numbers are configuration, not
-measurements (§7). Levels below 1400 (E6). Any change to how human games work.
+become a back door to it. Strength calibration: the levels are configuration, not measurements (§7).
+Anything weaker than Stockfish's own weakest setting (E6). Any change to how human games work.
 
 ## 3. PRD amendment
 
@@ -87,23 +90,31 @@ project. Rejected: fails E1's requirement of real playing strength.
 
 ### 4.2 Reaching weak levels (decisions E5, E6)
 
-`UCI_LimitStrength` with `UCI_Elo` covers roughly 1320–3190 (*verify at implementation*). Below that
-floor, Stockfish offers only `Skill Level`, whose weakest setting still plays far above a beginner.
-Genuinely weak play therefore requires blunder injection — replacing the engine's move with a random
-legal move at some probability — which E6 declines. The consequence is E5's: the ladder starts at
-1400.
+Stockfish offers two native ways to play below full strength, and the ladder uses both.
+`UCI_LimitStrength` with `UCI_Elo` covers roughly 1320–3190 (*verify at implementation*) and is
+calibrated against engines. Below that floor there is `Skill Level`, 0–20, which degrades play by
+making the engine choose worse moves rather than merely think less.
 
-Reversing E6 later means adding a probability per level below 1400 and selecting from `legalDests`,
-which `@group-chess/shared` already exports. The mapping from blunder rate to Elo would be invented,
-not measured, and §7's honesty requirement would apply to it.
+**A numeric ladder was considered first and rejected.** Labelling rungs 1400, 1600 and so on puts a
+measurement in the UI that this project never takes, and because engine games are unrated (E3)
+nothing in the product can ever check it. It also made the ladder's first rung depend on the exact
+`UCI_Elo` floor, an unverified fact (§13): if the packaged build floors above 1400, a numeric ladder
+loses a rung. Named levels have neither problem.
+
+**Blunder injection is not needed and not used.** Because `Skill Level` is a native option, the
+Beginner rung needs no move replacement, so E6 costs the ladder nothing at the bottom. What E6
+forecloses is only play weaker than `Skill Level 0` — which is still not a beginner-strength
+opponent (§14). Reversing it later means adding a probability per level and selecting from
+`legalDests`, which `@group-chess/shared` already exports; the mapping from blunder rate to strength
+would be invented rather than measured, and §7's honesty requirement would apply to it.
 
 ## 5. Data model
 
 One nullable column and one row. No new tables.
 
-- `games.engine_elo integer null`. Non-null marks an engine game and records the level played. Storing
-  the number rather than an enum makes the database self-describing, feeds the PGN name directly, and
-  lets levels be added or removed with no migration.
+- `games.engine_level text null`, one of `beginner`, `casual`, `club`, `strong`. Non-null marks an
+  engine game and records the level played. A text enum matches the existing convention for `status`,
+  `result` and `end_reason`, keeps the database self-describing, and feeds the PGN name directly.
 - `challenges` is untouched: engine games never create a challenge (§6.1).
 - One `users` row for the engine, with `telegram_user_id = null`. This shape is already supported
   throughout: delete-my-data produces it (`domain/account.ts`), the DM handler skips such users
@@ -114,7 +125,7 @@ One nullable column and one row. No new tables.
 - The engine row gets a `group_members` row per group where it is used, so existing queries treat it
   as present without special cases.
 
-Display name: `Stockfish`, with the level where a level is meaningful (`Stockfish (1600)` in PGN
+Display name: `Stockfish`, with the level appended where it is meaningful (`Stockfish (Club)` in PGN
 headers). Naming it is also the honest thing to do for a GPL-3.0 dependency.
 
 ## 6. Architecture
@@ -125,8 +136,8 @@ Engine games skip the challenge entirely: there is nothing to accept, nothing to
 to edit. A new endpoint `POST /api/groups/:groupId/engine-games` takes a level, a colour choice and a
 time-per-move, and creates the game in one transaction with the same shape as `acceptChallenge` minus
 the challenge row. It must force `rated = false` server-side rather than trusting the client (E3),
-and must reject a level outside the table in §7. When the engine moves first it
-must also apply §9's deadline rule at creation, leaving `deadline_at` and `reminder_at` null.
+and must reject a level outside the table in §7. When the engine moves first, creation must also
+apply §9's deadline rule, leaving `deadline_at` and `reminder_at` null.
 
 Limits: the caller's own `maxActiveGamesPerUser` still applies, and the existing
 `MAX_GAMES_PER_PAIR = 2` already caps a user at two concurrent engine games, which is the desired
@@ -138,7 +149,7 @@ A new `apps/server/src/engine/` module. The engine sits behind an interface:
 
 ```
 Engine = {
-  bestMove(fen: string, elo: number, deadlineMs: number): Promise<{ uci: string } | { none: true }>
+  bestMove(fen: string, level: Level, deadlineMs: number): Promise<{ uci: string } | { none: true }>
   probe(): Promise<{ available: boolean; version?: string }>
 }
 ```
@@ -166,7 +177,7 @@ in the low hundreds of milliseconds and is capped by configuration.
 
 ### 6.4 Triggering a move
 
-`playMove` gains one hook: after a committed human move, if `game.engineElo !== null`, enqueue
+`playMove` gains one hook: after a committed human move, if `game.engineLevel !== null`, enqueue
 `engine_move` with `dedupKey: engine:g:<publicId>:ply:<n>`. The ply in the key makes it idempotent by
 construction — a retry, a double trigger or two workers cannot produce two engine moves for one
 position, and `playMove`'s existing `expectedPly` guard is the second line of defence. The same
@@ -188,21 +199,33 @@ clock, the event bus and the game-end logic must all run exactly as they do for 
 
 ## 7. The difficulty ladder
 
-Eight levels: **1400, 1600, 1800, 2000, 2200, 2400, 2600, 2800**. Each sets
-`UCI_LimitStrength = true` and `UCI_Elo = <level>`, plus `ENGINE_MOVETIME_MS`. Nothing else varies.
+Four levels, stored as `games.engine_level`. Each is a fixed set of UCI options plus
+`ENGINE_MOVETIME_MS`; nothing else varies between them.
 
-Two honesty requirements, both binding:
+| Level | Mechanism |
+|---|---|
+| `beginner` | `Skill Level` at the bottom of its range, with a short move time |
+| `casual` | A low `Skill Level` |
+| `club` | `UCI_LimitStrength = true` with a mid `UCI_Elo` |
+| `strong` | `UCI_LimitStrength = true` with a high `UCI_Elo` |
 
-1. These numbers are Stockfish's own `UCI_Elo` scale, which is calibrated against engines rather than
-   humans. They are therefore **approximate**, and no part of this project measures them. User-facing
-   copy must present the control as approximate strength, not as a measured rating. Because engine
-   games are unrated (E3), nothing in the product can ever check them.
-2. No level may be described in copy or documentation as equivalent to a human rating on the group's
-   own leaderboard. The leaderboard measures play against humans; these numbers do not enter it.
+The two `Skill Level` values, the two `UCI_Elo` values and the per-level move times are pinned in the
+implementation and are **chosen, not measured**: no part of this project plays calibration matches.
+
+Three requirements, all binding:
+
+1. **No rating numbers in user-facing copy.** Not on the level control, not on the game card, not in
+   the game-end screen. A number would be a measurement claim, and because engine games are unrated
+   (E3) nothing in the product could ever check it. The internal `UCI_Elo` values stay internal.
+2. **No level may be presented as equivalent to a rating on the group's leaderboard.** The
+   leaderboard measures play against humans and engine games never enter it (§8).
+3. **`beginner` is a relative name, not a claim.** It is the weakest setting Stockfish offers
+   natively, which is still well above a genuine beginner (§14). Copy must not promise otherwise —
+   "the easiest level" is honest, "suitable for beginners" is not.
 
 **Opening variety is not addressed.** Fixed options plus a fixed position make Stockfish largely
 deterministic, so a given level will tend to repeat openings. `MultiPV 3` with a random pick over the
-engine's first few moves was considered and cut to keep this simple (E6's spirit). The cost is
+engine's first few moves was considered and cut to keep this simple. The cost is
 repetitive openings at the higher levels; the fix is contained and can be added later.
 
 ## 8. Product surface
@@ -280,7 +303,7 @@ otherwise hide, which is why it is mandatory rather than nice to have.
 **Integration**, on real PostgreSQL with the fake engine and the fake Bot API:
 
 - Creating an engine game writes no challenge row, enqueues no card job, forces `rated` false and
-  stores `engine_elo`; an out-of-table level is rejected
+  stores `engine_level`; an out-of-table level is rejected
 - The engine drawing white gets a move job at creation
 - Human moves, engine answers; `deadline_at` is null on the engine's turn and set on the human's
 - **The engine is never forfeited**: past deadline, run the forfeit scanner, game still active
@@ -330,18 +353,24 @@ only, so the gap is not mistaken for coverage.
 
 ## 13. To verify at implementation
 
-- The exact `UCI_Elo` range of the packaged Stockfish, and that 1400 is inside it (§7). If the floor
-  is above 1400 the ladder's first rung moves up
+- The `UCI_Elo` range of the packaged Stockfish, to pick the `club` and `strong` values (§7). Named
+  levels mean an unexpected floor only changes two numbers; it can no longer cost the ladder a rung
+- That `Skill Level`, `UCI_LimitStrength` and `UCI_Elo` are honoured by the packaged build rather
+  than silently ignored. An ignored option would make two levels play identically, which is the one
+  failure a user would notice and no test asserts (§11)
 - The Debian package version available in `node:22-bookworm-slim`, and whether the NNUE network is
   embedded (§12)
-- That `UCI_LimitStrength` and `UCI_Elo` are honoured by the packaged build rather than ignored
 - Whether the packaged binary is available for every architecture the image is built for
 
 ## 14. Known consequences, stated plainly
 
-- **No beginner level.** The weakest bot plays around 1400. A beginner will lose every game (E5, E6)
-- **Level numbers are unverified.** They are Stockfish's engine-calibrated scale, not measurements of
-  play against humans, and nothing in the product can check them (§7)
+- **`beginner` is not beginner-strength.** It is the weakest setting Stockfish offers natively, which
+  still plays well above a new player. A genuine beginner will lose every game on the easiest level
+  (E5, E6). Reaching true beginner strength needs blunder injection (§4.2)
+- **A player cannot tell how strong a level is without playing it**, since no numbers are shown (E5).
+  This is the deliberate trade for not making a measurement claim the project cannot back
+- **The level values are chosen, not measured.** No calibration matches are run, so the four rungs are
+  ordered but not spaced by any known amount (§7)
 - **Openings will repeat** at the higher levels (§7)
 - **An illegal move recovers silently**, and only the log and the alert reveal it (E7, §9)
 - **During an engine outage the picker still offers the bot**, and those games queue and then abort
