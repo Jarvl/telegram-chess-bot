@@ -431,7 +431,8 @@ it is Stockfish's behaviour, not this project's (§11).
   defaults to `nn-ad9b42354671.nnue` and the session logs `NNUE evaluation using
   nn-ad9b42354671.nnue enabled`, so no network file has to be installed or configured (§12)
 - **Both architectures are covered**: `stockfish=15.1-4` installs and answers with a legal move on
-  `linux/arm64` and on `linux/amd64`
+  `linux/arm64` natively, and on `linux/amd64` under emulation — a native amd64 build has not been
+  observed, though the image build gate would catch a failure
 
 ## 14. Known consequences, stated plainly
 
