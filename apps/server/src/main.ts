@@ -16,8 +16,10 @@ import type { Config, Role } from './config';
 import { createDb } from './db/client';
 import { runMigrations } from './db/migrate';
 import type { Deps } from './domain/deps';
+import { uciEngine } from './engine/uci';
 import {
   coreJobHandlers,
+  engineJobHandlers,
   ensurePruneScheduled,
   lichessJobHandlers,
   sharePhotoJobHandlers,
@@ -99,6 +101,18 @@ export async function startServer(config: Config): Promise<RunningServer> {
   const server = await listen(app, config.PORT);
   const port = (server.address() as { port: number }).port;
 
+  const engine = uciEngine(config);
+  if (has('jobs') && config.ENGINE_ENABLED) {
+    const probed = await engine.probe();
+    metrics.engineAvailable.set(probed.available ? 1 : 0);
+    if (!probed.available) {
+      // Spec §9: a missing binary must not take down human correspondence games.
+      log.error('the engine binary did not answer; bot games will queue and then abort');
+    } else {
+      log.info({ version: probed.version }, 'engine available');
+    }
+  }
+
   let worker: JobWorker | null = null;
   if (has('jobs')) {
     await ensurePruneScheduled(db);
@@ -110,6 +124,10 @@ export async function startServer(config: Config): Promise<RunningServer> {
         ...telegramJobHandlers({ deps, api, config }),
         ...sharePhotoJobHandlers({ deps, api, config }),
         ...lichessJobHandlers({ deps, config, metrics }),
+        // Registered unconditionally: the handler owns the disabled case itself. An unhandled
+        // kind is retried forever without counting an attempt (`jobs/worker.ts:117-123`), so a
+        // game started while the engine was enabled and then disabled would stall permanently.
+        ...engineJobHandlers({ deps, engine, config, metrics }),
       },
       workerId: `${process.pid}`,
       onFailed: (job) => metrics.jobsFailed.inc({ kind: job.kind }),

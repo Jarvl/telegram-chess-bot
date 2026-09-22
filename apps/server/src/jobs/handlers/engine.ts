@@ -1,0 +1,147 @@
+import { legalDests, sideToMove, type EngineLevel } from '@group-chess/shared';
+import { z } from 'zod';
+import type { Config } from '../../config';
+import type { Deps } from '../../domain/deps';
+import { isDomainError } from '../../domain/errors';
+import { getEngineUser } from '../../domain/engineGames';
+import { finishGame, lockActiveGame, playMove, requireGameById } from '../../domain/games';
+import type { GameRow } from '../../db/schema';
+import type { BestMove, Engine } from '../../engine/engine';
+import type { Metrics } from '../../metrics';
+import type { JobHandlers, JobResult } from '../types';
+
+export type EngineHandlerContext = {
+  deps: Deps;
+  engine: Engine;
+  config: Config;
+  metrics: Metrics;
+};
+
+const PayloadSchema = z.object({ gameId: z.number().int() });
+
+/** The piece letter (FEN case, e.g. `P`/`n`) occupying `square`, or `undefined` if it is empty. */
+function pieceOn(fen: string, square: string): string | undefined {
+  const file = square.charCodeAt(0) - 'a'.charCodeAt(0);
+  const rank = Number(square[1]);
+  const row = fen.split(' ')[0]!.split('/')[8 - rank]!;
+  let col = 0;
+  for (const symbol of row) {
+    if (symbol >= '1' && symbol <= '8') {
+      col += Number(symbol);
+      continue;
+    }
+    if (col === file) return symbol;
+    col += 1;
+  }
+  return undefined;
+}
+
+/** A uniformly random legal move, used only to recover from an illegal engine reply (spec §9, E7). */
+function randomLegalMove(fen: string): string | null {
+  const dests = [...legalDests(fen).entries()];
+  if (dests.length === 0) return null;
+  const [from, targets] = dests[Math.floor(Math.random() * dests.length)]!;
+  const to = targets[Math.floor(Math.random() * targets.length)]!;
+  // A pawn reaching the last rank must carry a promotion piece or the arbiter rejects the move —
+  // and only a pawn: a rook or king retreating from rank 2/7 to rank 1/8 is not a promotion, and
+  // tagging it with one would make the arbiter reject an otherwise-legal move.
+  const piece = pieceOn(fen, from)?.toLowerCase();
+  const promoting = piece === 'p' && /^[a-h][18]$/.test(to);
+  return promoting ? `${from}${to}q` : `${from}${to}`;
+}
+
+/**
+ * Spec §9: a sustained outage must not leave the game dead — but it must not become a random mover
+ * either, since the player was told which level they chose. The engine is one of the game's two
+ * players, so it may end its own game this way; `abortGame` itself is not used because its
+ * player-facing guard (no abort past ply 1) exists to stop a *player* from dodging a bad position,
+ * not to block a system failure path caused by our own engine outage.
+ */
+async function abortForUnavailableEngine(
+  deps: Deps,
+  game: GameRow,
+  reason: string,
+): Promise<JobResult> {
+  await deps.db.transaction(async (tx) => {
+    const engineUser = await getEngineUser(tx);
+    const locked = await lockActiveGame(tx, game.publicId, engineUser.id);
+    if (!locked.ended) {
+      await finishGame(tx, locked.game, { result: '*', endReason: 'abort' }, locked.now);
+    }
+  });
+  deps.bus.publish(game.publicId);
+  return { outcome: 'fail', error: reason };
+}
+
+export function engineJobHandlers(ctx: EngineHandlerContext): JobHandlers {
+  const { deps, engine, config, metrics } = ctx;
+  return {
+    engine_move: async ({ job, log }): Promise<JobResult> => {
+      const { gameId } = PayloadSchema.parse(job.payload);
+      const game = await requireGameById(deps.db, gameId);
+      if (game.status !== 'active' || game.engineLevel === null) return { outcome: 'done' };
+      // Registered even when disabled, on purpose: an unhandled kind is retried forever without
+      // counting an attempt (`jobs/worker.ts:119`), so a game started before the engine was turned
+      // off would stall for ever instead of reaching the abort path below.
+      if (!config.ENGINE_ENABLED) {
+        metrics.engineMoveFailures.inc();
+        return job.attempts + 1 >= job.maxAttempts
+          ? await abortForUnavailableEngine(deps, game, 'the engine is disabled')
+          : { outcome: 'retry_attempt', delayMs: 30_000, error: 'the engine is disabled' };
+      }
+      const engineUser = await getEngineUser(deps.db);
+      const engineColour = game.whiteId === engineUser.id ? 'white' : 'black';
+      if (sideToMove(game.fen) !== engineColour) return { outcome: 'done' };
+
+      const started = process.hrtime.bigint();
+      let reply: BestMove;
+      try {
+        reply = await engine.bestMove(
+          game.fen,
+          game.engineLevel as EngineLevel,
+          Math.max(config.ENGINE_MOVETIME_MS * 10, 5_000),
+        );
+      } catch (error) {
+        metrics.engineMoveFailures.inc();
+        const message = error instanceof Error ? error.message : String(error);
+        if (job.attempts + 1 >= job.maxAttempts) {
+          log.error({ gameId, err: error }, 'engine unavailable; aborting the game');
+          return abortForUnavailableEngine(deps, game, message);
+        }
+        return { outcome: 'retry_attempt', delayMs: 5_000, error: message };
+      } finally {
+        metrics.engineMoveDuration.observe(Number(process.hrtime.bigint() - started) / 1e9);
+      }
+      if ('none' in reply) return { outcome: 'done' };
+
+      let uci = reply.uci;
+      try {
+        await playMove(deps, {
+          gameId: game.publicId,
+          userId: engineUser.id,
+          uci,
+          expectedPly: game.plyCount,
+          clientMoveId: `engine:${game.publicId}:${game.plyCount}`,
+        });
+      } catch (error) {
+        if (!isDomainError(error) || error.code !== 'illegal_move') throw error;
+        // Stockfish does not emit illegal moves, so this is almost certainly a bug in our own UCI
+        // parsing. Recover so the game survives, but make sure it is visible (spec §9).
+        metrics.engineIllegalMoves.inc();
+        log.error({ gameId, fen: game.fen, bestmove: uci }, 'engine returned an illegal move');
+        const fallback = randomLegalMove(game.fen);
+        if (!fallback) return { outcome: 'done' };
+        uci = fallback;
+        await playMove(deps, {
+          gameId: game.publicId,
+          userId: engineUser.id,
+          uci,
+          expectedPly: game.plyCount,
+          clientMoveId: `engine:${game.publicId}:${game.plyCount}:fallback`,
+        });
+      }
+      metrics.engineMoves.inc();
+      return { outcome: 'done' };
+    },
+  };
+}
