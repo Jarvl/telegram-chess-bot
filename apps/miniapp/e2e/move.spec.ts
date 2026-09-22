@@ -20,7 +20,7 @@ test('drags a move as White, the server records it and the app returns to the ch
     user: world.users.alice.telegram,
     startParam: `g_${world.game!.publicId}`,
   });
-  await expect(page.locator('.player-bar[data-colour="white"]')).toContainText('Alice');
+  await expect(page.locator('.player-bar[data-colour="white"]')).toContainText('@alice');
   await dragMove(page, 'e2', 'e4');
   await expect.poll(async () => (await harnessGame(world.game!.publicId)).plyCount).toBe(1);
   expect((await harnessGame(world.game!.publicId)).fen).toContain('4P3');

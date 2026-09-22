@@ -86,6 +86,7 @@ export const en = {
   'reply.pair_limit': 'You already have {count} games with {name}.',
   'reply.open_disabled': 'Open challenges are off in this group.',
   'alert.not_your_challenge': 'Only {name} can accept this challenge.',
+  'alert.not_the_challenger': 'Only {name} can withdraw this challenge.',
   'alert.own_challenge': "You can't accept your own challenge.",
   'alert.accepted_first': 'Someone accepted first.',
   'alert.challenge_gone': 'This challenge is no longer open.',

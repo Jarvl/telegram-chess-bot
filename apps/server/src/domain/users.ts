@@ -86,6 +86,8 @@ export async function setDmAllowed(tx: DbOrTx, userId: number, allowed: boolean)
   await tx.update(users).set({ dmAllowed: allowed }).where(eq(users.id, userId));
 }
 
-export function displayName(user: Pick<UserRow, 'firstName' | 'deletedAt'>): string {
-  return user.deletedAt ? 'Deleted player' : user.firstName;
+/** People are named by their Telegram handle; `first_name` only when they have no username. */
+export function displayName(user: Pick<UserRow, 'firstName' | 'username' | 'deletedAt'>): string {
+  if (user.deletedAt) return 'Deleted player';
+  return user.username ? `@${user.username}` : user.firstName;
 }

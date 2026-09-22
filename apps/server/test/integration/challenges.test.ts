@@ -276,6 +276,31 @@ describe('decline, cancel, expire', () => {
     expect(edits).toEqual([`card:ch:${first.publicId}`, `card:ch:${second.publicId}`]);
   });
 
+  it('points a bystander at the challenger when they tap Cancel on an open challenge', async () => {
+    const { group, alice, bob } = await setup();
+    const open = await direct(group.id, alice.id, null);
+    await expect(
+      declineChallenge(deps, { challengeId: open.id, userId: bob.id }),
+    ).rejects.toMatchObject({
+      code: 'forbidden',
+      details: { reason: 'not_the_challenger', challengerId: alice.id },
+    });
+    expect((await cancelChallenge(deps, { challengeId: open.id, userId: alice.id })).status).toBe(
+      'cancelled',
+    );
+  });
+
+  it('names the challenger when someone else tries to withdraw a direct challenge', async () => {
+    const { group, alice, bob } = await setup();
+    const challenge = await direct(group.id, alice.id, bob.id);
+    await expect(
+      cancelChallenge(deps, { challengeId: challenge.id, userId: bob.id }),
+    ).rejects.toMatchObject({
+      code: 'forbidden',
+      details: { reason: 'not_the_challenger', challengerId: alice.id },
+    });
+  });
+
   it('refuses to act on a challenge that is no longer pending', async () => {
     const { group, alice, bob } = await setup();
     const challenge = await direct(group.id, alice.id, bob.id);
