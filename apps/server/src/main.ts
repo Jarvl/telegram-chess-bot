@@ -16,6 +16,7 @@ import type { Config, Role } from './config';
 import { createDb } from './db/client';
 import { runMigrations } from './db/migrate';
 import type { Deps } from './domain/deps';
+import type { Engine } from './engine/engine';
 import { uciEngine } from './engine/uci';
 import {
   coreJobHandlers,
@@ -68,7 +69,16 @@ function listen(app: Hono<ApiEnv>, port: number): Promise<ServerType> {
  * metrics, API when `api`, webhook when `bot`, the Mini App when `MINI_APP_DIR`), the job worker
  * when `jobs`, the scanners when `clock`, and finally the webhook registration or long polling.
  */
-export async function startServer(config: Config): Promise<RunningServer> {
+export async function startServer(
+  config: Config,
+  /**
+   * Spec §6.2's seam, handed in rather than constructed. Production passes nothing and gets the
+   * real binary; the end-to-end harness passes `fakeEngine`, which is what lets spec §11's "one
+   * engine game seeded in the existing harness and played through" exist without a Stockfish
+   * anywhere near a test runner.
+   */
+  injectedEngine?: Engine,
+): Promise<RunningServer> {
   const log = createLogger(config.LOG_LEVEL);
   const has = (role: Role): boolean => config.ROLES.includes(role);
   await runMigrations(config.DATABASE_URL);
@@ -101,7 +111,7 @@ export async function startServer(config: Config): Promise<RunningServer> {
   const server = await listen(app, config.PORT);
   const port = (server.address() as { port: number }).port;
 
-  const engine = uciEngine(config);
+  const engine = injectedEngine ?? uciEngine(config, log);
   if (has('jobs') && config.ENGINE_ENABLED) {
     const probed = await engine.probe();
     metrics.engineAvailable.set(probed.available ? 1 : 0);

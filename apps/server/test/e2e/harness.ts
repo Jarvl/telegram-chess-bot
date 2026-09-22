@@ -12,6 +12,7 @@ import { touchMember } from '../../src/domain/members';
 import { startServer } from '../../src/main';
 import { testConfig } from '../helpers/config';
 import { openTestDb, truncateAll } from '../helpers/db';
+import { fakeEngine } from '../helpers/fakeEngine';
 import { FakeTelegram } from '../helpers/fakeTelegram';
 import { insertGame, insertGroup, insertMove, insertUser } from '../helpers/fixtures';
 
@@ -57,10 +58,13 @@ async function main(): Promise<void> {
       MINI_APP_DIR,
       DATABASE_URL: url,
       LOG_LEVEL: 'warn',
-      // Otherwise startServer's boot probe spawns a real `stockfish` process (global constraint:
-      // no test may spawn a binary).
-      ENGINE_ENABLED: false,
+      // On, so spec §11's "one engine game seeded in the existing harness and played through" can
+      // exist: with the flag off, the endpoint refuses and the handler never runs.
+      ENGINE_ENABLED: true,
     }),
+    // The engine is injected, so nothing here — the boot probe included — spawns a real `stockfish`
+    // process (global constraint: no test may spawn a binary, no CI runner installs one).
+    fakeEngine(),
   );
 
   const seed = async (request: SeedRequest) => {
