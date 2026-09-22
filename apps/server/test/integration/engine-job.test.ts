@@ -1,14 +1,12 @@
 import type { ColourChoice } from '@group-chess/shared';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import type { JobRow } from '../../src/db/schema';
 import { createEngineGame, getEngineUser } from '../../src/domain/engineGames';
 import { playMove, requireGameByPublicId, resign } from '../../src/domain/games';
-import type { Engine } from '../../src/engine/engine';
-import { engineJobHandlers } from '../../src/jobs/handlers/engine';
 import { touchMember } from '../../src/domain/members';
 import { Metrics } from '../../src/metrics';
 import { testConfig } from '../helpers/config';
 import { openTestDb, testDeps, truncateAll } from '../helpers/db';
+import { createEngineJobRunner } from '../helpers/engineJob';
 import { fakeEngine } from '../helpers/fakeEngine';
 import { insertGroup, insertUser } from '../helpers/fixtures';
 
@@ -18,10 +16,12 @@ const config = testConfig();
 let metrics = new Metrics();
 let group: Awaited<ReturnType<typeof insertGroup>>;
 let alice: Awaited<ReturnType<typeof insertUser>>;
+let runEngineJob: ReturnType<typeof createEngineJobRunner>;
 
 beforeEach(async () => {
   await truncateAll(db);
   metrics = new Metrics();
+  runEngineJob = createEngineJobRunner(deps, db, metrics, config);
   group = await insertGroup(db);
   alice = await insertUser(db, { firstName: 'Alice' });
   await touchMember(db, group.id, alice.id);
@@ -36,36 +36,6 @@ async function startedEngineGame(colour: ColourChoice) {
     colour,
     timePerMove: 86_400,
   });
-}
-
-function buildJob(gameId: number, overrides: Partial<JobRow> = {}): JobRow {
-  return {
-    id: 1,
-    kind: 'engine_move',
-    dedupKey: null,
-    payload: { gameId },
-    runAt: new Date(),
-    attempts: 0,
-    maxAttempts: 8,
-    lockedUntil: null,
-    lockedBy: null,
-    lastError: null,
-    createdAt: new Date(),
-    doneAt: null,
-    failedAt: null,
-    ...overrides,
-  };
-}
-
-async function runEngineJob(
-  engine: Engine,
-  gameId: number,
-  jobOverrides: Partial<JobRow> = {},
-  jobConfig: ReturnType<typeof testConfig> = config,
-) {
-  const handlers = engineJobHandlers({ deps, engine, config: jobConfig, metrics });
-  const job = buildJob(gameId, jobOverrides);
-  return handlers.engine_move!({ job, db, log: deps.log });
 }
 
 describe('engine_move job handler', () => {

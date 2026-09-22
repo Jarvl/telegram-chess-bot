@@ -53,6 +53,7 @@ const activeGame = {
   voided: false,
   startedAt: '2026-09-20T09:00:00.000Z',
   finishedAt: null,
+  engineLevel: null,
 };
 
 describe('GameDtoSchema', () => {

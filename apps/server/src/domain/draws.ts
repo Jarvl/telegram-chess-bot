@@ -2,6 +2,7 @@ import { computeClaims, type Colour, type GameDto } from '@group-chess/shared';
 import { eq, sql } from 'drizzle-orm';
 import { games, type GameRow } from '../db/schema';
 import type { Deps } from './deps';
+import { enqueueEngineMove, isEngineGame } from './engineGames';
 import { DomainError } from './errors';
 import { positionKeys } from './gameDto';
 import { finishGame, listMoves, loadGameDto, lockActiveGame, type EndInput } from './games';
@@ -46,6 +47,9 @@ export async function offerDraw(deps: Deps, input: Input): Promise<GameDto> {
       .where(eq(games.id, game.id))
       .returning();
     if (!updated) throw new DomainError('not_found', 'game not found');
+    // Spec §8: the bot declines every offer. Enqueueing the engine job rather than declining inline
+    // keeps one decline path, so the human sees the normal declined state over SSE.
+    if (isEngineGame(updated)) await enqueueEngineMove(tx, updated);
     return loadGameDto(tx, updated, input.userId);
   });
   deps.bus.publish(input.gameId);

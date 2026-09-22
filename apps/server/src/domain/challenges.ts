@@ -348,6 +348,14 @@ export async function createRematch(
   const [game] = await deps.db.select().from(games).where(eq(games.id, input.gameId)).limit(1);
   if (!game) throw new DomainError('not_found', 'game not found');
   if (game.status !== 'finished') throw new DomainError('stale_state', 'the game is still running');
+  // Spec §8: a bot rematch is a new engine game, created by the app through POST
+  // /groups/:g/engine-games. Going through a challenge would post a card to the group and wait for
+  // an acceptance that never comes.
+  if (game.engineLevel !== null) {
+    throw new DomainError('validation', 'use a new bot game for a rematch', {
+      reason: 'engine_game',
+    });
+  }
   const colour =
     game.whiteId === input.userId ? 'white' : game.blackId === input.userId ? 'black' : null;
   if (!colour) throw new DomainError('forbidden', 'only the players can ask for a rematch');

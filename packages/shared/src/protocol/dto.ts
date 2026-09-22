@@ -93,6 +93,8 @@ export const GameDtoSchema = z.object({
   voided: z.boolean(),
   startedAt: IsoDateSchema,
   finishedAt: IsoDateSchema.nullable(),
+  /** The bot level when this is a game against the bot, otherwise null. */
+  engineLevel: EngineLevelSchema.nullable(),
   /** Only present once the game is finished (spec §7.6). */
   lichessUrl: z.url().optional(),
   analysisUrl: z.url().optional(),
