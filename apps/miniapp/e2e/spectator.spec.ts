@@ -25,5 +25,5 @@ test('the player who is not to move cannot lift a piece either', async ({ page }
   await expect(page.locator('square.move-dest')).toHaveCount(0);
   await page.waitForTimeout(300);
   expect((await harnessGame(world.game!.publicId)).plyCount).toBe(0);
-  await expect(page.locator('.player-bar[data-colour="black"]')).toContainText('Bob');
+  await expect(page.locator('.player-bar[data-colour="black"]')).toContainText('@bob');
 });

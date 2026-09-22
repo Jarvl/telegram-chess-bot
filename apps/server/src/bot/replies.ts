@@ -1,7 +1,7 @@
 import { t, type MessageKey, type MessageParams } from '@group-chess/shared';
 import type { Deps } from '../domain/deps';
 import { isDomainError } from '../domain/errors';
-import { getUserById } from '../domain/users';
+import { displayName, getUserById } from '../domain/users';
 
 /** The one-line command replies of spec §5.5, chosen from a DomainError's reason. */
 export function replyFor(error: unknown): { key: MessageKey; params: MessageParams } | null {
@@ -40,7 +40,15 @@ export async function alertFor(
       const opponent =
         typeof opponentId === 'number' ? await getUserById(deps.db, opponentId) : null;
       return t('alert.not_your_challenge', {
-        name: opponent?.firstName ?? 'the challenged player',
+        name: opponent ? displayName(opponent) : 'the challenged player',
+      });
+    }
+    case 'not_the_challenger': {
+      const challengerId = error.details.challengerId;
+      const challenger =
+        typeof challengerId === 'number' ? await getUserById(deps.db, challengerId) : null;
+      return t('alert.not_the_challenger', {
+        name: challenger ? displayName(challenger) : 'the challenger',
       });
     }
     case 'own_challenge':

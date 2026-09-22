@@ -18,7 +18,7 @@ import {
   reminderExpression,
 } from './limits';
 import { isBlocked } from './members';
-import { requireUser, wantsDms } from './users';
+import { displayName, requireUser, wantsDms } from './users';
 
 export type CreateChallengeInput = {
   groupId: number;
@@ -53,7 +53,7 @@ async function assertCanPlay(
     throw new DomainError('limit_exceeded', 'active games limit reached', {
       reason: 'active_limit',
       userId: user.id,
-      name: user.firstName,
+      name: displayName(user),
       count: active,
     });
   }
@@ -64,7 +64,7 @@ async function assertPairLimit(tx: DbOrTx, groupId: number, a: UserRow, b: UserR
   if (pair >= MAX_GAMES_PER_PAIR) {
     throw new DomainError('limit_exceeded', 'too many games with this opponent', {
       reason: 'pair_limit',
-      name: b.firstName,
+      name: displayName(b),
       count: pair,
     });
   }
@@ -282,7 +282,14 @@ export async function declineChallenge(
 ): Promise<ChallengeRow> {
   return deps.db.transaction(async (tx) => {
     const challenge = await lockPendingChallenge(tx, input.challengeId);
-    if (challenge.opponentId === null || challenge.opponentId !== input.userId) {
+    // An open challenge has nobody to decline it: the same button withdraws it, for the challenger.
+    if (challenge.opponentId === null) {
+      throw new DomainError('forbidden', 'only the challenger can withdraw an open challenge', {
+        reason: 'not_the_challenger',
+        challengerId: challenge.challengerId,
+      });
+    }
+    if (challenge.opponentId !== input.userId) {
       throw new DomainError('forbidden', 'only the challenged player can decline', {
         reason: 'not_your_challenge',
         opponentId: challenge.opponentId,
@@ -306,7 +313,8 @@ export async function cancelChallenge(
     const challenge = await lockPendingChallenge(tx, input.challengeId);
     if (challenge.challengerId !== input.userId) {
       throw new DomainError('forbidden', 'only the challenger can withdraw', {
-        reason: 'not_your_challenge',
+        reason: 'not_the_challenger',
+        challengerId: challenge.challengerId,
       });
     }
     const [cancelled] = await tx

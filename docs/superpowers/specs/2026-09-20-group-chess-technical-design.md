@@ -234,6 +234,7 @@ Every card is rendered by a pure function `renderCard(state) → { text, entitie
 
 Rules for cards:
 
+- Everyone is named by their Telegram handle (`@alice`), in cards, DMs, one-line replies, the Mini App and the PGN alike (PRD §7.12 stores the username as the display field). A user who has no username falls back to their `first_name`, and an anonymised user reads `Deleted player`; the names in the table above stand for whichever of the three applies.
 - The challenged player is mentioned once, on the challenge card: `@username` when they have one, otherwise a `text_mention` entity, which Telegram guarantees to work for members of the group where it is used. `Rated` reads `Casual` for unrated games. Provisional ratings carry a `?` suffix.
 - Edits go through an `edit_card` job with dedup key `card:g:<gameId>` (`card:ch:<challengeId>` before the game exists). Re-enqueueing an existing pending job only moves its `run_at`, so bursts collapse into one edit rendered from the latest state. An edit that runs before the card has a `message_id` retries with backoff. This satisfies "at most one status edit per move" and keeps ordering trivial. A minimum spacing of 2 s per card applies.
 - "Message is not modified" from Telegram is success. "Message to edit not found" marks the card as gone; the game continues without a card.
@@ -605,7 +606,8 @@ Telegram pacing lives in the outbound client used by the handlers (§5.8): a 429
 | `initData` older than 24 h | `auth_date` | 401 on launch | "Reopen from Telegram" screen |
 | Move arrives after the deadline | Move transaction compares with `now()` | The transaction applies the timeout itself | The player sees the finished state |
 | Two people accept an open challenge at once | Row lock | The second commit fails with `stale_state` | `answerCallbackQuery` alert "Someone accepted first"; a private toast, not a group message |
-| Wrong person taps Accept, Decline or Rematch | Identity check | `answerCallbackQuery` alert ("Only Bob can accept this challenge") | Private toast only |
+| Wrong person taps Accept, Decline or Rematch | Identity check | `answerCallbackQuery` alert ("Only @bob can accept this challenge") | Private toast only |
+| Bystander taps Cancel on an open challenge | Identity check | `answerCallbackQuery` alert ("Only @alice can withdraw this challenge"); the challenger's own tap withdraws it | Private toast only |
 | Job exhausts its attempts | `attempts = max_attempts` | `last_error` kept, `jobs_failed_total` increments, alert | Depends on the kind; the game state is never affected |
 
 ## 12. Security and privacy

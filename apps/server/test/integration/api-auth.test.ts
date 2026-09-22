@@ -37,7 +37,7 @@ describe('POST /api/launch', () => {
     expect(res.status).toBe(200);
     const body = LaunchResponseSchema.parse(await res.json());
     expect(body.route.kind).toBe('groups');
-    expect(body.user).toEqual({ id: expect.any(String), name: 'Alice', username: 'alice' });
+    expect(body.user).toEqual({ id: expect.any(String), name: '@alice', username: 'alice' });
     expect(body.askWriteAccess).toBe(true);
     expect(body.bot).toEqual({ username: 'TestChessBot', miniAppShortName: 'chess' });
     const me = await api.request('GET', '/api/me/groups', { token: body.token });
