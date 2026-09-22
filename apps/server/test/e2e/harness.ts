@@ -57,6 +57,9 @@ async function main(): Promise<void> {
       MINI_APP_DIR,
       DATABASE_URL: url,
       LOG_LEVEL: 'warn',
+      // Otherwise startServer's boot probe spawns a real `stockfish` process (global constraint:
+      // no test may spawn a binary).
+      ENGINE_ENABLED: false,
     }),
   );
 

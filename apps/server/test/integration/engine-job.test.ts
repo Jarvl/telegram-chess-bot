@@ -57,8 +57,13 @@ function buildJob(gameId: number, overrides: Partial<JobRow> = {}): JobRow {
   };
 }
 
-async function runEngineJob(engine: Engine, gameId: number, jobOverrides: Partial<JobRow> = {}) {
-  const handlers = engineJobHandlers({ deps, engine, config, metrics });
+async function runEngineJob(
+  engine: Engine,
+  gameId: number,
+  jobOverrides: Partial<JobRow> = {},
+  jobConfig: ReturnType<typeof testConfig> = config,
+) {
+  const handlers = engineJobHandlers({ deps, engine, config: jobConfig, metrics });
   const job = buildJob(gameId, jobOverrides);
   return handlers.engine_move!({ job, db, log: deps.log });
 }
@@ -174,6 +179,64 @@ describe('engine_move job handler', () => {
     expect(before.plyCount).toBeGreaterThanOrEqual(2);
     const result = await runEngineJob(engine, game.id, { attempts: 7, maxAttempts: 8 });
     expect(result).toMatchObject({ outcome: 'fail' });
+    const after = await requireGameByPublicId(db, game.publicId);
+    expect(after.status).toBe('finished');
+    expect(after.endReason).toBe('abort');
+  });
+
+  it('asks for a retry, not silence, when the engine is disabled', async () => {
+    const engine = fakeEngine();
+    const game = await startedEngineGame('white');
+    await playMove(deps, {
+      gameId: game.publicId,
+      userId: alice.id,
+      uci: 'e2e4',
+      expectedPly: 0,
+      clientMoveId: 'c1',
+    });
+    const result = await runEngineJob(engine, game.id, {}, testConfig({ ENGINE_ENABLED: false }));
+    expect(result).toMatchObject({ outcome: 'retry_attempt' });
+    expect(engine.calls).toHaveLength(0);
+    expect((await requireGameByPublicId(db, game.publicId)).status).toBe('active');
+  });
+
+  it('aborts the game once the retry ladder is exhausted while the engine is disabled', async () => {
+    const engine = fakeEngine();
+    const game = await startedEngineGame('white');
+    await playMove(deps, {
+      gameId: game.publicId,
+      userId: alice.id,
+      uci: 'e2e4',
+      expectedPly: 0,
+      clientMoveId: 'c1',
+    });
+    // Same past-ply-1 setup as the outage test, so this also proves the disabled path does not
+    // go through abortGame's player-facing guard.
+    const engineUser = await getEngineUser(db);
+    await playMove(deps, {
+      gameId: game.publicId,
+      userId: engineUser.id,
+      uci: 'e7e5',
+      expectedPly: 1,
+      clientMoveId: 'e1',
+    });
+    await playMove(deps, {
+      gameId: game.publicId,
+      userId: alice.id,
+      uci: 'd2d4',
+      expectedPly: 2,
+      clientMoveId: 'c2',
+    });
+    const before = await requireGameByPublicId(db, game.publicId);
+    expect(before.plyCount).toBeGreaterThanOrEqual(2);
+    const result = await runEngineJob(
+      engine,
+      game.id,
+      { attempts: 7, maxAttempts: 8 },
+      testConfig({ ENGINE_ENABLED: false }),
+    );
+    expect(result).toMatchObject({ outcome: 'fail' });
+    expect(engine.calls).toHaveLength(0);
     const after = await requireGameByPublicId(db, game.publicId);
     expect(after.status).toBe('finished');
     expect(after.endReason).toBe('abort');

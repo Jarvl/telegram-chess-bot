@@ -36,8 +36,12 @@ function pieceOn(fen: string, square: string): string | undefined {
   return undefined;
 }
 
-/** A uniformly random legal move, used only to recover from an illegal engine reply (spec §9, E7). */
-function randomLegalMove(fen: string): string | null {
+/**
+ * A uniformly random legal move, used only to recover from an illegal engine reply (spec §9, E7).
+ * Exported so its promotion-suffix logic can be pinned by a deterministic unit test without going
+ * through `Math.random`.
+ */
+export function randomLegalMove(fen: string): string | null {
   const dests = [...legalDests(fen).entries()];
   if (dests.length === 0) return null;
   const [from, targets] = dests[Math.floor(Math.random() * dests.length)]!;
@@ -132,13 +136,32 @@ export function engineJobHandlers(ctx: EngineHandlerContext): JobHandlers {
         const fallback = randomLegalMove(game.fen);
         if (!fallback) return { outcome: 'done' };
         uci = fallback;
-        await playMove(deps, {
-          gameId: game.publicId,
-          userId: engineUser.id,
-          uci,
-          expectedPly: game.plyCount,
-          clientMoveId: `engine:${game.publicId}:${game.plyCount}:fallback`,
-        });
+        try {
+          await playMove(deps, {
+            gameId: game.publicId,
+            userId: engineUser.id,
+            uci,
+            expectedPly: game.plyCount,
+            clientMoveId: `engine:${game.publicId}:${game.plyCount}:fallback`,
+          });
+        } catch (fallbackError) {
+          // An unguarded throw here would leave the handler, count an attempt, and once attempts
+          // are exhausted the job is marked done/failed — but the game stays `active` with the
+          // engine still to move, and an engine game carries no deadline, so no scanner will ever
+          // touch it: a permanently stalled game, exactly what spec §9 exists to prevent. Route
+          // through the same attempts-exhausted decision the outage path above uses instead.
+          metrics.engineMoveFailures.inc();
+          const message =
+            fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+          log.error(
+            { gameId, err: fallbackError, fallbackUci: uci },
+            'illegal-move recovery itself failed',
+          );
+          if (job.attempts + 1 >= job.maxAttempts) {
+            return abortForUnavailableEngine(deps, game, message);
+          }
+          return { outcome: 'retry_attempt', delayMs: 5_000, error: message };
+        }
       }
       metrics.engineMoves.inc();
       return { outcome: 'done' };
