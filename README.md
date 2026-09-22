@@ -73,7 +73,7 @@ Everything is an environment variable, validated at boot (`apps/server/src/confi
 | `TELEGRAM_API_ROOT`   | no       | A local Bot API server or a test fake                                                                    |
 | `LICHESS_API_URL`     | no       | `https://lichess.org`                                                                                    |
 | `MINI_APP_DIR`        | no       | Directory of the built Mini App to serve under `/app/` (the Docker image presets it)                     |
-| `ENGINE_ENABLED`      | no       | `true`; the bot opponent. `false` lets a machine without Stockfish boot with nothing else changed        |
+| `ENGINE_ENABLED`      | no       | `true`; the bot opponent. `false` hides it and refuses new bot games (no Stockfish needed)               |
 | `ENGINE_PATH`         | no       | `stockfish`, resolved on `PATH`; or a path to the binary                                                 |
 | `ENGINE_MOVETIME_MS`  | no       | `200`; the bot opponent's per-move thinking budget                                                       |
 

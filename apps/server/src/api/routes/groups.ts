@@ -10,6 +10,7 @@ import { Hono, type Context } from 'hono';
 import { challenges } from '../../db/schema';
 import { createChallenge } from '../../domain/challenges';
 import { createEngineGame } from '../../domain/engineGames';
+import { DomainError } from '../../domain/errors';
 import { getGameDto } from '../../domain/games';
 import { requireGroupByPublicId, settingsOf } from '../../domain/groups';
 import { buildLobby, listFinished, playerPage } from '../../domain/lobby';
@@ -83,6 +84,12 @@ export function groupsRoutes(api: Hono<ApiEnv>, ctx: ApiContext): void {
 
   api.post('/groups/:g/engine-games', validate('json', EngineGameRequestSchema), async (c) => {
     const group = await memberGroup(c);
+    // Spec §6.5: the flag hides the bot *and* stops new engine games. Hiding it in the picker above
+    // is not enough — a client whose picker predates the flip, or any direct call, would otherwise
+    // create a real game that the disabled handler can only retry and then abort.
+    if (!ctx.config.ENGINE_ENABLED) {
+      throw new DomainError('forbidden', 'the bot is unavailable', { reason: 'engine_disabled' });
+    }
     const body = c.req.valid('json');
     const game = await createEngineGame(ctx.deps, {
       groupId: group.id,

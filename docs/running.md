@@ -36,8 +36,9 @@ apt install stockfish      # Debian/Ubuntu
 ```
 
 Without it, set `ENGINE_ENABLED=false` in `.env`. That turns off the bot opponent — it stops
-appearing as an opponent to challenge — and changes nothing else: human games, ratings and
-everything else in this guide work exactly the same either way.
+appearing as an opponent to challenge, and starting a bot game is refused even if something asks for
+one directly — and changes nothing else: human games, ratings and everything else in this guide work
+exactly the same either way.
 
 ## 2. Open a tunnel first
 

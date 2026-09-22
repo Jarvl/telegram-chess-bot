@@ -1,5 +1,6 @@
 import { GameDtoSchema, PlayersPickerDtoSchema } from '@group-chess/shared';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { games, jobs } from '../../src/db/schema';
 import { getEngineUser } from '../../src/domain/engineGames';
 import { startTestApi, type TestApi } from '../helpers/api';
 import { openTestDb, truncateAll } from '../helpers/db';
@@ -98,6 +99,33 @@ describe('the bot in the picker and the engine-games endpoint', () => {
       });
       const body = PlayersPickerDtoSchema.parse(await response.json());
       expect(body.bot).toBeNull();
+    } finally {
+      await disabled.stop();
+    }
+  });
+
+  it('refuses to start a game when the engine is switched off, whatever the picker said', async () => {
+    // Spec §6.5: the flag stops *new engine games*, not just the picker row. A client holding a
+    // picker from before the flip must not be able to create a game that can only abort itself.
+    const disabled = await startTestApi(db, undefined, { ENGINE_ENABLED: false });
+    try {
+      const group = await insertGroup(db, { telegramChatId: -1002000000005 });
+      const member = await insertUser(db, { telegramUserId: 544, firstName: 'Opal' });
+      await touchMember(db, group.id, member.id, { verified: true });
+      const token = await disabled.sessionFor(member);
+      const response = await disabled.request(
+        'POST',
+        `/api/groups/${group.publicId}/engine-games`,
+        {
+          token,
+          body: { level: 'club', colour: 'white', timePerMove: 86_400 },
+        },
+      );
+      expect(response.status).toBe(403);
+      const body = (await response.json()) as { error: { code: string; message: string } };
+      expect(body.error.code).toBe('forbidden');
+      expect(await db.select().from(games)).toHaveLength(0);
+      expect(await db.select().from(jobs)).toHaveLength(0);
     } finally {
       await disabled.stop();
     }
