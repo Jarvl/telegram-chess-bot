@@ -139,6 +139,13 @@ export const en = {
   'app.new.sent': 'Challenge posted to the group',
   'app.new.no_players':
     "The bot hasn't seen anyone else here yet. Reply to their message with /play instead.",
+  'app.new.bot': 'Play the bot',
+  'app.new.bot_level': 'Bot level',
+  'app.new.bot_unrated': 'Games against the bot are unrated.',
+  'app.level.beginner': 'Easiest',
+  'app.level.casual': 'Casual',
+  'app.level.club': 'Club',
+  'app.level.strong': 'Strong',
   'app.game.latest': 'Latest',
   'app.game.share': 'Share position',
   'app.game.shared': 'Shared to the group',

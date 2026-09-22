@@ -1,4 +1,11 @@
-import { GameDtoSchema, PgnLinkDtoSchema, t, type Colour, type GameDto } from '@group-chess/shared';
+import {
+  GameDtoSchema,
+  PgnLinkDtoSchema,
+  t,
+  type Colour,
+  type EngineGameRequest,
+  type GameDto,
+} from '@group-chess/shared';
 import { h } from 'preact';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { ApiError } from '../../api/client';
@@ -293,6 +300,20 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
   };
   const rematch = async (): Promise<void> => {
     try {
+      if (dto.engineLevel !== null) {
+        const body: EngineGameRequest = {
+          level: dto.engineLevel,
+          colour: 'random',
+          timePerMove: dto.timePerMove,
+        };
+        const next = await client.post(
+          `/api/groups/${dto.group.id}/engine-games`,
+          body,
+          GameDtoSchema,
+        );
+        router.replace({ name: 'game', gameId: next.id });
+        return;
+      }
       await client.post(`/api/games/${gameId}/rematch`, {});
       toast(t('app.game.rematch_sent'));
       router.replace({ name: 'lobby', groupId: dto.group.id });
