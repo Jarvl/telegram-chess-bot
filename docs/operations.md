@@ -20,6 +20,7 @@
 - Database: daily snapshots kept 30 days, encrypted at rest; run one restore drill before the beta. Retention inside the database: `telegram_updates` 7 days, finished jobs 30 days (the daily `prune` job), games indefinitely.
 - Secrets: `BOT_TOKEN`, `WEBHOOK_SECRET`, `SESSION_SECRET`, `LICHESS_TOKEN` live in the platform's secret store, never in the image or the repository. Rotating `SESSION_SECRET` logs every Mini App session out; rotating `WEBHOOK_SECRET` needs a restart (the server re-registers the webhook).
 - Releases: a tag `vX.Y.Z` builds and publishes `ghcr.io/<owner>/<repo>:X.Y.Z`; staging deploys from the tag when the repository variable `STAGING_DEPLOY_HOOK_ENABLED` is `true` and the secret `STAGING_DEPLOY_HOOK` holds the platform's deploy hook; production is a manual promotion of the same image.
+- Engine opponent: `ENGINE_ENABLED` (default `true`), `ENGINE_PATH` (default `stockfish`, resolved on `PATH`) and `ENGINE_MOVETIME_MS` (default `200`) configure the packaged Stockfish binary. The image installs it and proves it answers at build time (see the Dockerfile); nothing about it needs a secret.
 
 ## Metrics and alerts (spec §14)
 
@@ -33,6 +34,9 @@
 | `miniapp_load_errors_total`, `miniapp_move_failures_total` | Load errors above 1 % of launches |
 | `jobs_failed_total{kind}` | Any increase: a job exhausted its attempts (`last_error` on the row says why) |
 | `moves_total`, `move_latency_seconds`, `sse_streams`, `sse_reconnects_total`, `game_opens_total{role}`, `games_started`, `games_finished_total{end_reason}`, `shares`, `active_groups` (the last three table-backed gauges carry no `_total` suffix, unlike spec §14's draft names) | Dashboards |
+| `engine_illegal_moves_total` | Any increase: the engine's reply failed our own arbiter and a random legal move was played instead (a parsing defect, not expected behaviour) |
+| `engine_available` | At 0 while `ENGINE_ENABLED` is true: the packaged binary failed its probe |
+| `engine_move_failures_total` | A sustained rate: the engine is failing to answer within its deadline |
 
 Logs are JSON (pino) with numeric and public ids only; bound query parameters are stripped from error messages.
 
@@ -44,6 +48,7 @@ Logs are JSON (pino) with numeric and public ids only; bound query parameters ar
 - **A rated game must be voided**: an admin does it from the app's group settings; ratings are recomputed by the `rebuild_ratings` job and the affected cards are re-edited.
 - **Ratings look wrong without a void**: enqueue `rebuild_ratings` for the group by inserting a job row (`kind = 'rebuild_ratings'`, `payload = {"groupId": <internal id>}`, `dedup_key = 'ratings:<group public id>'`).
 - **A user asked for deletion**: they do it themselves in the app (Settings → Delete my data); it resigns their games, cancels their challenges and anonymises the row immediately.
+- **The engine binary is missing or broken**: `engine_available` reads 0. This degrades bot games only — the bot stops appearing as an opponent, and existing bot games queue and then abort — and never affects human games, which do not touch the engine.
 
 ## Known limits of the alpha
 

@@ -43,7 +43,11 @@ export const users = pgTable(
     lastSeenAt: tz().notNull().defaultNow(),
     deletedAt: tz(),
   },
-  (t) => [uniqueIndex('users_single_engine').on(t.isEngine).where(sql`${t.isEngine}`)],
+  (t) => [
+    uniqueIndex('users_single_engine')
+      .on(t.isEngine)
+      .where(sql`${t.isEngine}`),
+  ],
 );
 
 export const groups = pgTable('groups', {

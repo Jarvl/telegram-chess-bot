@@ -29,19 +29,24 @@ The bot is not a chess server and does not try to replace Chess.com or Lichess. 
 2. **One tap from chat to move.** A player opens their game from the group or from a notification, moves, and is back in the chat.
 3. **Spectating by default.** Every game in the group can be watched live and replayed later, from the app.
 4. **A quiet group chat.** No board per move, no command chatter. Only game cards, results, and positions people choose to share.
-5. **Simple and permanent.** Standard chess, real opponents, no takebacks.
+5. **Simple and permanent.** Standard chess, no takebacks.
 
 ### Non-goals and decisions already made
 
 These were considered and are explicitly out of scope, so they should not creep back in:
 
-- Engine opponents, puzzles, vote chess, tournaments, seasons, variants, achievements.
+- Puzzles, vote chess, tournaments, seasons, variants, achievements.
 - Takebacks. All moves are permanent.
 - Spectator predictions, watcher counts, blindfold mode.
 - Any analysis (engine evaluation, hints, accuracy) before a game is over, for players or spectators. After a game ends, analysis is a link to Lichess, not a feature in the app.
 - Copy-FEN buttons in the chat.
 - A keyboard-based move picker in the chat, and board images posted on every move.
 - Real-time blitz and bullet. Clocks are per-move (hours or days). Faster clocks can be revisited once the Mini App is proven.
+
+An engine opponent was originally on this list and was deliberately added to the product on
+2026-09-21; see
+[docs/superpowers/specs/2026-09-21-engine-opponent-design.md](superpowers/specs/2026-09-21-engine-opponent-design.md).
+The remaining items above are still out of scope, in particular any in-app analysis (§7.8).
 
 ## 4. Users
 
@@ -215,6 +220,13 @@ In the app, under the group, visible to group admins only (verified against Tele
 - Privacy mode stays on. The bot receives only its commands, replies to its own messages, button taps and Mini App requests. It never stores chat content.
 - Stored per user: Telegram id, first name, username (display), games, ratings, notification permission and app preferences. A **Delete my data** action in the app anonymises the user in past games and removes preferences.
 - Mini App requests are authenticated with Telegram's signed launch data; a user can only act as themselves.
+
+### 7.13 Bot opponent — P1
+
+- Any group member can play the bot, at one of four levels, inside that group.
+- Bot games are unrated: they never enter Glicko-2, W/D/L or the leaderboard.
+- Nothing about a bot game is posted to the group chat.
+- No rating numbers are shown for the levels.
 
 ## 8. UX specification
 

@@ -44,10 +44,7 @@ export type CreateEngineGameInput = {
 };
 
 /** Spec §6.1. No challenge, no card, no expiry: there is nothing to accept. */
-export async function createEngineGame(
-  deps: Deps,
-  input: CreateEngineGameInput,
-): Promise<GameRow> {
+export async function createEngineGame(deps: Deps, input: CreateEngineGameInput): Promise<GameRow> {
   if (!ENGINE_LEVELS.includes(input.level)) {
     throw new DomainError('validation', 'unknown engine level', {
       reason: 'invalid_level',
@@ -98,9 +95,7 @@ export async function createEngineGame(
         fen: INITIAL_FEN,
         // Spec §9: the engine never carries a deadline, so it can never be forfeited.
         deadlineAt: engineToMove ? null : deadlineExpression(input.timePerMove),
-        reminderAt: engineToMove
-          ? null
-          : reminderExpression(input.timePerMove, wantsDms(player)),
+        reminderAt: engineToMove ? null : reminderExpression(input.timePerMove, wantsDms(player)),
       })
       .returning();
     if (!game) throw new Error('engine game insert returned no row');

@@ -17,7 +17,7 @@ A Telegram bot and Mini App for playing correspondence chess inside group chats.
 | `packages/shared` | Rules (chess.js + arbiter), Glicko-2, PGN, the zod protocol, the English message catalog                                                                                |
 | `apps/server`     | One Node process with four roles (`api`, `bot`, `jobs`, `clock`): grammY bot, Hono API with SSE, Drizzle on PostgreSQL 18, a table-backed job outbox and clock scanners |
 | `apps/miniapp`    | The Preact + chessground Mini App, built with Vite and served by the server under `/app/`                                                                               |
-| `scripts`         | Local PostgreSQL, piece vendoring, bundle-budget and licence gates                                                                                                      |
+| `scripts`         | Local PostgreSQL, piece vendoring, bundle-budget, licence and engine-liveness gates                                                                                     |
 
 ## Requirements
 
@@ -73,6 +73,9 @@ Everything is an environment variable, validated at boot (`apps/server/src/confi
 | `TELEGRAM_API_ROOT`   | no       | A local Bot API server or a test fake                                                                    |
 | `LICHESS_API_URL`     | no       | `https://lichess.org`                                                                                    |
 | `MINI_APP_DIR`        | no       | Directory of the built Mini App to serve under `/app/` (the Docker image presets it)                     |
+| `ENGINE_ENABLED`      | no       | `true`; the bot opponent. `false` lets a machine without Stockfish boot with nothing else changed        |
+| `ENGINE_PATH`         | no       | `stockfish`, resolved on `PATH`; or a path to the binary                                                 |
+| `ENGINE_MOVETIME_MS`  | no       | `200`; the bot opponent's per-move thinking budget                                                       |
 
 ## Deployment in one paragraph
 

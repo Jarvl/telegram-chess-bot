@@ -20,8 +20,24 @@ That prints the two connection strings. You want the first one:
 export DATABASE_URL=postgres://postgres@127.0.0.1:54329/group_chess
 ```
 
-If you would rather use Docker, `docker compose up -d db` gives you PostgreSQL on 5432 with
+That URL has no password because `local-postgres.sh` sets up trust authentication. If your
+PostgreSQL is not this one — a Docker container, a system service, anything already configured with
+a password — that connection string will fail to authenticate. Use the credentials that instance
+actually has instead; for example, `docker compose up -d db` gives you PostgreSQL on 5432 with
 `DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/group_chess`.
+
+### The bot opponent needs Stockfish
+
+The always-available bot opponent shells out to a Stockfish binary on `PATH`:
+
+```bash
+brew install stockfish     # macOS
+apt install stockfish      # Debian/Ubuntu
+```
+
+Without it, set `ENGINE_ENABLED=false` in `.env`. That turns off the bot opponent — it stops
+appearing as an opponent to challenge — and changes nothing else: human games, ratings and
+everything else in this guide work exactly the same either way.
 
 ## 2. Open a tunnel first
 
