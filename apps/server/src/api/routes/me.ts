@@ -8,7 +8,7 @@ import { Hono } from 'hono';
 import { RateLimiter } from '../../bot/rateLimit';
 import { deleteMyData } from '../../domain/account';
 import { DomainError } from '../../domain/errors';
-import { meGroups } from '../../domain/lobby';
+import { meGames, meGroups } from '../../domain/lobby';
 import { prefsOf, recordWriteAccess, requireUser, updatePrefs } from '../../domain/users';
 import type { ApiContext, ApiEnv } from '../context';
 import { validate } from '../validate';
@@ -20,6 +20,8 @@ export function meRoutes(ctx: ApiContext): Hono<ApiEnv> {
   const telemetryLimiter = new RateLimiter(10, 60_000);
 
   app.get('/me/groups', async (c) => c.json(await meGroups(ctx.deps, c.get('user').id)));
+
+  app.get('/me/games', async (c) => c.json(await meGames(ctx.deps, c.get('user').id)));
 
   app.put('/me/prefs', validate('json', PrefsUpdateRequestSchema), async (c) => {
     const user = c.get('user');

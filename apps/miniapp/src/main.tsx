@@ -9,7 +9,8 @@ import { AppProvider, type AppContextValue } from './ui/context';
 import './styles.css';
 
 const tg = createTg();
-const router = new Router(tg, { closeWhenEmpty: decodeStartParam(tg.startParam)?.kind === 'game' });
+// A launch from a chat link keeps its one-tap way back out; a profile launch has none to keep.
+const router = new Router(tg, { closeFromRoot: decodeStartParam(tg.startParam) !== null });
 const app: AppContextValue = {
   tg,
   router,

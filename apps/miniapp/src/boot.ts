@@ -1,27 +1,34 @@
 import type { LaunchRoute } from '@group-chess/shared';
 import { launch } from './api/launch';
-import type { Route } from './router';
+import type { Route, TabName } from './router';
 import { applyLaunch } from './state/session';
 import { applyTheme } from './tg/theme';
 import type { AppContextValue, Prefetched } from './ui/context';
 
-/** Maps the launch route to a screen and parks its data for that screen's first render. */
-export function routeFor(route: LaunchRoute, prefetched: Prefetched): Route {
+/**
+ * Maps the launch route to a tab and its one screen, parking that screen's data for its first
+ * render. Every landing is one deep: the tab bar carries "go home", so the BackButton is free
+ * to mean "leave", which is what a launch from a chat card wants it to mean.
+ */
+export function landingFor(
+  route: LaunchRoute,
+  prefetched: Prefetched,
+): { tab: TabName; route: Route } {
   switch (route.kind) {
     case 'game':
       prefetched.game = route.game;
-      return { name: 'game', gameId: route.game.id };
+      return { tab: 'games', route: { name: 'game', gameId: route.game.id } };
     case 'lobby':
       prefetched.lobby = route.lobby;
-      return { name: 'lobby', groupId: route.lobby.group.id };
+      return { tab: 'groups', route: { name: 'lobby', groupId: route.lobby.group.id } };
     case 'settings':
       prefetched.settings = route.settings;
-      return { name: 'groupSettings', groupId: route.settings.group.id };
-    case 'groups':
-      prefetched.groups = route.groups;
-      return { name: 'groups' };
+      return { tab: 'groups', route: { name: 'groupSettings', groupId: route.settings.group.id } };
+    case 'home':
+      prefetched.games = route.games;
+      return { tab: 'games', route: { name: 'games' } };
     case 'locked':
-      return { name: 'locked', group: route.group };
+      return { tab: 'groups', route: { name: 'locked', group: route.group } };
   }
 }
 
@@ -37,15 +44,16 @@ export async function boot(app: AppContextValue): Promise<void> {
 
   const outcome = await launch(client, tg.initData);
   if (outcome.kind === 'expired') {
-    router.reset({ name: 'reopen' });
+    router.land('games', { name: 'reopen' });
     return;
   }
   if (outcome.kind === 'failed') {
-    router.reset({ name: 'error' });
+    router.land('games', { name: 'error' });
     return;
   }
   applyLaunch(outcome.response, tg.startParam);
-  router.reset(routeFor(outcome.response.route, prefetched));
+  const landing = landingFor(outcome.response.route, prefetched);
+  router.land(landing.tab, landing.route);
 
   if (outcome.response.askWriteAccess && tg.supports('writeAccess')) {
     setTimeout(() => {
@@ -63,6 +71,6 @@ export async function boot(app: AppContextValue): Promise<void> {
 export async function relaunch(app: AppContextValue): Promise<string | null> {
   const outcome = await launch(app.client, app.tg.initData);
   if (outcome.kind === 'ok') return outcome.response.token;
-  app.router.reset({ name: 'reopen' });
+  app.router.land('games', { name: 'reopen' });
   return null;
 }

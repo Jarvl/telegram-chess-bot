@@ -1,3 +1,4 @@
+import { GROUP_SETTINGS_DEFAULTS } from '@group-chess/shared';
 import { describe, expect, it } from 'vitest';
 import { createApiClient } from '../src/api/client';
 import { boot } from '../src/boot';
@@ -35,7 +36,7 @@ function setup(
   const tg = createTg(window.Telegram!.WebApp);
   const { fetch, calls } = fakeFetch(handler);
   const client = createApiClient({ fetch });
-  const router = new Router(tg, { closeWhenEmpty: false });
+  const router = new Router(tg, { closeFromRoot: startParam !== undefined });
   const prefetched: Prefetched = {};
   return { tg, client, router, prefetched, calls, record: window.__tg! };
 }
@@ -52,7 +53,10 @@ describe('boot', () => {
           : { status: 200, body: { prefs: prefs.value, dmAllowed: true } },
     );
     await boot({ tg, client, router, prefetched });
-    expect(router.current.value).toEqual({ name: 'game', gameId: 'AbCdEfGhIj' });
+    // One screen deep in the Games tab: the tab bar is the way home, back is the way out.
+    expect(router.tab.value).toBe('games');
+    expect(router.stack.value).toEqual([{ name: 'game', gameId: 'AbCdEfGhIj' }]);
+    expect(record.backButton.visible).toBe(true);
     expect(prefetched.game?.id).toBe('AbCdEfGhIj');
     expect(session.value?.launchedFrom).toEqual({ kind: 'game', gameId: 'AbCdEfGhIj' });
     expect(
@@ -73,7 +77,7 @@ describe('boot', () => {
       undefined,
       ({ path }) =>
         path === '/api/launch'
-          ? { status: 200, body: launchBody({ kind: 'groups', groups: { groups: [] } }, true) }
+          ? { status: 200, body: launchBody({ kind: 'home', games: { items: [] } }, true) }
           : { status: 200, body: { prefs: prefs.value, dmAllowed: false } },
       false,
     );
@@ -102,7 +106,8 @@ describe('boot', () => {
     }));
     await boot({ tg, client, router, prefetched });
     await new Promise((resolve) => setTimeout(resolve, 10));
-    expect(router.current.value).toEqual({ name: 'lobby', groupId: 'GrOuPiDxYz' });
+    expect(router.tab.value).toBe('groups');
+    expect(router.stack.value).toEqual([{ name: 'lobby', groupId: 'GrOuPiDxYz' }]);
     expect(record.calls).not.toContain('requestWriteAccess');
     expect(record.calls).not.toContain('disableVerticalSwipes');
     expect(calls).toHaveLength(1);
@@ -121,6 +126,35 @@ describe('boot', () => {
     );
     await boot(broken);
     expect(broken.router.current.value).toEqual({ name: 'error' });
+  });
+
+  it('lands a profile launch on the games home with its games prefetched', async () => {
+    const home = setup('8.0', undefined, () => ({
+      status: 200,
+      body: launchBody({ kind: 'home', games: { items: [] } }),
+    }));
+    await boot(home);
+    expect(home.router.tab.value).toBe('games');
+    expect(home.router.stack.value).toEqual([{ name: 'games' }]);
+    expect(home.prefetched.games).toEqual({ items: [] });
+    expect(home.record.backButton.visible).toBe(false);
+  });
+
+  it('lands a group-settings launch in the groups tab', async () => {
+    const settings = {
+      group: { id: 'GrOuPiDxYz', title: 'Club' },
+      settings: GROUP_SETTINGS_DEFAULTS,
+      blocked: [],
+      botIsAdmin: true,
+      isForum: false,
+    };
+    const app = setup('8.0', 's_GrOuPiDxYz', () => ({
+      status: 200,
+      body: launchBody({ kind: 'settings', settings }),
+    }));
+    await boot(app);
+    expect(app.router.tab.value).toBe('groups');
+    expect(app.router.stack.value).toEqual([{ name: 'groupSettings', groupId: 'GrOuPiDxYz' }]);
   });
 
   it('routes a locked launch to the locked screen', async () => {

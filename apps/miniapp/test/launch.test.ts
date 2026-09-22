@@ -15,7 +15,7 @@ const response = {
     pieceSet: null,
   },
   askWriteAccess: true,
-  route: { kind: 'groups', groups: { groups: [] } },
+  route: { kind: 'home', games: { items: [] } },
   serverTime: new Date(Date.now() + 5_000).toISOString(),
   bot: { username: 'TestChessBot', miniAppShortName: 'chess' },
 };

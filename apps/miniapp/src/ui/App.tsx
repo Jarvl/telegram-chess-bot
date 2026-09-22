@@ -1,6 +1,7 @@
 import { useApp } from './context';
 import { Dialogs } from './dialog';
 import { Game } from './screens/Game';
+import { Games } from './screens/Games';
 import { GroupSettings } from './screens/GroupSettings';
 import { Groups } from './screens/Groups';
 import { Lobby } from './screens/Lobby';
@@ -8,6 +9,7 @@ import { NewGame } from './screens/NewGame';
 import { Player } from './screens/Player';
 import { Settings } from './screens/Settings';
 import { ErrorScreen, Loading, Locked, Reopen } from './screens/Status';
+import { TabBar } from './TabBar';
 import { Toasts } from './toast';
 
 function Screen() {
@@ -22,6 +24,8 @@ function Screen() {
       return <Reopen />;
     case 'locked':
       return <Locked group={route.group} />;
+    case 'games':
+      return <Games />;
     case 'groups':
       return <Groups />;
     case 'lobby':
@@ -46,9 +50,13 @@ function Screen() {
 }
 
 export function App() {
+  const { router } = useApp();
   return (
     <>
-      <Screen />
+      <div class={router.showTabs.value ? 'app with-tabbar' : 'app'}>
+        <Screen />
+      </div>
+      <TabBar />
       <Toasts />
       <Dialogs />
     </>

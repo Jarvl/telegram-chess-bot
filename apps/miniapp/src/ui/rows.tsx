@@ -1,13 +1,19 @@
 import { t, type ChallengeDto, type GameSummary, type LeaderboardEntry } from '@group-chess/shared';
 import { playerLabel, summaryStatus, summaryTitle, termsLabel } from './format';
 
-export function GameRow(props: { game: GameSummary; onOpen: (id: string) => void }) {
+/** `context` names the game's group on lists that span more than one. */
+export function GameRow(props: {
+  game: GameSummary;
+  onOpen: (id: string) => void;
+  context?: string;
+}) {
   const { game } = props;
+  const status = summaryStatus(game);
   return (
     <button class="row" data-game={game.id} onClick={() => props.onOpen(game.id)}>
       <span class="grow">
         <span class="primary">{summaryTitle(game)}</span>
-        <span class="secondary">{summaryStatus(game)}</span>
+        <span class="secondary">{props.context ? `${props.context} · ${status}` : status}</span>
       </span>
       {game.yourTurn && game.status === 'active' ? (
         <span class="badge">{t('app.lobby.your_move')}</span>

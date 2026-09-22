@@ -244,6 +244,18 @@ export const MeGroupsDtoSchema = z.object({
 
 export type MeGroupsDto = z.infer<typeof MeGroupsDtoSchema>;
 
+/** An active game on the home screen; it names its group because the list spans all of them. */
+export const MeGameSummarySchema = GameSummarySchema.extend({ group: GroupRefSchema });
+
+export type MeGameSummary = z.infer<typeof MeGameSummarySchema>;
+
+export const MeGamesDtoSchema = z.object({
+  /** The viewer's active games across every group, their own turn first (spec §9 `GET /me/games`). */
+  items: z.array(MeGameSummarySchema),
+});
+
+export type MeGamesDto = z.infer<typeof MeGamesDtoSchema>;
+
 export const GroupSettingsDtoSchema = z.object({
   group: GroupRefSchema,
   settings: GroupSettingsSchema,
@@ -259,7 +271,7 @@ export const LaunchRouteSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('game'), game: GameDtoSchema }),
   z.object({ kind: z.literal('lobby'), lobby: LobbyDtoSchema }),
   z.object({ kind: z.literal('settings'), settings: GroupSettingsDtoSchema }),
-  z.object({ kind: z.literal('groups'), groups: MeGroupsDtoSchema }),
+  z.object({ kind: z.literal('home'), games: MeGamesDtoSchema }),
   z.object({ kind: z.literal('locked'), group: GroupRefSchema }),
 ]);
 

@@ -4,7 +4,7 @@ import { groupSettingsDto } from '../domain/admin';
 import { colourOf } from '../domain/gameDto';
 import { loadGameDto, requireGameByPublicId } from '../domain/games';
 import { requireGroup, requireGroupByPublicId } from '../domain/groups';
-import { buildLobby, meGroups } from '../domain/lobby';
+import { buildLobby, meGames } from '../domain/lobby';
 import type { ApiContext } from './context';
 
 /** Spec §5.3/§6.1: where a launch lands, with that screen's data; no membership evidence means locked. */
@@ -14,7 +14,7 @@ export async function resolveLaunchRoute(
   param: StartParam | null,
 ): Promise<LaunchRoute> {
   const { db } = ctx.deps;
-  if (!param) return { kind: 'groups', groups: await meGroups(ctx.deps, user.id) };
+  if (!param) return { kind: 'home', games: await meGames(ctx.deps, user.id) };
   if (param.kind === 'game') {
     const game = await requireGameByPublicId(db, param.gameId);
     const group = await requireGroup(db, game.groupId);

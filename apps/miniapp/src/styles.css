@@ -13,6 +13,9 @@
   --destructive: #d14e4e;
   --stable-height: 100vh;
   --radius: 12px;
+  --tabbar-h: calc(56px + env(safe-area-inset-bottom, 0px));
+  /** Vertical space the board must leave for chrome below it; the tab bar adds itself here. */
+  --board-reserve: 0px;
   color-scheme: light dark;
 }
 
@@ -49,6 +52,53 @@ button {
   padding: 12px 12px 24px;
   max-width: 640px;
   margin: 0 auto;
+}
+
+.with-tabbar {
+  padding-bottom: var(--tabbar-h);
+  --board-reserve: var(--tabbar-h);
+}
+
+.tabbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  display: flex;
+  background: var(--secondary-bg);
+  border-top: 1px solid color-mix(in srgb, var(--hint) 20%, transparent);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Scoped names of its own: the lobby's segmented control owns `.tab` further down. */
+.tabbar .nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 56px;
+  padding: 6px 4px;
+  border: 0;
+  background: transparent;
+  color: var(--hint);
+}
+
+.tabbar .nav-item.active {
+  color: var(--link);
+}
+
+.tabbar .nav-icon {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+
+.tabbar .nav-label {
+  font-size: 11px;
+  line-height: 1;
 }
 
 .title {
@@ -316,7 +366,7 @@ button {
 
 .board-wrap {
   position: relative;
-  width: min(100vw, calc(var(--stable-height) - 200px));
+  width: min(100vw, calc(var(--stable-height) - 200px - var(--board-reserve)));
   max-width: 640px;
   min-width: 280px;
   aspect-ratio: 1;

@@ -1,4 +1,4 @@
-import { LaunchResponseSchema, LobbyDtoSchema } from '@group-chess/shared';
+import { LaunchResponseSchema, LobbyDtoSchema, MeGamesDtoSchema } from '@group-chess/shared';
 import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { challenges, games, groupMembers, users } from '../../src/db/schema';
@@ -31,12 +31,62 @@ const launch = (fields: Parameters<typeof signInitData>[1]) =>
     body: { initData: signInitData(api.config.BOT_TOKEN, fields) },
   });
 
+describe('GET /api/me/games', () => {
+  it('spans the groups the viewer can see, their own turn first, and leaves out the rest', async () => {
+    const [viewer, opponent] = [await insertUser(db), await insertUser(db)];
+    const club = await insertGroup(db, { title: 'Club' });
+    const pub = await insertGroup(db, { title: 'Pub' });
+    const stranger = await insertGroup(db, { title: 'Stranger' });
+    const departed = await insertGroup(db, { title: 'Departed', botStatus: 'left' });
+    for (const group of [club, pub, departed]) await touchMember(db, group.id, viewer.id);
+    await touchMember(db, stranger.id, opponent.id);
+
+    // Black to move, so this one is the viewer's turn and must sort first.
+    const yours = await insertGame(db, pub.id, opponent.id, viewer.id, {
+      fen: 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1',
+    });
+    // White, with black to move: a game the viewer is in but is not waiting on.
+    const theirs = await insertGame(db, club.id, viewer.id, opponent.id, {
+      fen: 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1',
+    });
+    // None of these belong on the home screen.
+    await insertGame(db, club.id, viewer.id, opponent.id, {
+      status: 'finished',
+      result: '1-0',
+      endReason: 'resignation',
+      finishedAt: new Date(),
+    });
+    await insertGame(db, stranger.id, opponent.id, opponent.id);
+    await insertGame(db, departed.id, viewer.id, opponent.id);
+
+    const token = await api.sessionFor(viewer);
+    const res = await api.request('GET', '/api/me/games', { token });
+    expect(res.status).toBe(200);
+    const body = MeGamesDtoSchema.parse(await res.json());
+    expect(body.items.map((game) => game.id)).toEqual([yours.publicId, theirs.publicId]);
+    expect(body.items[0]).toMatchObject({
+      yourTurn: true,
+      group: { id: pub.publicId, title: 'Pub' },
+    });
+    expect(body.items[1]).toMatchObject({
+      yourTurn: false,
+      group: { id: club.publicId, title: 'Club' },
+    });
+  });
+
+  it('is empty for a user who is in no group', async () => {
+    const token = await api.sessionFor(await insertUser(db));
+    const res = await api.request('GET', '/api/me/games', { token });
+    expect(MeGamesDtoSchema.parse(await res.json()).items).toEqual([]);
+  });
+});
+
 describe('POST /api/launch', () => {
-  it('creates the user, issues a session and lands on the groups screen', async () => {
+  it('creates the user, issues a session and lands on the games home', async () => {
     const res = await launch({ user: alice });
     expect(res.status).toBe(200);
     const body = LaunchResponseSchema.parse(await res.json());
-    expect(body.route.kind).toBe('groups');
+    expect(body.route.kind).toBe('home');
     expect(body.user).toEqual({ id: expect.any(String), name: '@alice', username: 'alice' });
     expect(body.askWriteAccess).toBe(true);
     expect(body.bot).toEqual({ username: 'TestChessBot', miniAppShortName: 'chess' });
