@@ -1,6 +1,7 @@
+import type { EngineLevel } from '@group-chess/shared';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { MAX_GAMES_PER_PAIR } from '../../src/domain/limits';
-import { challenges, jobs } from '../../src/db/schema';
+import { challenges, games, jobs, users } from '../../src/db/schema';
 import { DomainError } from '../../src/domain/errors';
 import { createEngineGame, getEngineUser } from '../../src/domain/engineGames';
 import { touchMember } from '../../src/domain/members';
@@ -13,9 +14,9 @@ const deps = testDeps(db);
 beforeEach(() => truncateAll(db));
 afterAll(() => close());
 
-async function setup() {
+async function setup(userOverrides: Partial<typeof users.$inferInsert> = {}) {
   const group = await insertGroup(db);
-  const alice = await insertUser(db, { firstName: 'Alice' });
+  const alice = await insertUser(db, { firstName: 'Alice', ...userOverrides });
   await touchMember(db, group.id, alice.id);
   return { group, alice };
 }
@@ -88,5 +89,44 @@ describe('createEngineGame', () => {
         timePerMove: 86_400,
       }),
     ).rejects.toBeInstanceOf(DomainError);
+  });
+
+  it('refuses an out-of-table engine level and writes no game row', async () => {
+    const { group, alice } = await setup();
+    await expect(
+      createEngineGame(deps, {
+        groupId: group.id,
+        userId: alice.id,
+        // Cast past the compile-time union: the point of this test is the runtime guard.
+        level: 'grandmaster' as EngineLevel,
+        colour: 'white',
+        timePerMove: 86_400,
+      }),
+    ).rejects.toBeInstanceOf(DomainError);
+    expect(await db.select().from(games)).toHaveLength(0);
+  });
+
+  it('sets a real deadline and reminder only for the human side to move, never for the engine', async () => {
+    const { group, alice } = await setup({ dmAllowed: true });
+
+    const engineToMove = await createEngineGame(deps, {
+      groupId: group.id,
+      userId: alice.id,
+      level: 'club',
+      colour: 'black',
+      timePerMove: 86_400,
+    });
+    expect(engineToMove.deadlineAt).toBeNull();
+    expect(engineToMove.reminderAt).toBeNull();
+
+    const humanToMove = await createEngineGame(deps, {
+      groupId: group.id,
+      userId: alice.id,
+      level: 'club',
+      colour: 'white',
+      timePerMove: 86_400,
+    });
+    expect(humanToMove.deadlineAt).not.toBeNull();
+    expect(humanToMove.reminderAt).not.toBeNull();
   });
 });

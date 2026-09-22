@@ -1,4 +1,5 @@
 import {
+  ENGINE_LEVELS,
   INITIAL_FEN,
   type ColourChoice,
   type EngineLevel,
@@ -47,6 +48,12 @@ export async function createEngineGame(
   deps: Deps,
   input: CreateEngineGameInput,
 ): Promise<GameRow> {
+  if (!ENGINE_LEVELS.includes(input.level)) {
+    throw new DomainError('validation', 'unknown engine level', {
+      reason: 'invalid_level',
+      level: input.level,
+    });
+  }
   const result = await deps.db.transaction(async (tx) => {
     const group = await requireGroup(tx, input.groupId);
     const settings = settingsOf(group);
