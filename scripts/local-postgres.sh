@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Start or stop a throwaway PostgreSQL 16 for development and the integration tests.
+# Start or stop a throwaway PostgreSQL 18 for development and the integration tests.
 #   scripts/local-postgres.sh start   -> prints the DATABASE_URL and TEST_DATABASE_URL to export
 #   scripts/local-postgres.sh stop
 set -euo pipefail
 
 PORT="${PGPORT_LOCAL:-54329}"
 DIR="${PGDIR_LOCAL:-/tmp/group-chess-pg}"
-BIN="${PGBIN:-$(ls -d /usr/lib/postgresql/16/bin 2>/dev/null || dirname "$(command -v pg_ctl)")}"
+BIN="${PGBIN:-$(ls -d /usr/lib/postgresql/18/bin 2>/dev/null || dirname "$(command -v pg_ctl)")}"
 DBS="group_chess group_chess_test"
 
 run_as_pg() {

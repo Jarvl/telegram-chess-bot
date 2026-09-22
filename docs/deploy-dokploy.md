@@ -2,7 +2,7 @@
 
 Dokploy runs the repository's `Dockerfile` on your own VPS and puts Traefik in front with a
 Let's Encrypt certificate, which is everything this app needs from a host: one HTTPS origin serving
-both the API and the Mini App, plus a PostgreSQL 16 database.
+both the API and the Mini App, plus a PostgreSQL 18 database.
 
 Dokploy's UI labels move between versions. The concepts below are stable; take the exact wording
 from your install.
@@ -21,7 +21,7 @@ on the host.
 
 ## 1. Project and database
 
-Create a project, then add a **PostgreSQL** service to it. Pick version 16 to match what the
+Create a project, then add a **PostgreSQL** service to it. Pick version 18 to match what the
 migrations are tested against, and set a strong password.
 
 When it is running, open its page and copy the **internal** connection string. It looks like:

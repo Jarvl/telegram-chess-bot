@@ -15,14 +15,14 @@ A Telegram bot and Mini App for playing correspondence chess inside group chats.
 | Path              | What it is                                                                                                                                                              |
 | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `packages/shared` | Rules (chess.js + arbiter), Glicko-2, PGN, the zod protocol, the English message catalog                                                                                |
-| `apps/server`     | One Node process with four roles (`api`, `bot`, `jobs`, `clock`): grammY bot, Hono API with SSE, Drizzle on PostgreSQL 16, a table-backed job outbox and clock scanners |
+| `apps/server`     | One Node process with four roles (`api`, `bot`, `jobs`, `clock`): grammY bot, Hono API with SSE, Drizzle on PostgreSQL 18, a table-backed job outbox and clock scanners |
 | `apps/miniapp`    | The Preact + chessground Mini App, built with Vite and served by the server under `/app/`                                                                               |
 | `scripts`         | Local PostgreSQL, piece vendoring, bundle-budget and licence gates                                                                                                      |
 
 ## Requirements
 
 - Node 22 (`.nvmrc`), pnpm 10 (`corepack enable`)
-- PostgreSQL 16 for integration and end-to-end tests (`scripts/local-postgres.sh start` runs one on port 54329 when `initdb` is available, or use Docker: `docker compose up db`)
+- PostgreSQL 18 for integration and end-to-end tests (`scripts/local-postgres.sh start` runs one on port 54329 when `initdb` is available, or use Docker: `docker compose up db`)
 - A Telegram bot token from BotFather for a real deployment
 
 ## Quick start
@@ -63,7 +63,7 @@ Everything is an environment variable, validated at boot (`apps/server/src/confi
 | `MINI_APP_SHORT_NAME` | yes      | The `/newapp` short name; links are `https://t.me/<BOT_USERNAME>/<MINI_APP_SHORT_NAME>?startapp=…`       |
 | `PUBLIC_URL`          | yes      | HTTPS origin of this server; the webhook is `<PUBLIC_URL>/telegram/webhook`, the app `<PUBLIC_URL>/app/` |
 | `WEBHOOK_SECRET`      | yes      | ≥ 16 characters; sent by Telegram as `X-Telegram-Bot-Api-Secret-Token`                                   |
-| `DATABASE_URL`        | yes      | PostgreSQL 16                                                                                            |
+| `DATABASE_URL`        | yes      | PostgreSQL 18                                                                                            |
 | `SESSION_SECRET`      | yes      | ≥ 32 characters; signs the Mini App session tokens (rotating it logs everyone out)                       |
 | `LICHESS_TOKEN`       | no       | Raises the import quota from 100 to 200 per hour                                                         |
 | `ROLES`               | no       | `api,bot,jobs,clock` (default all)                                                                       |
@@ -76,7 +76,7 @@ Everything is an environment variable, validated at boot (`apps/server/src/confi
 
 ## Deployment in one paragraph
 
-Build the image (`docker build -t group-chess .` or take `ghcr.io/<owner>/<repo>:<version>` from a release), run it with the variables above and a PostgreSQL 16 database, put an HTTPS reverse proxy in front that does not buffer `/api/games/*/events`, register the Mini App in BotFather with `<PUBLIC_URL>/app/`, and open the bot. Migrations, the webhook and the command menu are set up by the server at boot. The full checklist, the metrics and the alerts are in [docs/operations.md](docs/operations.md).
+Build the image (`docker build -t group-chess .` or take `ghcr.io/<owner>/<repo>:<version>` from a release), run it with the variables above and a PostgreSQL 18 database, put an HTTPS reverse proxy in front that does not buffer `/api/games/*/events`, register the Mini App in BotFather with `<PUBLIC_URL>/app/`, and open the bot. Migrations, the webhook and the command menu are set up by the server at boot. The full checklist, the metrics and the alerts are in [docs/operations.md](docs/operations.md).
 
 ## Licence
 
