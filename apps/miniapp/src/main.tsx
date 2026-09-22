@@ -1,4 +1,3 @@
-import { decodeStartParam } from '@group-chess/shared';
 import { render } from 'preact';
 import { createApiClient } from './api/client';
 import { boot, relaunch } from './boot';
@@ -9,7 +8,7 @@ import { AppProvider, type AppContextValue } from './ui/context';
 import './styles.css';
 
 const tg = createTg();
-const router = new Router(tg, { closeWhenEmpty: decodeStartParam(tg.startParam)?.kind === 'game' });
+const router = new Router(tg);
 const app: AppContextValue = {
   tg,
   router,
