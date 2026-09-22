@@ -11,7 +11,19 @@ const players = {
 
 const withBot = { players: [], bot: { levels: [...ENGINE_LEVELS] } };
 
+const withBotAndPlayers = {
+  players: [{ id: '2', name: 'Bob', username: 'bob', rating: 1520, provisional: false }],
+  bot: { levels: [...ENGINE_LEVELS] },
+};
+
 const engineGame: GameDto = gameDto({ id: 'EnGiNeGam1', engineLevel: 'strong' });
+
+/** Opponent rows (human, open-challenge or bot) currently showing `aria-pressed="true"`. */
+function pressedOpponentRows(root: HTMLElement): Element[] {
+  return [...root.querySelectorAll('[data-opponent], [data-testid="opponent-bot"]')].filter(
+    (el) => el.getAttribute('aria-pressed') === 'true',
+  );
+}
 const challenge = {
   id: 'ChalAaaaaa',
   challenger: { id: '1', name: 'Alice', username: 'alice', rating: 1500, provisional: true },
@@ -83,13 +95,15 @@ describe('NewGame', () => {
     expect(r.text()).toContain('Reply to their message with /play');
   });
 
-  it('shows the bot row and its levels when the picker offers one', async () => {
+  it('shows the bot row, and its levels once selected, when the picker offers one', async () => {
     const r = renderApp(
       () => <NewGame groupId="GrOuPiDxYz" />,
       () => ({ status: 200, body: withBot }),
     );
     await r.flush();
     expect(r.text()).toContain('Play the bot');
+    expect(r.text()).not.toContain('Club');
+    await r.click('[data-testid="opponent-bot"]');
     expect(r.text()).toContain('Club');
   });
 
@@ -120,6 +134,8 @@ describe('NewGame', () => {
       () => ({ status: 200, body: withBot }),
     );
     await r.flush();
+    await r.click('[data-testid="opponent-bot"]');
+    expect(r.text()).toContain('Club');
     expect(r.text()).not.toMatch(/\b\d{3,4}\b/);
   });
 
@@ -138,5 +154,52 @@ describe('NewGame', () => {
     expect(post?.path).toBe('/api/groups/GrOuPiDxYz/engine-games');
     expect(post?.body).toEqual({ level: 'strong', colour: 'random', timePerMove: 86400 });
     expect(r.app.router.current.value).toEqual({ name: 'game', gameId: 'EnGiNeGam1' });
+  });
+
+  it('picking the bot after a human clears the human and submits an engine game', async () => {
+    const r = renderApp(
+      () => <NewGame groupId="GrOuPiDxYz" />,
+      ({ method }) =>
+        method === 'POST'
+          ? { status: 200, body: engineGame }
+          : { status: 200, body: withBotAndPlayers },
+    );
+    await r.flush();
+    await r.click('[data-opponent="2"]');
+    await r.click('[data-testid="opponent-bot"]');
+    expect(r.root.querySelector('[data-opponent="2"]')?.getAttribute('aria-pressed')).toBe('false');
+    expect(r.root.querySelector('[data-testid="opponent-bot"]')?.getAttribute('aria-pressed')).toBe(
+      'true',
+    );
+    expect(pressedOpponentRows(r.root)).toHaveLength(1);
+    window.__tg!.clickMain();
+    await r.flush();
+    const post = r.calls.find((c) => c.method === 'POST');
+    expect(post?.path).toBe('/api/groups/GrOuPiDxYz/engine-games');
+  });
+
+  it('picking a human after the bot clears the bot and submits a challenge', async () => {
+    const r = renderApp(
+      () => <NewGame groupId="GrOuPiDxYz" />,
+      ({ method }) =>
+        method === 'POST'
+          ? { status: 200, body: challenge }
+          : { status: 200, body: withBotAndPlayers },
+    );
+    await r.flush();
+    await r.click('[data-testid="opponent-bot"]');
+    await r.click('[data-opponent="2"]');
+    expect(r.root.querySelector('[data-testid="opponent-bot"]')?.getAttribute('aria-pressed')).toBe(
+      'false',
+    );
+    expect(r.root.querySelector('[data-opponent="2"]')?.getAttribute('aria-pressed')).toBe('true');
+    expect(pressedOpponentRows(r.root)).toHaveLength(1);
+    // The level list is bot-only UI: once a human is picked it must not still be showing.
+    expect(r.text()).not.toContain('Club');
+    window.__tg!.clickMain();
+    await r.flush();
+    const post = r.calls.find((c) => c.method === 'POST');
+    expect(post?.path).toBe('/api/groups/GrOuPiDxYz/challenges');
+    expect(post?.body).toMatchObject({ opponentId: '2' });
   });
 });

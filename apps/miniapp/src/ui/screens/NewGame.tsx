@@ -24,34 +24,45 @@ import { ErrorScreen, Loading } from './Status';
 
 const TIME_VALUES: TimePerMove[] = [...TIME_PER_MOVE_OPTIONS, null];
 
+/**
+ * Exactly one opponent choice at a time. Replaces a pair of independently-settable
+ * `opponentId`/`bot` fields, which let a human pick and a bot level coexist and left `submit`
+ * choosing one of them arbitrarily.
+ */
+type Selection =
+  | { kind: 'none' }
+  | { kind: 'human'; id: string }
+  | { kind: 'open' }
+  | { kind: 'bot'; level: EngineLevel };
+
 export function NewGame(props: { groupId: string; defaults?: LobbyDto['settings'] }) {
   const { client, router } = useApp();
   const defaults = props.defaults ?? GROUP_SETTINGS_DEFAULTS;
   const players = useResource(`players:${props.groupId}`, () =>
     client.get(`/api/groups/${props.groupId}/players`, PlayersPickerDtoSchema),
   );
-  const [opponentId, setOpponentId] = useState<string | null | undefined>(undefined);
-  const [bot, setBot] = useState<EngineLevel | null>(null);
+  const [selection, setSelection] = useState<Selection>({ kind: 'none' });
   const [timePerMove, setTimePerMove] = useState<TimePerMove>(defaults.defaultTimePerMove);
   const [colour, setColour] = useState<ColourChoice>('random');
   const [rated, setRated] = useState(defaults.ratedDefault);
   const [sending, setSending] = useState(false);
 
-  const ready = (opponentId !== undefined || bot !== null) && !sending;
+  const ready = selection.kind !== 'none' && !sending;
   const submit = useMemo(
     () => async () => {
-      if (bot === null && opponentId === undefined) return;
+      if (selection.kind === 'none') return;
       setSending(true);
       try {
-        if (bot !== null) {
-          const body: EngineGameRequest = { level: bot, colour, timePerMove };
+        if (selection.kind === 'bot') {
+          const body: EngineGameRequest = { level: selection.level, colour, timePerMove };
           const game = await client.post(
             `/api/groups/${props.groupId}/engine-games`,
             body,
             GameDtoSchema,
           );
           router.replace({ name: 'game', gameId: game.id });
-        } else if (opponentId !== undefined) {
+        } else {
+          const opponentId = selection.kind === 'open' ? null : selection.id;
           const body: ChallengeRequest = { opponentId, timePerMove, colour, rated };
           await client.post(`/api/groups/${props.groupId}/challenges`, body, ChallengeDtoSchema);
           toast(t('app.new.sent'));
@@ -67,7 +78,7 @@ export function NewGame(props: { groupId: string; defaults?: LobbyDto['settings'
         setSending(false);
       }
     },
-    [client, router, props.groupId, opponentId, bot, timePerMove, colour, rated],
+    [client, router, props.groupId, selection, timePerMove, colour, rated],
   );
   const inPage = useMainButton({
     text: t('app.new.send'),
@@ -89,11 +100,11 @@ export function NewGame(props: { groupId: string; defaults?: LobbyDto['settings'
           <button
             class="row"
             data-testid="opponent-bot"
-            aria-pressed={bot !== null ? 'true' : 'false'}
-            onClick={() => setBot(botPicker.levels[0]!)}
+            aria-pressed={selection.kind === 'bot' ? 'true' : 'false'}
+            onClick={() => setSelection({ kind: 'bot', level: botPicker.levels[0]! })}
           >
             <span class="grow primary">{t('app.new.bot')}</span>
-            {bot !== null ? <span class="badge">✓</span> : null}
+            {selection.kind === 'bot' ? <span class="badge">✓</span> : null}
           </button>
         ) : null}
         {players.data.players.map((player) => (
@@ -101,33 +112,31 @@ export function NewGame(props: { groupId: string; defaults?: LobbyDto['settings'
             key={player.id}
             class="row"
             data-opponent={player.id}
-            aria-pressed={opponentId === player.id ? 'true' : 'false'}
-            onClick={() => {
-              setOpponentId(player.id);
-              setBot(null);
-            }}
+            aria-pressed={
+              selection.kind === 'human' && selection.id === player.id ? 'true' : 'false'
+            }
+            onClick={() => setSelection({ kind: 'human', id: player.id })}
           >
             <span class="grow primary">{playerLabel(player)}</span>
-            {opponentId === player.id ? <span class="badge">✓</span> : null}
+            {selection.kind === 'human' && selection.id === player.id ? (
+              <span class="badge">✓</span>
+            ) : null}
           </button>
         ))}
         {defaults.allowOpenChallenges ? (
           <button
             class="row"
             data-opponent="open"
-            aria-pressed={opponentId === null ? 'true' : 'false'}
-            onClick={() => {
-              setOpponentId(null);
-              setBot(null);
-            }}
+            aria-pressed={selection.kind === 'open' ? 'true' : 'false'}
+            onClick={() => setSelection({ kind: 'open' })}
           >
             <span class="grow primary">{t('app.new.open_challenge')}</span>
-            {opponentId === null ? <span class="badge">✓</span> : null}
+            {selection.kind === 'open' ? <span class="badge">✓</span> : null}
           </button>
         ) : null}
       </div>
       {players.data.players.length === 0 ? <p class="hint">{t('app.new.no_players')}</p> : null}
-      {botPicker ? (
+      {selection.kind === 'bot' && botPicker ? (
         <>
           <div class="section">{t('app.new.bot_level')}</div>
           <div class="list">
@@ -136,11 +145,11 @@ export function NewGame(props: { groupId: string; defaults?: LobbyDto['settings'
                 key={level}
                 class="row"
                 data-testid={`bot-level-${level}`}
-                aria-pressed={bot === level ? 'true' : 'false'}
-                onClick={() => setBot(level)}
+                aria-pressed={selection.level === level ? 'true' : 'false'}
+                onClick={() => setSelection({ kind: 'bot', level })}
               >
                 <span class="grow primary">{t(`app.level.${level}`)}</span>
-                {bot === level ? <span class="badge">✓</span> : null}
+                {selection.level === level ? <span class="badge">✓</span> : null}
               </button>
             ))}
           </div>
@@ -176,9 +185,9 @@ export function NewGame(props: { groupId: string; defaults?: LobbyDto['settings'
         <div class="field">
           <span>{t('app.new.rated')}</span>
           <Switch
-            checked={bot !== null ? false : rated}
+            checked={selection.kind === 'bot' ? false : rated}
             onChange={setRated}
-            disabled={bot !== null}
+            disabled={selection.kind === 'bot'}
             data-rated=""
             label={t('app.new.rated')}
           />
