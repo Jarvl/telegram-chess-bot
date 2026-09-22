@@ -15,6 +15,13 @@
       "when": 1790006440960,
       "tag": "0001_telegram_updates_processed_at",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790050004098,
+      "tag": "0002_engine_opponent",
+      "breakpoints": true
     }
   ]
 }
