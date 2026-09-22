@@ -1,0 +1,155 @@
+# Deploying on Dokploy
+
+Dokploy runs the repository's `Dockerfile` on your own VPS and puts Traefik in front with a
+Let's Encrypt certificate, which is everything this app needs from a host: one HTTPS origin serving
+both the API and the Mini App, plus a PostgreSQL 16 database.
+
+Dokploy's UI labels move between versions. The concepts below are stable; take the exact wording
+from your install.
+
+## Before you start
+
+- A VPS with Dokploy installed, and a domain whose A record points at it.
+- **2 GB of RAM or more.** The image build installs the whole pnpm workspace and runs a Vite build.
+  On a 1 GB box it tends to be killed part-way through.
+- A bot token from [@BotFather](https://t.me/BotFather) (`/newbot`). You need the token before the
+  first deploy, but *not* the Mini App registration, which comes after the domain works.
+
+Dokploy's own dashboard listens on port 3000 of the VPS. So does this container, internally. They do
+not collide: Traefik routes to the container by domain, and the container's port is never published
+on the host.
+
+## 1. Project and database
+
+Create a project, then add a **PostgreSQL** service to it. Pick version 16 to match what the
+migrations are tested against, and set a strong password.
+
+When it is running, open its page and copy the **internal** connection string. It looks like:
+
+```
+postgresql://postgres:<password>@<service-name>:5432/<database>
+```
+
+Use the internal host, which is the service name on Dokploy's Docker network, not the VPS's public
+IP. That string is your `DATABASE_URL`. Do not expose the database on a public port.
+
+## 2. Application
+
+Add an **Application** service to the same project.
+
+- **Source**: your Git provider and this repository, branch `main`.
+- **Build Type**: `Dockerfile`, with path `Dockerfile` and build context `.` (the repository root,
+  which is where the multi-stage build expects to run).
+
+Nothing else about the build needs changing. The image already sets `PORT=3000`,
+`MINI_APP_DIR=/app/apps/miniapp/dist` and a health check against `/healthz`.
+
+## 3. Domain
+
+In the application's **Domains** tab, add your hostname, set the container port to **3000**, and
+turn on HTTPS with Let's Encrypt.
+
+Do this before the first deploy. The server registers its Telegram webhook at boot using
+`PUBLIC_URL`, so the domain should already resolve and terminate TLS by the time it starts.
+
+## 4. Environment
+
+In the **Environment** tab:
+
+| Variable | Value |
+|---|---|
+| `BOT_TOKEN` | from BotFather |
+| `BOT_USERNAME` | your bot's username, without `@` |
+| `MINI_APP_SHORT_NAME` | the short name you will use in step 6 |
+| `PUBLIC_URL` | `https://your.domain` — no trailing slash |
+| `WEBHOOK_SECRET` | 16 characters or more |
+| `SESSION_SECRET` | 32 characters or more |
+| `DATABASE_URL` | the internal string from step 1 |
+
+Generate the secrets rather than inventing them:
+
+```bash
+openssl rand -hex 16   # WEBHOOK_SECRET
+openssl rand -hex 32   # SESSION_SECRET
+```
+
+The server validates all of this at boot and refuses to start with a message naming the variable at
+fault, so a typo shows up immediately in the deploy logs rather than as strange behaviour later.
+
+You do not need `MINI_APP_DIR` or `PORT`; the image sets both. Rotating `SESSION_SECRET` later logs
+every open Mini App session out.
+
+## 5. Deploy
+
+Hit Deploy and watch the logs. A good start ends with a line containing `server started`, listing
+the port and the roles. Then check from your own machine:
+
+```bash
+curl https://your.domain/healthz      # ok
+curl https://your.domain/readyz       # ok, meaning the database is reachable
+curl -I https://your.domain/app/      # 200, text/html
+```
+
+Migrations run automatically at boot under an advisory lock.
+
+**Keep the replica count at 1.** The live board updates go through an in-process event bus, and the
+per-user rate limiter is in-process too. A second replica would mean a move made by a player
+connected to one instance never reaches a spectator connected to the other. Scaling out needs the
+PostgreSQL `LISTEN`/`NOTIFY` bus named in the technical design (§4.3); it is not built yet.
+
+If the webhook failed to register because the domain was not ready on the first attempt, the server
+logs it and carries on serving rather than crash-looping. Redeploy once the domain works and it
+registers cleanly.
+
+## 6. Register the Mini App
+
+Now that the domain serves `/app/`, go back to BotFather:
+
+- `/newapp`, choose your bot, give it a title, description and image, and set the **Web App URL** to
+  `https://your.domain/app/` with the trailing slash.
+- The **short name** it asks for last must match the `MINI_APP_SHORT_NAME` you set in step 4. If you
+  choose a different one, update the variable and redeploy.
+- Optionally set the same URL as the bot's **Main Mini App** so the profile button opens the lobby.
+
+Do not add commands in BotFather. The server registers `/play`, `/chess` and `/settings` itself on
+every start.
+
+## 7. Use it
+
+Create a group, add the bot, and promote it to administrator so it can pin its card and see who
+joins. Reply to someone with `/play` to challenge them, or send `/chess` for the lobby.
+
+## Worth doing before you rely on it
+
+**Close off `/metrics`.** Traefik serves the whole domain, so `/metrics` is publicly readable. It
+exposes counts, not personal data or message text, but it is still a free look at your traffic. Put
+a Traefik middleware in front of that path, either basic auth or an IP allowlist, or accept it
+knowingly.
+
+**Redact query strings in access logs.** The Mini App passes its session token as `?token=` on the
+live-updates stream, and a short-lived scoped token on the PGN download. Telegram's own design
+forces this, because an `EventSource` cannot set headers. If Traefik access logs are on, those
+tokens land in them.
+
+**Turn on database backups.** Dokploy's PostgreSQL service can run scheduled dumps to S3-compatible
+storage. Games, ratings and history all live there, and nothing else is persistent: the container
+itself writes nothing to disk, so it needs no volume.
+
+**Set up auto-deploy** from the application's webhook if you want pushes to `main` to ship. CI runs
+the full suite on every pull request, and the end-to-end suite plus a Docker image smoke test on
+`main`, so a green `main` is a reasonable thing to deploy automatically.
+
+## When something is wrong
+
+| Symptom | Cause |
+|---|---|
+| Build killed part-way | Not enough RAM on the VPS; 2 GB or more |
+| Container restarts in a loop | Invalid configuration. The log names the variable |
+| `/readyz` fails, `/healthz` passes | `DATABASE_URL` wrong, or the database service is not running |
+| Blank screen inside Telegram | The Web App URL in BotFather is missing the trailing slash, or points somewhere other than `/app/` |
+| Bot ignores every command | The webhook never registered. Check `PUBLIC_URL` exactly matches the domain, then redeploy |
+| Moves work, the opponent's board does not update | More than one replica. Set it back to 1 |
+| Group card never updates | The bot is not an administrator in that group |
+
+The metrics to watch and the runbook for day-to-day operation are in
+[operations.md](operations.md).

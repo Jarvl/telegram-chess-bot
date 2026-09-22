@@ -1,0 +1,63 @@
+import { t, type MessageKey, type MessageParams } from '@group-chess/shared';
+import type { Deps } from '../domain/deps';
+import { isDomainError } from '../domain/errors';
+import { getUserById } from '../domain/users';
+
+/** The one-line command replies of spec §5.5, chosen from a DomainError's reason. */
+export function replyFor(error: unknown): { key: MessageKey; params: MessageParams } | null {
+  if (!isDomainError(error)) return null;
+  const name = String(error.details.name ?? '');
+  const count = Number(error.details.count ?? 0);
+  switch (error.details.reason) {
+    case 'self':
+      return { key: 'reply.self', params: {} };
+    case 'blocked':
+    case 'opponent_gone':
+      return { key: 'reply.blocked', params: {} };
+    case 'pending_limit':
+      return { key: 'reply.pending_limit', params: { count } };
+    case 'active_limit':
+      return { key: 'reply.active_limit', params: { name, count } };
+    case 'pair_limit':
+      return { key: 'reply.pair_limit', params: { name, count } };
+    case 'open_disabled':
+      return { key: 'reply.open_disabled', params: {} };
+    default:
+      return null;
+  }
+}
+
+/** Private toasts for callback taps (spec §11); null means "answer silently, rethrow". */
+export async function alertFor(
+  deps: Deps,
+  error: unknown,
+  action: 'accept_challenge' | 'decline_challenge' | 'rematch',
+): Promise<string | null> {
+  if (!isDomainError(error)) return null;
+  switch (error.details.reason) {
+    case 'not_your_challenge': {
+      const opponentId = error.details.opponentId;
+      const opponent =
+        typeof opponentId === 'number' ? await getUserById(deps.db, opponentId) : null;
+      return t('alert.not_your_challenge', {
+        name: opponent?.firstName ?? 'the challenged player',
+      });
+    }
+    case 'own_challenge':
+      return t('alert.own_challenge');
+    case 'accepted_first':
+      return t('alert.accepted_first');
+    case 'challenge_gone':
+      return t('alert.challenge_gone');
+    default: {
+      const reply = replyFor(error);
+      if (reply) return t(reply.key, reply.params);
+      if (action === 'rematch' && error.code === 'forbidden')
+        return t('alert.only_players_rematch');
+      if (error.code === 'not_found' || error.code === 'expired' || error.code === 'stale_state') {
+        return t('alert.challenge_gone');
+      }
+      return null;
+    }
+  }
+}

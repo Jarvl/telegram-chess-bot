@@ -1,0 +1,15 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+*.log
+.env
+.env.*
+!.env.example
+.superpowers/
+.DS_Store
+test-results/
+playwright-report/
+apps/miniapp/dist/
+apps/miniapp/test-results/
+apps/miniapp/playwright-report/

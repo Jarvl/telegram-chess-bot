@@ -1,0 +1,155 @@
+import { sql } from 'drizzle-orm';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { boardImages, jobs, shares } from '../../src/db/schema';
+import { sharePhotoJobHandlers } from '../../src/jobs/handlers/sharePhoto';
+import { enqueue } from '../../src/jobs/queue';
+import { JobWorker } from '../../src/jobs/worker';
+import { createTelegramApi } from '../../src/telegram/client';
+import { testConfig } from '../helpers/config';
+import { openTestDb, testDeps, truncateAll } from '../helpers/db';
+import { FakeTelegram } from '../helpers/fakeTelegram';
+import { insertGame, insertGroup, insertMove, insertUser } from '../helpers/fixtures';
+
+const { db, close } = openTestDb();
+const deps = testDeps(db);
+let fake: FakeTelegram;
+let worker: JobWorker;
+const CHAT = -1001000000005;
+const AFTER_E4 = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1';
+const AFTER_E4_C5 = 'rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2';
+
+beforeAll(async () => {
+  fake = await FakeTelegram.start();
+  const config = testConfig({ TELEGRAM_API_ROOT: fake.url });
+  const api = createTelegramApi(config, { apiRoot: fake.url });
+  worker = new JobWorker({
+    db,
+    log: deps.log,
+    handlers: sharePhotoJobHandlers({ deps, api, config }),
+    workerId: 's',
+  });
+});
+beforeEach(async () => {
+  await truncateAll(db);
+  fake.reset();
+});
+afterAll(async () => {
+  await fake.stop();
+  await close();
+});
+
+async function table(botStatus: 'administrator' | 'left' = 'administrator') {
+  const group = await insertGroup(db, { telegramChatId: CHAT, botStatus });
+  const alice = await insertUser(db, { firstName: 'Alice' });
+  const bob = await insertUser(db, { firstName: 'Bob' });
+  const carol = await insertUser(db, { firstName: 'Carol' });
+  const game = await insertGame(db, group.id, alice.id, bob.id, {
+    fen: AFTER_E4_C5,
+    plyCount: 2,
+    cardThreadId: 7,
+  });
+  await insertMove(db, game.id, 1, 'e2e4', 'e4', AFTER_E4);
+  await insertMove(db, game.id, 2, 'c7c5', 'c5', AFTER_E4_C5);
+  return { group, alice, bob, carol, game };
+}
+
+async function share(gameId: number, userId: number, ply: number) {
+  const [row] = await db.insert(shares).values({ gameId, userId, ply }).returning();
+  await enqueue(db, { kind: 'send_share_photo', payload: { shareId: row!.id } });
+  return row!;
+}
+
+const pendingJobs = () =>
+  db
+    .select()
+    .from(jobs)
+    .where(sql`${jobs.doneAt} is null`);
+
+describe('send_share_photo', () => {
+  it('uploads the rendered board with caption, topic and button, then stores the message and file ids', async () => {
+    const { alice, game } = await table();
+    const row = await share(game.id, alice.id, 2);
+    await worker.runOnce();
+    const [call] = fake.callsTo('sendPhoto');
+    expect(call?.multipart).toBe(true);
+    expect(call?.body.__file).toBe(true);
+    expect(call?.body.chat_id).toBe(String(CHAT));
+    expect(call?.body.message_thread_id).toBe('7');
+    expect(call?.body.caption).toBe('Alice shared move 1 · Alice vs Bob · White to move');
+    const markup = JSON.parse(String(call?.body.reply_markup)) as {
+      inline_keyboard: { text: string; url: string }[][];
+    };
+    expect(markup.inline_keyboard[0]?.[0]).toEqual({
+      text: '♟ Open game',
+      url: `https://t.me/TestChessBot/chess?startapp=g_${game.publicId}`,
+    });
+    const [stored] = await db.select().from(shares);
+    expect(stored?.id).toBe(row.id);
+    expect(stored?.messageId).toBe(101);
+    expect(await db.select().from(boardImages)).toMatchObject([
+      { telegramFileId: 'AgACAgIAAxkFake' },
+    ]);
+    expect(await pendingJobs()).toHaveLength(0);
+  });
+
+  it('reuses the cached file id for the same position', async () => {
+    const { alice, carol, game } = await table();
+    await share(game.id, alice.id, 2);
+    await worker.runOnce();
+    await share(game.id, carol.id, 2);
+    await worker.runOnce();
+    const calls = fake.callsTo('sendPhoto');
+    expect(calls).toHaveLength(2);
+    expect(calls[1]?.multipart).toBe(false);
+    expect(calls[1]?.body.photo).toBe('AgACAgIAAxkFake');
+    expect(calls[1]?.body.caption).toBe('Carol shared move 1 · Alice vs Bob · White to move');
+    expect(await db.select().from(boardImages)).toHaveLength(1);
+    expect((await db.select().from(shares)).map((row) => row.messageId)).toEqual([101, 102]);
+  });
+
+  it('renders from the black side when Black shares, which is a different image', async () => {
+    const { alice, bob, game } = await table();
+    await share(game.id, alice.id, 2);
+    await worker.runOnce();
+    await share(game.id, bob.id, 2);
+    await worker.runOnce();
+    expect(fake.callsTo('sendPhoto').map((call) => call.multipart)).toEqual([true, true]);
+    expect(await db.select().from(boardImages)).toHaveLength(2);
+  });
+
+  it('shares the initial position and an earlier ply', async () => {
+    const { carol, game } = await table();
+    await share(game.id, carol.id, 0);
+    await share(game.id, carol.id, 1);
+    await worker.runOnce();
+    const captions = fake.callsTo('sendPhoto').map((call) => call.body.caption);
+    expect(captions).toEqual([
+      'Carol shared move 1 · Alice vs Bob · White to move',
+      'Carol shared move 1 · Alice vs Bob · Black to move',
+    ]);
+  });
+
+  it('delays the photo on a 429 without counting an attempt', async () => {
+    const { alice, game } = await table();
+    await share(game.id, alice.id, 2);
+    fake.failNext('sendPhoto', {
+      error_code: 429,
+      description: 'Too Many Requests: retry after 7',
+      parameters: { retry_after: 7 },
+    });
+    await worker.runOnce();
+    const [job] = await pendingJobs();
+    expect(job?.attempts).toBe(0);
+    expect(job?.lastError).toContain('retry after 7');
+    expect(job!.runAt.getTime()).toBeGreaterThan(Date.now() + 5_000);
+    expect(await db.select().from(boardImages)).toHaveLength(0);
+  });
+
+  it('does nothing once the share was sent or when the bot has left', async () => {
+    const { alice, game } = await table('left');
+    await share(game.id, alice.id, 2);
+    await worker.runOnce();
+    expect(fake.callsTo('sendPhoto')).toHaveLength(0);
+    expect(await pendingJobs()).toHaveLength(0);
+  });
+});

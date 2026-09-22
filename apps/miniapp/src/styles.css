@@ -1,0 +1,467 @@
+@import 'chessground/assets/chessground.base.css';
+@import 'chessground/assets/chessground.brown.css';
+@import 'chessground/assets/chessground.cburnett.css';
+
+:root {
+  --bg: #ffffff;
+  --text: #000000;
+  --hint: #707579;
+  --link: #2481cc;
+  --button: #2481cc;
+  --button-text: #ffffff;
+  --secondary-bg: #f1f1f4;
+  --destructive: #d14e4e;
+  --stable-height: 100vh;
+  --radius: 12px;
+  color-scheme: light dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font:
+    16px/1.4 -apple-system,
+    system-ui,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior: none;
+}
+
+body {
+  min-width: 320px;
+  overflow-x: hidden;
+}
+
+button {
+  font: inherit;
+}
+
+.screen {
+  padding: 12px 12px 24px;
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.title {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 4px 0 12px;
+}
+
+.subtitle {
+  color: var(--hint);
+  font-size: 14px;
+  margin: 0 0 12px;
+}
+
+.hint {
+  color: var(--hint);
+  font-size: 14px;
+}
+
+.section {
+  margin: 16px 0 8px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--hint);
+}
+
+.list {
+  background: var(--secondary-bg);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--hint) 20%, transparent);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.row:last-child {
+  border-bottom: 0;
+}
+
+.row .grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.row .primary {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.row .secondary {
+  display: block;
+  font-size: 13px;
+  color: var(--hint);
+}
+
+.badge {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--button);
+  color: var(--button-text);
+  white-space: nowrap;
+}
+
+.badge.muted {
+  background: color-mix(in srgb, var(--hint) 30%, transparent);
+  color: var(--text);
+}
+
+.tabs {
+  display: flex;
+  gap: 6px;
+  margin: 0 0 12px;
+}
+
+.tab {
+  flex: 1;
+  padding: 8px 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--secondary-bg);
+  color: var(--text);
+}
+
+.tab[aria-selected='true'] {
+  background: var(--button);
+  color: var(--button-text);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--button);
+  color: var(--button-text);
+  font-weight: 600;
+}
+
+.btn.secondary {
+  background: var(--secondary-bg);
+  color: var(--text);
+}
+
+.btn.danger {
+  background: var(--secondary-bg);
+  color: var(--destructive);
+}
+
+.btn.block {
+  display: flex;
+  width: 100%;
+  margin: 12px 0;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+}
+
+.field select,
+.field input[type='number'] {
+  font: inherit;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--hint) 40%, transparent);
+  background: var(--bg);
+  color: var(--text);
+  max-width: 50%;
+}
+
+.switch {
+  position: relative;
+  width: 44px;
+  height: 26px;
+  border-radius: 13px;
+  border: 0;
+  background: color-mix(in srgb, var(--hint) 40%, transparent);
+  flex: none;
+}
+
+.switch[aria-checked='true'] {
+  background: var(--button);
+}
+
+.switch::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  transition: left 0.15s;
+}
+
+.switch[aria-checked='true']::after {
+  left: 21px;
+}
+
+.segmented {
+  display: inline-flex;
+  border-radius: 999px;
+  background: var(--secondary-bg);
+  padding: 2px;
+}
+
+.segmented button {
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  padding: 6px 12px;
+  border-radius: 999px;
+}
+
+.segmented button[aria-pressed='true'] {
+  background: var(--button);
+  color: var(--button-text);
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  background: color-mix(in srgb, var(--text) 85%, transparent);
+  color: var(--bg);
+  padding: 10px 16px;
+  border-radius: 999px;
+  font-size: 14px;
+  z-index: 20;
+  max-width: calc(100vw - 32px);
+}
+
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 30;
+}
+
+.dialog {
+  width: 100%;
+  max-width: 640px;
+  background: var(--bg);
+  border-radius: var(--radius) var(--radius) 0 0;
+  padding: 16px 16px 24px;
+}
+
+.dialog p {
+  margin: 0 0 16px;
+}
+
+.centered {
+  min-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 12px;
+}
+
+/* Game screen (Task 5) */
+.game {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 0 24px;
+}
+
+.board-wrap {
+  position: relative;
+  width: min(100vw, calc(var(--stable-height) - 200px));
+  max-width: 640px;
+  min-width: 280px;
+  aspect-ratio: 1;
+  margin: 0 auto;
+}
+
+.board-wrap .cg-wrap {
+  width: 100%;
+  height: 100%;
+}
+
+.player-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 12px;
+}
+
+.player-bar .name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-bar .rating {
+  color: var(--hint);
+  font-size: 14px;
+  margin-left: 6px;
+}
+
+.clock {
+  font-variant-numeric: tabular-nums;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: var(--secondary-bg);
+  min-width: 72px;
+  text-align: center;
+}
+
+.clock.active {
+  background: var(--button);
+  color: var(--button-text);
+}
+
+.clock.urgent {
+  background: var(--destructive);
+  color: #fff;
+}
+
+.move-list {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 4px 12px;
+  scrollbar-width: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.move-list button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 4px 6px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.move-list button[aria-current='true'] {
+  background: var(--secondary-bg);
+  font-weight: 600;
+}
+
+.move-list .number {
+  color: var(--hint);
+  padding: 4px 0 4px 6px;
+}
+
+.replay-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+}
+
+.replay-controls input[type='range'] {
+  flex: 1;
+}
+
+.banner {
+  margin: 0 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  background: var(--secondary-bg);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.banner .grow {
+  flex: 1;
+}
+
+.banner.result {
+  font-weight: 600;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 12px;
+}
+
+.toolbar .btn {
+  padding: 8px 12px;
+  font-weight: 500;
+}
+
+.promotion {
+  position: absolute;
+  width: 12.5%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+  border-radius: 6px;
+  z-index: 10;
+}
+
+.promotion button {
+  width: 100%;
+  aspect-ratio: 1;
+  border: 0;
+  background: transparent;
+  background-size: cover;
+}
+
+.inline-main {
+  position: sticky;
+  bottom: 0;
+  padding: 8px 12px 12px;
+  background: var(--bg);
+  display: flex;
+  gap: 8px;
+}

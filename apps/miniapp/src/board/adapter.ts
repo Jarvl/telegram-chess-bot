@@ -1,0 +1,148 @@
+import type { Colour } from '@group-chess/shared';
+import { Chessground } from 'chessground';
+import type { Api } from 'chessground/api';
+import type { Config } from 'chessground/config';
+import type { Dests, Key } from 'chessground/types';
+
+export type BoardPosition = {
+  fen: string;
+  lastMove: [string, string] | null;
+  check: boolean;
+  orientation: Colour;
+  turnColour: Colour;
+};
+
+export type Movable = { colour: Colour | 'none'; dests: Map<string, string[]> };
+
+export type MoveHandler = (orig: string, dest: string, meta: { captured: boolean }) => void;
+
+/** Spec §6.3: the seam around chessground; nothing else imports it. */
+export interface BoardAdapter {
+  setPosition(position: BoardPosition): void;
+  setMovable(movable: Movable): void;
+  setViewOnly(viewOnly: boolean): void;
+  onMove(handler: MoveHandler): void;
+  flip(): void;
+  /** Snaps a lifted or dropped piece back; the next `setPosition` restores the board. */
+  cancelMove(): void;
+  destroy(): void;
+}
+
+function toDests(dests: Map<string, string[]>): Dests {
+  const out: Dests = new Map();
+  for (const [from, targets] of dests) out.set(from as Key, targets as Key[]);
+  return out;
+}
+
+/** The full chessground configuration for a position; pure, so it can be unit-tested. */
+export function boardConfig(
+  position: BoardPosition,
+  movable: Movable,
+  viewOnly: boolean,
+  onMove: MoveHandler,
+): Config {
+  return {
+    fen: position.fen,
+    orientation: position.orientation,
+    turnColor: position.turnColour,
+    lastMove: position.lastMove ? (position.lastMove as [Key, Key]) : undefined,
+    check: position.check,
+    coordinates: true,
+    viewOnly,
+    disableContextMenu: true,
+    blockTouchScroll: true,
+    highlight: { lastMove: true, check: true },
+    animation: { enabled: true, duration: 150 },
+    movable: {
+      free: false,
+      // chessground lifts nothing when the colour is undefined; 'none' is our explicit name for it.
+      color: movable.colour === 'none' ? undefined : movable.colour,
+      dests: toDests(movable.dests),
+      showDests: true,
+      events: {
+        after: (orig, dest, metadata) =>
+          onMove(orig, dest, { captured: metadata.captured !== undefined }),
+      },
+    },
+    premovable: { enabled: false },
+    predroppable: { enabled: false },
+    draggable: { enabled: true, showGhost: true },
+    selectable: { enabled: true },
+    drawable: { enabled: false },
+  };
+}
+
+class ChessgroundAdapter implements BoardAdapter {
+  private readonly api: Api;
+  private handler: MoveHandler = () => undefined;
+  private position: BoardPosition;
+  private movable: Movable = { colour: 'none', dests: new Map() };
+  private viewOnly: boolean;
+
+  constructor(element: HTMLElement, position: BoardPosition, viewOnly: boolean) {
+    this.position = position;
+    this.viewOnly = viewOnly;
+    this.api = Chessground(element, this.config());
+  }
+
+  private config(): Config {
+    return boardConfig(this.position, this.movable, this.viewOnly, (orig, dest, meta) =>
+      this.handler(orig, dest, meta),
+    );
+  }
+
+  setPosition(position: BoardPosition): void {
+    this.position = position;
+    // chessground drops `movable.dests` after a user move; a restored position brings them back.
+    this.api.set({
+      fen: position.fen,
+      orientation: position.orientation,
+      turnColor: position.turnColour,
+      lastMove: position.lastMove ? (position.lastMove as [Key, Key]) : undefined,
+      check: position.check,
+      movable: {
+        color: this.movable.colour === 'none' ? undefined : this.movable.colour,
+        dests: toDests(this.movable.dests),
+      },
+    });
+  }
+
+  setMovable(movable: Movable): void {
+    this.movable = movable;
+    this.api.set({
+      movable: {
+        color: movable.colour === 'none' ? undefined : movable.colour,
+        dests: toDests(movable.dests),
+      },
+    });
+  }
+
+  setViewOnly(viewOnly: boolean): void {
+    this.viewOnly = viewOnly;
+    this.api.set({ viewOnly });
+  }
+
+  onMove(handler: MoveHandler): void {
+    this.handler = handler;
+  }
+
+  flip(): void {
+    this.api.toggleOrientation();
+  }
+
+  cancelMove(): void {
+    this.api.cancelMove();
+  }
+
+  destroy(): void {
+    this.api.destroy();
+  }
+}
+
+export function createBoardAdapter(
+  element: HTMLElement,
+  position: BoardPosition,
+  options: { viewOnly?: boolean } = {},
+): BoardAdapter {
+  return new ChessgroundAdapter(element, position, options.viewOnly ?? false);
+}

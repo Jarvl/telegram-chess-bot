@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1789944919267,
+      "tag": "0000_demonic_marvel_apes",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790006440960,
+      "tag": "0001_telegram_updates_processed_at",
+      "breakpoints": true
+    }
+  ]
+}
