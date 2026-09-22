@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Scope** | An always-available Stockfish opponent that any user can challenge inside a group |
-| **Status** | Draft v0.2, for review |
+| **Status** | Draft v0.3, for review |
 | **Date** | 2026-09-21 |
 | **Method** | superpowers `brainstorming` skill, architectural path |
 | **Amends** | [docs/PRD.md](../../PRD.md) §3 — reverses the "engine opponents" non-goal (§3 below) |
@@ -22,7 +22,8 @@ Naming convention, because "bot" is already taken: the Telegram bot is **the bot
 copy. The database column is `engine_level`, not `bot_level`.
 
 Revisions: v0.2 replaces the numeric strength ladder with four named levels (E5), which also removes
-the ladder's dependency on the unverified `UCI_Elo` floor.
+the ladder's dependency on the unverified `UCI_Elo` floor. v0.3 adds E8 and §4.3, on why the engine is
+not its own deployable.
 
 Conventions: "must" is a requirement, "should" is a strong default. A fact that could not be
 verified from the build sandbox is marked *verify at implementation* and collected in §13.
@@ -38,6 +39,7 @@ verified from the build sandbox is marked *verify at implementation* and collect
 | E5 | How is strength selected? | Four named levels — Beginner, Casual, Club, Strong — with no rating numbers shown | Chosen over a numeric ladder. Names make no measurement claim the project cannot back, and because the lower rungs use `Skill Level` the ladder no longer depends on the unverified `UCI_Elo` floor. The cost: a player cannot tell how strong a level is except by playing it (§7) |
 | E6 | Should weak levels use blunder injection? | No. Stockfish's own options only, kept simple | `Skill Level` is native, so the Beginner rung does not need it. What it forecloses is anything weaker than `Skill Level 0`, which is still not a true beginner opponent (§7, §14). Reversible later: §4.2 records what adding it would take |
 | E7 | What happens when the engine returns an illegal move? | Play a random legal move and continue the game. Do not abort. This is error recovery, not E6 blunder injection: it fires only on a defect, never as a strength mechanism | A silent failure mode: a bug in our UCI parsing would quietly become random moves. Mitigated by mandatory logging and a zero-tolerance alert (§9, §10) |
+| E8 | Should Stockfish be its own deployable? | No. It stays in-process behind §6.2's interface. If engine CPU ever needs isolating, run a second app of the same image with `ROLES=jobs` | None. Avoids a second deployable, an HTTP contract and a shared secret, and costs nothing while idle. Reversible in one file (§4.3) |
 
 ## 2. Scope
 
@@ -107,6 +109,35 @@ forecloses is only play weaker than `Skill Level 0` — which is still not a beg
 opponent (§14). Reversing it later means adding a probability per level and selecting from
 `legalDests`, which `@group-chess/shared` already exports; the mapping from blunder rate to strength
 would be invented rather than measured, and §7's honesty requirement would apply to it.
+
+### 4.3 The engine as a separate deployable (decision E8)
+
+**Considered:** a second Dokploy application wrapping Stockfish behind an HTTP endpoint (`fen` plus
+level in, `uci` out), with the server calling it instead of spawning a process.
+
+**Rejected, because it adds parts rather than removing them:** a second Dockerfile and deployable, an
+HTTP contract, a shared secret so the endpoint is not open to anyone, inter-app network
+configuration, a second health check and deploy pipeline, version skew between the two, and a new
+failure mode — service unreachable — layered on §9's. Stockfish must still be installed into *some*
+image, so §12's apt line relocates rather than simplifies. Behind §6.2's interface, `spawn()` is less
+code than an authenticated HTTP client, and a separate service means a container running around the
+clock for a workload that costs nothing while nobody is playing.
+
+**What it would genuinely buy:** a smaller main image, independently scalable engine capacity, and the
+option of a pre-built Stockfish image instead of an apt line. None of those pays for itself at this
+project's scale.
+
+**If engine CPU must be isolated from the web-facing process, the existing role split already does
+it.** [docs/operations.md](../../operations.md) records that roles can be split across containers and
+that the job worker is safe to run in several instances (`SELECT … FOR UPDATE SKIP LOCKED`). A second
+Dokploy app running the same image with `ROLES=jobs` therefore isolates engine load from `api` and its
+SSE streams with no new code and no new contract. Two constraints apply: the union of `ROLES` across
+the apps must still cover all four, or a role silently stops — drop `clock` and nothing ever forfeits
+— and [docs/deploy-dokploy.md](../../deploy-dokploy.md)'s "keep the replica count at 1" is about the
+in-process event bus and rate limiter in `api`, not about a jobs-only app.
+
+**Cost to reverse: low.** §6.2's interface means `uciEngine` becomes `httpEngine` in one file, and
+nothing above the seam changes.
 
 ## 5. Data model
 
