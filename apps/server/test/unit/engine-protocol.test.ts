@@ -1,0 +1,62 @@
+import { ENGINE_LEVELS } from '@group-chess/shared';
+import { describe, expect, it } from 'vitest';
+import { optionsForLevel, parseBestMove } from '../../src/engine/protocol';
+
+const byName = (level: Parameters<typeof optionsForLevel>[0]) =>
+  new Map(optionsForLevel(level).map((option) => [option.name, option.value]));
+
+describe('optionsForLevel', () => {
+  it('weakens the two lowest levels with Skill Level, not with an Elo limit', () => {
+    for (const level of ['beginner', 'casual'] as const) {
+      const options = byName(level);
+      expect(options.has('Skill Level')).toBe(true);
+      expect(options.has('UCI_LimitStrength')).toBe(false);
+    }
+  });
+
+  it('limits the two highest levels by Elo', () => {
+    for (const level of ['club', 'strong'] as const) {
+      const options = byName(level);
+      expect(options.get('UCI_LimitStrength')).toBe('true');
+      expect(typeof options.get('UCI_Elo')).toBe('number');
+    }
+  });
+
+  it('orders the levels weakest to strongest, so no two levels play the same', () => {
+    const skill = (level: 'beginner' | 'casual') => Number(byName(level).get('Skill Level'));
+    const elo = (level: 'club' | 'strong') => Number(byName(level).get('UCI_Elo'));
+    expect(skill('beginner')).toBeLessThan(skill('casual'));
+    expect(elo('club')).toBeLessThan(elo('strong'));
+  });
+
+  it('gives every level a configuration', () => {
+    for (const level of ENGINE_LEVELS) expect(optionsForLevel(level).length).toBeGreaterThan(0);
+  });
+});
+
+describe('parseBestMove', () => {
+  it('reads a plain move', () => {
+    expect(parseBestMove('info depth 1\nbestmove e2e4\n')).toEqual({ uci: 'e2e4' });
+  });
+
+  it('keeps the promotion piece', () => {
+    expect(parseBestMove('bestmove e7e8q\n')).toEqual({ uci: 'e7e8q' });
+  });
+
+  it('ignores a ponder move rather than reading it as the move', () => {
+    expect(parseBestMove('bestmove d2d4 ponder g8f6\n')).toEqual({ uci: 'd2d4' });
+  });
+
+  it('reports a terminal position', () => {
+    expect(parseBestMove('bestmove (none)\n')).toEqual({ none: true });
+  });
+
+  it('returns null for output with no bestmove line', () => {
+    expect(parseBestMove('info string Load eval file\n')).toBeNull();
+    expect(parseBestMove('')).toBeNull();
+  });
+
+  it('takes the last bestmove when several are present', () => {
+    expect(parseBestMove('bestmove a2a3\nbestmove h2h4\n')).toEqual({ uci: 'h2h4' });
+  });
+});
