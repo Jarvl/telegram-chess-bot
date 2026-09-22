@@ -6,6 +6,7 @@ import { isDomainError } from '../../domain/errors';
 import { declineDraw } from '../../domain/draws';
 import { getEngineUser } from '../../domain/engineGames';
 import { finishGame, lockActiveGame, playMove, requireGameById } from '../../domain/games';
+import type { DbOrTx } from '../../db/client';
 import type { GameRow } from '../../db/schema';
 import type { BestMove, Engine } from '../../engine/engine';
 import type { Metrics } from '../../metrics';
@@ -78,99 +79,148 @@ async function abortForUnavailableEngine(
   return { outcome: 'fail', error: reason };
 }
 
+/**
+ * How a single run of the handler failed to make progress. Nothing inside the handler decides what
+ * to do about it: every one of these reaches the one attempts-exhausted decision below, which is
+ * what keeps spec §9's invariant (never leave the game `active` with the engine to move) true of
+ * *all* the ways out of this handler rather than of the ones somebody remembered to guard.
+ */
+type Escape = { error: string; delayMs?: number };
+
+/** A flag flip is not a transient fault, so the disabled path waits longer between attempts. */
+const DISABLED_RETRY_MS = 30_000;
+const FAILURE_RETRY_MS = 5_000;
+
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/** True when the game is waiting on a move the engine owes it. */
+async function engineIsToMove(tx: DbOrTx, game: GameRow): Promise<boolean> {
+  const engineUser = await getEngineUser(tx);
+  const engineColour = game.whiteId === engineUser.id ? 'white' : 'black';
+  return sideToMove(game.fen) === engineColour;
+}
+
 export function engineJobHandlers(ctx: EngineHandlerContext): JobHandlers {
   const { deps, engine, config, metrics } = ctx;
   return {
     engine_move: async ({ job, log }): Promise<JobResult> => {
       const { gameId } = PayloadSchema.parse(job.payload);
       const game = await requireGameById(deps.db, gameId);
+      // Nothing is owed and nothing can stall: the game is over, or it never had an engine side.
       if (game.status !== 'active' || game.engineLevel === null) return { outcome: 'done' };
-      // Registered even when disabled, on purpose: an unhandled kind is retried forever without
-      // counting an attempt (`jobs/worker.ts:119`), so a game started before the engine was turned
-      // off would stall for ever instead of reaching the abort path below.
-      if (!config.ENGINE_ENABLED) {
-        metrics.engineMoveFailures.inc();
-        return job.attempts + 1 >= job.maxAttempts
-          ? await abortForUnavailableEngine(deps, game, 'the engine is disabled')
-          : { outcome: 'retry_attempt', delayMs: 30_000, error: 'the engine is disabled' };
-      }
-      const engineUser = await getEngineUser(deps.db);
-      const engineColour = game.whiteId === engineUser.id ? 'white' : 'black';
-      // Spec §8: decline first, whosever turn it is, so an offer made on the human's turn is not
-      // left pending until they happen to move.
-      if (game.drawOfferBy !== null && game.drawOfferBy !== engineColour) {
-        await declineDraw(deps, { gameId: game.publicId, userId: engineUser.id });
-      }
-      if (sideToMove(game.fen) !== engineColour) return { outcome: 'done' };
 
-      const started = process.hrtime.bigint();
-      let reply: BestMove;
-      try {
-        reply = await engine.bestMove(
-          game.fen,
-          game.engineLevel as EngineLevel,
-          Math.max(config.ENGINE_MOVETIME_MS * 10, 5_000),
-        );
-      } catch (error) {
-        metrics.engineMoveFailures.inc();
-        const message = error instanceof Error ? error.message : String(error);
-        if (job.attempts + 1 >= job.maxAttempts) {
-          log.error({ gameId, err: error }, 'engine unavailable; aborting the game');
-          return abortForUnavailableEngine(deps, game, message);
+      /** One attempt at the engine's move. Returns `null` when nothing is left owing. */
+      const attempt = async (): Promise<Escape | null> => {
+        // Registered even when disabled, on purpose: an unhandled kind is retried forever without
+        // counting an attempt (`jobs/worker.ts:119`), so a game started before the engine was
+        // turned off would stall for ever instead of reaching the abort path below.
+        if (!config.ENGINE_ENABLED) {
+          return { error: 'the engine is disabled', delayMs: DISABLED_RETRY_MS };
         }
-        return { outcome: 'retry_attempt', delayMs: 5_000, error: message };
-      } finally {
-        metrics.engineMoveDuration.observe(Number(process.hrtime.bigint() - started) / 1e9);
-      }
-      if ('none' in reply) return { outcome: 'done' };
+        const engineUser = await getEngineUser(deps.db);
+        const engineColour = game.whiteId === engineUser.id ? 'white' : 'black';
+        // Spec §8: decline first, whosever turn it is, so an offer made on the human's turn is not
+        // left pending until they happen to move.
+        if (game.drawOfferBy !== null && game.drawOfferBy !== engineColour) {
+          await declineDraw(deps, { gameId: game.publicId, userId: engineUser.id });
+        }
+        if (sideToMove(game.fen) !== engineColour) return null;
 
-      let uci = reply.uci;
-      try {
-        await playMove(deps, {
-          gameId: game.publicId,
-          userId: engineUser.id,
-          uci,
-          expectedPly: game.plyCount,
-          clientMoveId: `engine:${game.publicId}:${game.plyCount}`,
-        });
-      } catch (error) {
-        if (!isDomainError(error) || error.code !== 'illegal_move') throw error;
-        // Stockfish does not emit illegal moves, so this is almost certainly a bug in our own UCI
-        // parsing. Recover so the game survives, but make sure it is visible (spec §9).
-        metrics.engineIllegalMoves.inc();
-        log.error({ gameId, fen: game.fen, bestmove: uci }, 'engine returned an illegal move');
-        const fallback = randomLegalMove(game.fen);
-        if (!fallback) return { outcome: 'done' };
-        uci = fallback;
+        const started = process.hrtime.bigint();
+        let reply: BestMove;
+        try {
+          reply = await engine.bestMove(
+            game.fen,
+            game.engineLevel as EngineLevel,
+            Math.max(config.ENGINE_MOVETIME_MS * 10, 5_000),
+          );
+        } catch (error) {
+          return { error: messageOf(error) };
+        } finally {
+          metrics.engineMoveDuration.observe(Number(process.hrtime.bigint() - started) / 1e9);
+        }
+        // Spec §9's `(none)` row: the position is supposed to be terminal. Whether it really is, is
+        // not this function's business — the status re-check below settles it either way.
+        if ('none' in reply) return null;
+
+        let uci = reply.uci;
         try {
           await playMove(deps, {
             gameId: game.publicId,
             userId: engineUser.id,
             uci,
             expectedPly: game.plyCount,
-            clientMoveId: `engine:${game.publicId}:${game.plyCount}:fallback`,
+            clientMoveId: `engine:${game.publicId}:${game.plyCount}`,
           });
-        } catch (fallbackError) {
-          // An unguarded throw here would leave the handler, count an attempt, and once attempts
-          // are exhausted the job is marked done/failed — but the game stays `active` with the
-          // engine still to move, and an engine game carries no deadline, so no scanner will ever
-          // touch it: a permanently stalled game, exactly what spec §9 exists to prevent. Route
-          // through the same attempts-exhausted decision the outage path above uses instead.
-          metrics.engineMoveFailures.inc();
-          const message =
-            fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
-          log.error(
-            { gameId, err: fallbackError, fallbackUci: uci },
-            'illegal-move recovery itself failed',
-          );
-          if (job.attempts + 1 >= job.maxAttempts) {
-            return abortForUnavailableEngine(deps, game, message);
+        } catch (error) {
+          if (!isDomainError(error) || error.code !== 'illegal_move') throw error;
+          // Stockfish does not emit illegal moves, so this is almost certainly a bug in our own UCI
+          // parsing. Recover so the game survives, but make sure it is visible (spec §9).
+          metrics.engineIllegalMoves.inc();
+          log.error({ gameId, fen: game.fen, bestmove: uci }, 'engine returned an illegal move');
+          // Spec §9: with no legal move to substitute, fall through to the `(none)` row — which is
+          // the status re-check below, not silence.
+          const fallback = randomLegalMove(game.fen);
+          if (!fallback) return null;
+          uci = fallback;
+          try {
+            await playMove(deps, {
+              gameId: game.publicId,
+              userId: engineUser.id,
+              uci,
+              expectedPly: game.plyCount,
+              clientMoveId: `engine:${game.publicId}:${game.plyCount}:fallback`,
+            });
+          } catch (fallbackError) {
+            log.error(
+              { gameId, err: fallbackError, fallbackUci: uci },
+              'illegal-move recovery itself failed',
+            );
+            return { error: messageOf(fallbackError) };
           }
-          return { outcome: 'retry_attempt', delayMs: 5_000, error: message };
         }
+        metrics.engineMoves.inc();
+        return null;
+      };
+
+      let escape: Escape | null;
+      try {
+        escape = await attempt();
+        if (!escape) {
+          // The invariant, checked rather than assumed. An engine game carries no deadline, so if
+          // this handler returns `done` while the engine is still to move, no scanner will ever
+          // touch the game again: it is stalled for good. And because our own arbiter says a move
+          // is owed, reaching here means Stockfish and the arbiter disagree — an error, not noise.
+          const fresh = await requireGameById(deps.db, gameId);
+          if (fresh.status === 'active' && (await engineIsToMove(deps.db, fresh))) {
+            log.error(
+              { gameId, fen: fresh.fen },
+              'the engine made no move and the game is still active',
+            );
+            escape = { error: 'the engine made no move and the game is still active' };
+          }
+        }
+      } catch (error) {
+        // Anything thrown on the way — a missing engine user, a failed draw decline, a database
+        // blip — lands here instead of escaping to the worker's generic error path, which counts
+        // an attempt and then gives up without ever ending the game.
+        log.error({ gameId, err: error }, 'the engine move failed');
+        escape = { error: messageOf(error) };
       }
-      metrics.engineMoves.inc();
-      return { outcome: 'done' };
+      if (!escape) return { outcome: 'done' };
+
+      metrics.engineMoveFailures.inc();
+      if (job.attempts + 1 >= job.maxAttempts) {
+        log.error({ gameId, reason: escape.error }, 'the engine cannot move; aborting the game');
+        return abortForUnavailableEngine(deps, game, escape.error);
+      }
+      return {
+        outcome: 'retry_attempt',
+        delayMs: escape.delayMs ?? FAILURE_RETRY_MS,
+        error: escape.error,
+      };
     },
   };
 }

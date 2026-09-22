@@ -8,7 +8,7 @@ import { testConfig } from '../helpers/config';
 import { openTestDb, testDeps, truncateAll } from '../helpers/db';
 import { createEngineJobRunner } from '../helpers/engineJob';
 import { fakeEngine } from '../helpers/fakeEngine';
-import { insertGroup, insertUser } from '../helpers/fixtures';
+import { insertGame, insertGroup, insertUser } from '../helpers/fixtures';
 
 const { db, close } = openTestDb();
 const deps = testDeps(db);
@@ -89,7 +89,33 @@ describe('engine_move job handler', () => {
     expect((await requireGameByPublicId(db, game.publicId)).plyCount).toBe(1);
   });
 
-  it('completes without moving when the engine reports a terminal position', async () => {
+  it('completes without moving when the game ended while the engine was thinking', async () => {
+    // Spec §9's `(none)` row: the game really did end between the job being enqueued and the reply
+    // arriving, so the job is a success and writes nothing.
+    const game = await startedEngineGame('white');
+    await playMove(deps, {
+      gameId: game.publicId,
+      userId: alice.id,
+      uci: 'e2e4',
+      expectedPly: 0,
+      clientMoveId: 'c1',
+    });
+    const engine = fakeEngine({
+      replies: [{ none: true }],
+      onCall: async () => {
+        await resign(deps, { gameId: game.publicId, userId: alice.id });
+      },
+    });
+    await expect(runEngineJob(engine, game.id)).resolves.toMatchObject({ outcome: 'done' });
+    const after = await requireGameByPublicId(db, game.publicId);
+    expect(after.status).toBe('finished');
+    expect(after.plyCount).toBe(1);
+  });
+
+  it('does not fall silent when the engine reports a terminal position the arbiter disagrees with', async () => {
+    // Spec §9's `(none)` row requires the status to be re-checked. Still active with the engine to
+    // move means Stockfish and our arbiter disagree — and an engine game carries no deadline, so
+    // completing the job here would strand the game for good.
     const engine = fakeEngine({ replies: [{ none: true }] });
     const game = await startedEngineGame('white');
     await playMove(deps, {
@@ -99,8 +125,48 @@ describe('engine_move job handler', () => {
       expectedPly: 0,
       clientMoveId: 'c1',
     });
-    await expect(runEngineJob(engine, game.id)).resolves.toMatchObject({ outcome: 'done' });
-    expect((await requireGameByPublicId(db, game.publicId)).plyCount).toBe(1);
+    const result = await runEngineJob(engine, game.id);
+    expect(result).toMatchObject({ outcome: 'retry_attempt' });
+    const after = await requireGameByPublicId(db, game.publicId);
+    expect(after.status).toBe('active');
+    expect(after.plyCount).toBe(1);
+    expect((await metrics.engineMoveFailures.get()).values[0]?.value).toBe(1);
+  });
+
+  it('ends the game rather than stranding it when the engine never makes a move', async () => {
+    const engine = fakeEngine({ replies: [{ none: true }] });
+    const game = await startedEngineGame('white');
+    await playMove(deps, {
+      gameId: game.publicId,
+      userId: alice.id,
+      uci: 'e2e4',
+      expectedPly: 0,
+      clientMoveId: 'c1',
+    });
+    const result = await runEngineJob(engine, game.id, { attempts: 7, maxAttempts: 8 });
+    expect(result).toMatchObject({ outcome: 'fail' });
+    const after = await requireGameByPublicId(db, game.publicId);
+    expect(after.status).toBe('finished');
+    expect(after.endReason).toBe('abort');
+  });
+
+  it('does not fall silent when there is no legal move to substitute for an illegal one', async () => {
+    // Black is stalemated (the same position the `randomLegalMove` unit test verifies has no legal
+    // moves), so the illegal-move recovery has nothing to play. Spec §9 sends that case to the
+    // `(none)` row, which is the status re-check — not a quietly completed job.
+    const engineUser = await getEngineUser(db);
+    const game = await insertGame(db, group.id, alice.id, engineUser.id, {
+      fen: '7k/5Q2/6K1/8/8/8/8/8 b - - 0 1',
+      plyCount: 3,
+      rated: false,
+      engineLevel: 'club',
+    });
+    const engine = fakeEngine({ replies: [{ uci: 'a7a8' }] });
+    const result = await runEngineJob(engine, game.id);
+    expect(result).toMatchObject({ outcome: 'retry_attempt' });
+    expect((await requireGameByPublicId(db, game.publicId)).status).toBe('active');
+    expect((await metrics.engineIllegalMoves.get()).values[0]?.value).toBe(1);
+    expect((await metrics.engineMoveFailures.get()).values[0]?.value).toBe(1);
   });
 
   it('asks for a retry, not silence, when the engine is unavailable', async () => {
