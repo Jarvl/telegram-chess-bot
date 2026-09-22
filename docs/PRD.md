@@ -225,7 +225,10 @@ In the app, under the group, visible to group admins only (verified against Tele
 
 - Any group member can play the bot, at one of four levels, inside that group.
 - Bot games are unrated: they never enter Glicko-2, W/D/L or the leaderboard.
-- Nothing about a bot game is posted to the group chat.
+- Nothing about a bot game is posted to the group chat on its own — no card, no result, no reminder.
+- The one exception is **Share position** (§7.6): a player may share a position from a bot game like
+  any other, because that is a deliberate tap and goal 4 already allows "positions people choose to
+  share". What goal 4 keeps out of the chat is what the system posts unasked.
 - No rating numbers are shown for the levels.
 
 ## 8. UX specification

@@ -26,7 +26,8 @@ the ladder's dependency on the unverified `UCI_Elo` floor. v0.3 adds E8 and §4.
 not its own deployable.
 
 Conventions: "must" is a requirement, "should" is a strong default. A fact that could not be
-verified from the build sandbox is marked *verify at implementation* and collected in §13.
+verified from the build sandbox was marked *verify at implementation*; §13 now records what each
+one turned out to be.
 
 ## 1. Decisions taken by the owner
 
@@ -39,13 +40,20 @@ verified from the build sandbox is marked *verify at implementation* and collect
 | E5 | How is strength selected? | Four named levels — Beginner, Casual, Club, Strong — with no rating numbers shown | Chosen over a numeric ladder. Names make no measurement claim the project cannot back, and because the lower rungs use `Skill Level` the ladder no longer depends on the unverified `UCI_Elo` floor. The cost: a player cannot tell how strong a level is except by playing it (§7) |
 | E6 | Should weak levels use blunder injection? | No. Stockfish's own options only, kept simple | `Skill Level` is native, so the Beginner rung does not need it. What it forecloses is anything weaker than `Skill Level 0`, which is still not a true beginner opponent (§7, §14). Reversible later: §4.2 records what adding it would take |
 | E7 | What happens when the engine returns an illegal move? | Play a random legal move and continue the game. Do not abort. This is error recovery, not E6 blunder injection: it fires only on a defect, never as a strength mechanism | A silent failure mode: a bug in our UCI parsing would quietly become random moves. Mitigated by mandatory logging and a zero-tolerance alert (§9, §10) |
-| E8 | Should Stockfish be its own deployable? | No. It stays in-process behind §6.2's interface. If engine CPU ever needs isolating, run a second app of the same image with `ROLES=jobs` | None. Avoids a second deployable, an HTTP contract and a shared secret, and costs nothing while idle. Reversible in one file (§4.3) |
+| E8 | Should Stockfish be its own deployable? | No. It stays in-process behind §6.2's interface. If engine CPU ever needs isolating, run a second app of the same image with `ROLES=jobs` | Avoids a second deployable, an HTTP contract and a shared secret, and costs nothing while idle. Reversible in one file. The `ROLES=jobs` escape hatch is not free, though: it needs the `PgNotifyBus` upgrade first, or engine moves never reach the `api` container's SSE streams (§4.3) |
 
 ## 2. Scope
 
 **In scope.** A user picks the bot and a level in the Mini App and gets a game immediately. The
 engine answers each of the user's moves. The game is unrated, invisible to the group chat, visible
 in the app, and never forfeits on the engine's side.
+
+**One deliberate exception to "invisible to the group chat": Share position.** §8's rule is about
+what the *system* posts on its own — cards, results, reminders — because the group has no stake in a
+member playing a machine and PRD §3 goal 4 is a quiet chat. A share is not that: it is one tap by
+the player, and PRD goal 4 already carves out "positions people choose to share". So
+`send_share_photo` treats an engine game like any other, and nothing else about the game reaches the
+chat.
 
 **Out of scope.** Playing the engine outside a group. Rated engine games. Engine evaluation, hints
 or analysis anywhere in the app, at any time — PRD §7.8 still holds, and this feature must not
@@ -93,7 +101,8 @@ project. Rejected: fails E1's requirement of real playing strength.
 ### 4.2 Reaching weak levels (decisions E5, E6)
 
 Stockfish offers two native ways to play below full strength, and the ladder uses both.
-`UCI_LimitStrength` with `UCI_Elo` covers roughly 1320–3190 (*verify at implementation*) and is
+`UCI_LimitStrength` with `UCI_Elo` covers 1350–2850 on the packaged build (§13; this paragraph first
+guessed 1320–3190, which was wrong at both ends and cost the ladder nothing) and is
 calibrated against engines. Below that floor there is `Skill Level`, 0–20, which degrades play by
 making the engine choose worse moves rather than merely think less.
 
@@ -127,14 +136,27 @@ clock for a workload that costs nothing while nobody is playing.
 option of a pre-built Stockfish image instead of an apt line. None of those pays for itself at this
 project's scale.
 
-**If engine CPU must be isolated from the web-facing process, the existing role split already does
-it.** [docs/operations.md](../../operations.md) records that roles can be split across containers and
-that the job worker is safe to run in several instances (`SELECT … FOR UPDATE SKIP LOCKED`). A second
-Dokploy app running the same image with `ROLES=jobs` therefore isolates engine load from `api` and its
-SSE streams with no new code and no new contract. Two constraints apply: the union of `ROLES` across
-the apps must still cover all four, or a role silently stops — drop `clock` and nothing ever forfeits
-— and [docs/deploy-dokploy.md](../../deploy-dokploy.md)'s "keep the replica count at 1" is about the
-in-process event bus and rate limiter in `api`, not about a jobs-only app.
+**If engine CPU must be isolated from the web-facing process, the existing role split gets most of
+the way — but not for free, and v0.3 of this section was wrong to imply otherwise.**
+[docs/operations.md](../../operations.md) records that roles can be split across containers and that
+the job worker is safe to run in several instances (`SELECT … FOR UPDATE SKIP LOCKED`). A second
+Dokploy app running the same image with `ROLES=jobs` does isolate engine load from `api`. Three
+constraints apply, and the second is the one this feature creates:
+
+1. The union of `ROLES` across the apps must still cover all four, or a role silently stops — drop
+   `clock` and nothing ever forfeits.
+2. **`Bus` is `LocalBus`, in-process** (`apps/server/src/bus/bus.ts`). An engine move committed in
+   the `jobs` container publishes only there, so no SSE stream held by the `api` container hears it:
+   open boards stop live-updating and only catch up when a client refetches. The trap pre-dates the
+   engine — a `clock` split forfeits the same way — but the engine makes it the common case, because
+   *every* bot move arrives via a job. **A role split therefore needs the `PgNotifyBus` upgrade named
+   above first**; until then, run all four roles in one container.
+3. `engine_available` is set only under `has('jobs')` (`main.ts`), so an api-only container reports
+   `0` for ever — which is exactly the condition operations.md tells an operator to alert on. Scope
+   that alert to the container that owns the `jobs` role.
+
+[docs/deploy-dokploy.md](../../deploy-dokploy.md)'s "keep the replica count at 1" is about the
+in-process event bus and rate limiter in `api`, and points at the same missing piece.
 
 **Cost to reverse: low.** §6.2's interface means `uciEngine` becomes `httpEngine` in one file, and
 nothing above the seam changes.
@@ -230,18 +252,24 @@ clock, the event bus and the game-end logic must all run exactly as they do for 
 
 ## 7. The difficulty ladder
 
-Four levels, stored as `games.engine_level`. Each is a fixed set of UCI options plus
-`ENGINE_MOVETIME_MS`; nothing else varies between them.
+Four levels, stored as `games.engine_level`. Each is a fixed set of UCI options; the move time is
+the same for all four, and nothing else varies between them.
 
 | Level | Mechanism |
 |---|---|
-| `beginner` | `Skill Level` at the bottom of its range, with a short move time |
+| `beginner` | `Skill Level` at the bottom of its range |
 | `casual` | A low `Skill Level` |
 | `club` | `UCI_LimitStrength = true` with a mid `UCI_Elo` |
 | `strong` | `UCI_LimitStrength = true` with a high `UCI_Elo` |
 
-The two `Skill Level` values, the two `UCI_Elo` values and the per-level move times are pinned in the
-implementation and are **chosen, not measured**: no part of this project plays calibration matches.
+The two `Skill Level` values and the two `UCI_Elo` values are pinned in the implementation and are
+**chosen, not measured**: no part of this project plays calibration matches.
+
+**Move time does not vary by level.** Every level searches for `ENGINE_MOVETIME_MS` (default 200),
+one deployment-wide setting, because §6.3 couples move time to the shared job worker: a per-level
+budget would let one level delay every other job behind it, and at correspondence time controls the
+difference would be invisible to the player anyway. Strength comes from the options in the table,
+which is the whole of what a level is.
 
 Three requirements, all binding:
 
@@ -265,7 +293,7 @@ repetitive openings at the higher levels; the fix is contained and can be added 
 |---|---|
 | Opponent picker | The bot is a distinct field in the picker DTO, not a `PlayerRef`, so it can never be mistaken for a human. Rendered as a pinned row plus a level list, following the existing time-per-move list pattern in `ui/screens/NewGame.tsx` |
 | Rated switch | Forced off and disabled whenever the bot is selected, with copy explaining that engine games are unrated |
-| Group chat | **No cards at all**, not even a result card. PRD §3 goal 4 is a quiet group chat and the group has no stake in a member playing a machine. The game remains in app history and spectatable by link, so "spectating by default" survives without spending group attention |
+| Group chat | **No cards at all**, not even a result card. PRD §3 goal 4 is a quiet group chat and the group has no stake in a member playing a machine. The game remains in app history and spectatable by link, so "spectating by default" survives without spending group attention. The single exception is **Share position**, which the player chooses to tap and which PRD goal 4 already allows (§2) |
 | Leaderboard and stats | Unrated already excludes engine games from Glicko-2. Additionally they are excluded from W/D/L, and the engine user never appears in the Players tab |
 | Draw offers | The bot declines every draw offer. Predictable, and keeps evaluation out of the draw path — which §2 requires anyway |
 | Resign and abort | Unchanged. The human can resign or abort under the existing rules |
@@ -366,9 +394,10 @@ Answering the three costs of E4.
 version pinned and recorded. The build must then assert that the binary completes the `uci` handshake
 **and** returns a legal move for one fixed FEN through our own adapter, legality judged by the
 project's arbiter. A broken, netless or missing binary then fails the image build rather than
-production. Debian's package is reported to embed the NNUE network (*verify at implementation*); if it
-does not, the net must be installed and its path configured, and the build assertion is what will
-catch it.
+production. Debian's package embeds the NNUE network — confirmed, §13 — so no net file has to be
+installed or configured; the build assertion is what would have caught it had that gone the other
+way. The binary lands in `/usr/games`, which is not on the default PATH in `node:22-bookworm-slim`,
+so the runtime stage adds it.
 
 **Developers and CI.** `ENGINE_ENABLED=false` is the documented path for a machine without the
 binary: the bot does not appear and nothing else changes. No CI runner installs Stockfish (§11).
@@ -382,16 +411,27 @@ non-npm dependency entry naming Stockfish, its version and its licence, and the 
 in the image. The licence script should also state in its output that it covers npm dependencies
 only, so the gap is not mistaken for coverage.
 
-## 13. To verify at implementation
+## 13. Verified at implementation
 
-- The `UCI_Elo` range of the packaged Stockfish, to pick the `club` and `strong` values (§7). Named
-  levels mean an unexpected floor only changes two numbers; it can no longer cost the ladder a rung
-- That `Skill Level`, `UCI_LimitStrength` and `UCI_Elo` are honoured by the packaged build rather
-  than silently ignored. An ignored option would make two levels play identically, which is the one
-  failure a user would notice and no test asserts (§11)
-- The Debian package version available in `node:22-bookworm-slim`, and whether the NNUE network is
-  embedded (§12)
-- Whether the packaged binary is available for every architecture the image is built for
+All four questions were answered on 2026-09-22 by installing `stockfish=15.1-4` in
+`node:22-bookworm-slim` and reading one UCI session's own output. Nothing here is asserted by a test:
+it is Stockfish's behaviour, not this project's (§11).
+
+- **The `UCI_Elo` range is 1350–2850** (`option name UCI_Elo type spin default 1350 min 1350 max
+  2850`), not the 1320–3190 §4.2 assumed. The `club` (1600) and `strong` (2400) values both sit
+  inside it, so nothing moves; a numeric ladder starting at 1400 would have been squeezed, which is
+  exactly the risk named levels were chosen to avoid (E5)
+- **`Skill Level`, `UCI_LimitStrength` and `UCI_Elo` are all honoured**, not silently ignored: the
+  build declares `Skill Level type spin default 20 min 0 max 20` and `UCI_LimitStrength type check
+  default false` alongside `UCI_Elo`, and a deliberately bogus fourth option sent in the same session
+  came back as `No such option: Not_A_Real_Option` — which is what proves the session would have said
+  so for a real one. `uciEngine` now watches for that line and logs a warning naming the option, so a
+  future Stockfish that renames one degrades loudly instead of quietly making two levels play alike
+- **The package is `15.1-4` (`id name Stockfish 15.1`) and the NNUE network is embedded**: `EvalFile`
+  defaults to `nn-ad9b42354671.nnue` and the session logs `NNUE evaluation using
+  nn-ad9b42354671.nnue enabled`, so no network file has to be installed or configured (§12)
+- **Both architectures are covered**: `stockfish=15.1-4` installs and answers with a legal move on
+  `linux/arm64` and on `linux/amd64`
 
 ## 14. Known consequences, stated plainly
 
