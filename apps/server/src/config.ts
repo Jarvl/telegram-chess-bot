@@ -38,6 +38,15 @@ export const ConfigSchema = z.object({
   LICHESS_API_URL: z.url().default('https://lichess.org'),
   /** Directory of the built Mini App to serve under /app/; unset means not served. */
   MINI_APP_DIR: z.string().min(1).optional(),
+  /** Whether the Stockfish opponent is available; off lets a machine without the binary boot. */
+  ENGINE_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((value) => value === 'true'),
+  /** Path to the Stockfish binary, or a bare name resolved on PATH. */
+  ENGINE_PATH: z.string().min(1).default('stockfish'),
+  /** Per-move thinking budget in milliseconds (spec §6.2). */
+  ENGINE_MOVETIME_MS: z.coerce.number().int().min(1).max(60_000).default(200),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
