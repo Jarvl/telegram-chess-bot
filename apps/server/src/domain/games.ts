@@ -12,6 +12,7 @@ import { dbNow, type DbOrTx } from '../db/client';
 import { adminActions, games, groups, moves, type GameRow, type MoveRow } from '../db/schema';
 import { enqueue } from '../jobs/queue';
 import type { Deps } from './deps';
+import { enqueueEngineMove, isEngineGame } from './engineGames';
 import { DomainError } from './errors';
 import { buildGameDto, colourOf, positionKeys } from './gameDto';
 import { deadlineExpression, reminderExpression } from './limits';
@@ -94,7 +95,10 @@ export async function finishGame(
   now: Date,
 ): Promise<GameRow> {
   // A voided game is not worth an import; the fallback analysis link still works (review finding 10).
-  const importable = game.plyCount > 0 && end.endReason !== 'voided';
+  // Spec §8: engine games post no card and are never imported — the Lichess quota is shared across
+  // the deployment and these games have no human opponent.
+  const engineGame = isEngineGame(game);
+  const importable = game.plyCount > 0 && end.endReason !== 'voided' && !engineGame;
   const [updated] = await tx
     .update(games)
     .set({
@@ -113,11 +117,13 @@ export async function finishGame(
     .returning();
   if (!updated) throw new DomainError('not_found', 'game not found');
   await applyGameResultToRatings(tx, updated, now);
-  await enqueue(tx, {
-    kind: 'edit_card',
-    payload: { gameId: game.id },
-    dedupKey: `card:g:${game.publicId}`,
-  });
+  if (!engineGame) {
+    await enqueue(tx, {
+      kind: 'edit_card',
+      payload: { gameId: game.id },
+      dedupKey: `card:g:${game.publicId}`,
+    });
+  }
   for (const userId of [game.whiteId, game.blackId]) {
     await enqueue(tx, {
       kind: 'send_dm',
@@ -216,6 +222,7 @@ export async function playMove(deps: Deps, input: PlayMoveInput): Promise<GameDt
     });
     const opponentId = colour === 'white' ? game.blackId : game.whiteId;
     const opponent = await requireUser(tx, opponentId);
+    const engineNext = opponent.isEngine;
     const timePerMove = game.timePerMove as TimePerMove;
     const offerLapses = game.drawOfferBy !== null && game.drawOfferBy !== colour;
     const [moved] = await tx
@@ -225,8 +232,9 @@ export async function playMove(deps: Deps, input: PlayMoveInput): Promise<GameDt
         plyCount: ply,
         version: sql`${games.version} + 1`,
         lastMoveAt: now,
-        deadlineAt: deadlineExpression(timePerMove),
-        reminderAt: reminderExpression(timePerMove, wantsDms(opponent)),
+        // Spec §9: the engine never carries a deadline, so it can never be forfeited.
+        deadlineAt: engineNext ? null : deadlineExpression(timePerMove),
+        reminderAt: engineNext ? null : reminderExpression(timePerMove, wantsDms(opponent)),
         ...(offerLapses ? { drawOfferBy: null, drawOfferPly: null } : {}),
       })
       .where(eq(games.id, game.id))
@@ -240,16 +248,23 @@ export async function playMove(deps: Deps, input: PlayMoveInput): Promise<GameDt
           : { result: '1/2-1/2', endReason: result.outcome.reason };
       return loadGameDto(tx, await finishGame(tx, moved, end, now), input.userId);
     }
-    await enqueue(tx, {
-      kind: 'edit_card',
-      payload: { gameId: game.id },
-      dedupKey: `card:g:${game.publicId}`,
-    });
-    await enqueue(tx, {
-      kind: 'send_dm',
-      payload: { userId: opponentId, template: 'turn', gameId: game.id },
-      dedupKey: `dm:${opponentId}:g:${game.publicId}:turn:${ply}`,
-    });
+    if (engineNext) {
+      // Spec §8: engine games post no card, and the engine has no DM to receive.
+      await enqueueEngineMove(tx, moved);
+    } else {
+      if (!isEngineGame(moved)) {
+        await enqueue(tx, {
+          kind: 'edit_card',
+          payload: { gameId: game.id },
+          dedupKey: `card:g:${game.publicId}`,
+        });
+      }
+      await enqueue(tx, {
+        kind: 'send_dm',
+        payload: { userId: opponentId, template: 'turn', gameId: game.id },
+        dedupKey: `dm:${opponentId}:g:${game.publicId}:turn:${ply}`,
+      });
+    }
     return loadGameDto(tx, moved, input.userId);
   });
   deps.bus.publish(input.gameId);
