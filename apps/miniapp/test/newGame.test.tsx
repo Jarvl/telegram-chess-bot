@@ -4,6 +4,7 @@ import { renderApp } from './support/render';
 
 const players = {
   players: [{ id: '2', name: 'Bob', username: 'bob', rating: 1520, provisional: false }],
+  bot: null,
 };
 const challenge = {
   id: 'ChalAaaaaa',
@@ -70,7 +71,7 @@ describe('NewGame', () => {
   it('explains an empty picker', async () => {
     const r = renderApp(
       () => <NewGame groupId="GrOuPiDxYz" />,
-      () => ({ status: 200, body: { players: [] } }),
+      () => ({ status: 200, body: { players: [], bot: null } }),
     );
     await r.flush();
     expect(r.text()).toContain('Reply to their message with /play');

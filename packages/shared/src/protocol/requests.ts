@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { GroupSettingsSchema, PrefsSchema, UciSchema } from './dto';
-import { ColourChoiceSchema, TimePerMoveSchema } from './enums';
+import { ColourChoiceSchema, EngineLevelSchema, TimePerMoveSchema } from './enums';
 import { UserIdSchema } from './ids';
 
 export const LaunchRequestSchema = z.object({
@@ -27,6 +27,15 @@ export const ChallengeRequestSchema = z.object({
 });
 
 export type ChallengeRequest = z.infer<typeof ChallengeRequestSchema>;
+
+/** Starts a game against the bot. No `rated` field: the domain layer forces it false (spec §6.1). */
+export const EngineGameRequestSchema = z.object({
+  level: EngineLevelSchema,
+  colour: ColourChoiceSchema,
+  timePerMove: TimePerMoveSchema,
+});
+
+export type EngineGameRequest = z.infer<typeof EngineGameRequestSchema>;
 
 export const ShareRequestSchema = z.object({
   ply: z.number().int().min(0),

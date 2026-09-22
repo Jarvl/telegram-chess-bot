@@ -4,6 +4,7 @@ import {
   ColourChoiceSchema,
   ColourSchema,
   EndReasonSchema,
+  EngineLevelSchema,
   GameResultSchema,
   GameStatusSchema,
   TimePerMoveSchema,
@@ -202,6 +203,11 @@ export type LobbyDto = z.infer<typeof LobbyDtoSchema>;
 
 export const PlayersPickerDtoSchema = z.object({
   players: z.array(PlayerRefSchema),
+  /**
+   * Deliberately not a `PlayerRef`: no screen can render the bot as if it were a human, and it
+   * never carries a rating. Null when the engine is unavailable or switched off.
+   */
+  bot: z.object({ levels: z.array(EngineLevelSchema) }).nullable(),
 });
 
 export type PlayersPickerDto = z.infer<typeof PlayersPickerDtoSchema>;
