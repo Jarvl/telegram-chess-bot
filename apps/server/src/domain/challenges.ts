@@ -32,7 +32,7 @@ export type CreateChallengeInput = {
   threadId: number | null;
 };
 
-function randomColour(): 'white' | 'black' {
+export function randomColour(): 'white' | 'black' {
   return randomInt(2) === 0 ? 'white' : 'black';
 }
 
