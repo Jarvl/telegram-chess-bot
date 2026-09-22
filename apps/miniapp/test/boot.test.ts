@@ -1,3 +1,4 @@
+import { GROUP_SETTINGS_DEFAULTS } from '@group-chess/shared';
 import { describe, expect, it } from 'vitest';
 import { createApiClient } from '../src/api/client';
 import { boot } from '../src/boot';
@@ -35,7 +36,7 @@ function setup(
   const tg = createTg(window.Telegram!.WebApp);
   const { fetch, calls } = fakeFetch(handler);
   const client = createApiClient({ fetch });
-  const router = new Router(tg, { closeWhenEmpty: false });
+  const router = new Router(tg);
   const prefetched: Prefetched = {};
   return { tg, client, router, prefetched, calls, record: window.__tg! };
 }
@@ -52,7 +53,11 @@ describe('boot', () => {
           : { status: 200, body: { prefs: prefs.value, dmAllowed: true } },
     );
     await boot({ tg, client, router, prefetched });
-    expect(router.current.value).toEqual({ name: 'game', gameId: 'AbCdEfGhIj' });
+    expect(router.stack.value).toEqual([
+      { name: 'groups' },
+      { name: 'lobby', groupId: 'GrOuPiDxYz' },
+      { name: 'game', gameId: 'AbCdEfGhIj' },
+    ]);
     expect(prefetched.game?.id).toBe('AbCdEfGhIj');
     expect(session.value?.launchedFrom).toEqual({ kind: 'game', gameId: 'AbCdEfGhIj' });
     expect(
@@ -102,7 +107,10 @@ describe('boot', () => {
     }));
     await boot({ tg, client, router, prefetched });
     await new Promise((resolve) => setTimeout(resolve, 10));
-    expect(router.current.value).toEqual({ name: 'lobby', groupId: 'GrOuPiDxYz' });
+    expect(router.stack.value).toEqual([
+      { name: 'groups' },
+      { name: 'lobby', groupId: 'GrOuPiDxYz' },
+    ]);
     expect(record.calls).not.toContain('requestWriteAccess');
     expect(record.calls).not.toContain('disableVerticalSwipes');
     expect(calls).toHaveLength(1);
@@ -123,15 +131,34 @@ describe('boot', () => {
     expect(broken.router.current.value).toEqual({ name: 'error' });
   });
 
+  it('seeds the group lobby under a settings launch', async () => {
+    const settings = {
+      group: { id: 'GrOuPiDxYz', title: 'Club' },
+      settings: GROUP_SETTINGS_DEFAULTS,
+      blocked: [],
+      botIsAdmin: true,
+      isForum: false,
+    };
+    const app = setup('8.0', 's_GrOuPiDxYz', () => ({
+      status: 200,
+      body: launchBody({ kind: 'settings', settings }),
+    }));
+    await boot(app);
+    expect(app.router.stack.value).toEqual([
+      { name: 'groups' },
+      { name: 'lobby', groupId: 'GrOuPiDxYz' },
+      { name: 'groupSettings', groupId: 'GrOuPiDxYz' },
+    ]);
+  });
+
   it('routes a locked launch to the locked screen', async () => {
     const locked = setup('8.0', 'l_GrOuPiDxYz', () => ({
       status: 200,
       body: launchBody({ kind: 'locked', group: { id: 'GrOuPiDxYz', title: 'Club' } }),
     }));
     await boot(locked);
-    expect(locked.router.current.value).toEqual({
-      name: 'locked',
-      group: { id: 'GrOuPiDxYz', title: 'Club' },
-    });
+    expect(locked.router.stack.value).toEqual([
+      { name: 'locked', group: { id: 'GrOuPiDxYz', title: 'Club' } },
+    ]);
   });
 });
