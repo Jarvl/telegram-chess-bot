@@ -3,15 +3,15 @@ import { Router } from '../src/router';
 import { createTg } from '../src/tg/webapp';
 import { installFakeWebApp } from './support/fakeWebApp';
 
-const setup = () => {
+const setup = (closeWhenEmpty: boolean) => {
   installFakeWebApp({ version: '8.0', initData: 'user=x&hash=y' });
   const tg = createTg(window.Telegram!.WebApp);
-  return { router: new Router(tg), record: window.__tg! };
+  return { router: new Router(tg, { closeWhenEmpty }), record: window.__tg! };
 };
 
 describe('Router', () => {
   it('pushes, replaces and pops routes and shows the back button below the root', () => {
-    const { router, record } = setup();
+    const { router, record } = setup(false);
     router.reset({ name: 'groups' });
     expect(router.current.value).toEqual({ name: 'groups' });
     expect(record.backButton.visible).toBe(false);
@@ -26,32 +26,16 @@ describe('Router', () => {
     expect(record.closed).toBe(false);
   });
 
-  it('resets to a seeded stack so a deep launch can walk back up', () => {
-    const { router, record } = setup();
-    router.reset([
-      { name: 'groups' },
-      { name: 'lobby', groupId: 'GrOuPiDxYz' },
-      { name: 'game', gameId: 'AbCdEfGhIj' },
-    ]);
-    expect(router.current.value).toEqual({ name: 'game', gameId: 'AbCdEfGhIj' });
+  it('closes the app from the root when it was opened from a game link', () => {
+    const { router, record } = setup(true);
+    router.reset({ name: 'game', gameId: 'AbCdEfGhIj' });
     expect(record.backButton.visible).toBe(true);
     record.clickBack();
-    expect(router.current.value).toEqual({ name: 'lobby', groupId: 'GrOuPiDxYz' });
-    record.clickBack();
-    expect(router.current.value).toEqual({ name: 'groups' });
-    expect(record.backButton.visible).toBe(false);
-  });
-
-  it('leaves closing the app to Telegram rather than closing from the root', () => {
-    const { router, record } = setup();
-    router.reset({ name: 'game', gameId: 'AbCdEfGhIj' });
-    expect(record.backButton.visible).toBe(false);
-    expect(router.back()).toBe(false);
-    expect(record.closed).toBe(false);
+    expect(record.closed).toBe(true);
   });
 
   it('pops one level on the Telegram back button', () => {
-    const { router, record } = setup();
+    const { router, record } = setup(false);
     router.reset({ name: 'groups' });
     router.push({ name: 'settings' });
     record.clickBack();

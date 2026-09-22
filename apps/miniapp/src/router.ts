@@ -19,21 +19,22 @@ export type Route =
 
 /**
  * An in-memory route stack (Telegram owns the URL fragment) bound to the BackButton (spec §6.1
- * step 5): the button shows below the root and always means "go back", never "close" — Telegram
- * supplies its own close control at the root.
+ * step 5): the button shows below the root, or at the root when the app should close from there.
  */
 export class Router {
   readonly stack: Signal<Route[]> = signal([]);
   readonly current: ReadonlySignal<Route>;
 
-  constructor(private readonly tg: Tg) {
+  constructor(
+    private readonly tg: Tg,
+    private readonly options: { closeWhenEmpty: boolean },
+  ) {
     this.current = computed(() => this.stack.value.at(-1) ?? { name: 'loading' });
     this.sync();
   }
 
-  /** Replaces the whole stack; a deep launch seeds the screens above it so back walks up. */
-  reset(route: Route | Route[]): void {
-    this.stack.value = Array.isArray(route) ? route : [route];
+  reset(route: Route): void {
+    this.stack.value = [route];
     this.sync();
   }
 
@@ -47,7 +48,7 @@ export class Router {
     this.sync();
   }
 
-  /** Pops one level; false at the root, where there is nothing above to go back to. */
+  /** Pops one level; false at the root, where the caller (or the BackButton) may close the app. */
   back(): boolean {
     if (this.stack.value.length <= 1) return false;
     this.stack.value = this.stack.value.slice(0, -1);
@@ -56,6 +57,10 @@ export class Router {
   }
 
   private sync(): void {
-    this.tg.setBackButton(this.stack.value.length > 1, () => this.back());
+    const depth = this.stack.value.length;
+    const visible = depth > 1 || (depth === 1 && this.options.closeWhenEmpty);
+    this.tg.setBackButton(visible, () => {
+      if (!this.back() && this.options.closeWhenEmpty) this.tg.close();
+    });
   }
 }
