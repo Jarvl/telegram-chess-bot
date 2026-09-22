@@ -58,7 +58,7 @@ export const en = {
   'card.share.caption':
     '{sharer} shared move {moveNumber} · {white} vs {black} · {sideToMove} to move',
   'card.welcome':
-    'Play chess with this group on a real board inside Telegram. The chat only sees results and shared positions. Admins: promote me so everyone here can watch games.',
+    'Play chess with this group on a real board inside Telegram. The chat only sees results and shared positions.',
   'button.accept': 'Accept',
   'button.decline': 'Decline',
   'button.cancel': 'Cancel',

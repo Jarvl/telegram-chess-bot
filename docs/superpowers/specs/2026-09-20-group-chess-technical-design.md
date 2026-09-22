@@ -230,7 +230,7 @@ Every card is rendered by a pure function `renderCard(state) → { text, entitie
 | Aborted | `♟ Alice vs Bob · Aborted` · reason (`no move within 1 day`) | `🔁 Rematch` |
 | Voided | `♟ Alice vs Bob · Voided by an admin` · original result | `🔍 Analyse on Lichess` when the game had moves |
 | Shared position | photo, caption `Carol shared move 23 · Alice vs Bob · Black to move` | `♟ Open game` |
-| Welcome | `Play chess with this group on a real board inside Telegram. The chat only sees results and shared positions. Admins: promote me so everyone here can watch games.` | `♟ Open Chess` |
+| Welcome | `Play chess with this group on a real board inside Telegram. The chat only sees results and shared positions.` | `♟ Open Chess` |
 
 Rules for cards:
 
@@ -239,7 +239,7 @@ Rules for cards:
 - "Message is not modified" from Telegram is success. "Message to edit not found" marks the card as gone; the game continues without a card.
 - The `Analyse on Lichess` button first carries the fallback URL (§7.6) and is swapped for the imported game URL by one more silent edit when the import lands.
 - `♟ Open game` appears on running cards and on shared positions. Finished cards carry exactly the two buttons the PRD specifies; the replay is reached from the lobby's Finished tab or from a shared position's `♟ Open game`.
-- The welcome card is pinned only when `my_chat_member` shows the bot is an administrator with `can_pin_messages`; otherwise it is left for a human to pin. Its last sentence asks admins to promote the bot, which makes membership checks authoritative (§5.6).
+- The welcome card is pinned only when `my_chat_member` shows the bot is an administrator with `can_pin_messages`; otherwise it is left for a human to pin. The card does not ask admins to promote the bot: whether promotion is needed for membership checks to be authoritative is still open until spike S4 characterises `getChatMember` for a non-admin bot (§5.6).
 
 ### 5.5 Commands
 
