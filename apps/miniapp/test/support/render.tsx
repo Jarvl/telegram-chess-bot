@@ -25,7 +25,7 @@ let lastRoot: HTMLElement | null = null;
 export function renderApp(
   ui: (app: AppContextValue) => ComponentChildren,
   route: FakeRoute,
-  options: { version?: string; client?: ApiClient } = {},
+  options: { version?: string; closeWhenEmpty?: boolean; client?: ApiClient } = {},
 ): Rendered {
   installFakeWebApp({ version: options.version ?? '8.0', initData: 'user=x&hash=y' });
   const tg = createTg(window.Telegram!.WebApp);
@@ -44,7 +44,7 @@ export function renderApp(
     boardTheme: null,
     pieceSet: null,
   };
-  const router = new Router(tg);
+  const router = new Router(tg, { closeWhenEmpty: options.closeWhenEmpty ?? false });
   const app: AppContextValue = { tg, client, router, prefetched: {} };
   if (lastRoot) render(null, lastRoot); // unmount the previous tree: its streams and timers stop
   document.body.innerHTML = '';

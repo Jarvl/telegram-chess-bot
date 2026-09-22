@@ -5,36 +5,23 @@ import { applyLaunch } from './state/session';
 import { applyTheme } from './tg/theme';
 import type { AppContextValue, Prefetched } from './ui/context';
 
-/**
- * Maps the launch route to a screen stack and parks its data for that screen's first render.
- * A deep link lands on the screen it names but carries the screens above it, so the BackButton
- * walks up to the group's games and then to the group list instead of dead-ending.
- */
-export function routeFor(route: LaunchRoute, prefetched: Prefetched): Route[] {
+/** Maps the launch route to a screen and parks its data for that screen's first render. */
+export function routeFor(route: LaunchRoute, prefetched: Prefetched): Route {
   switch (route.kind) {
     case 'game':
       prefetched.game = route.game;
-      return [
-        { name: 'groups' },
-        { name: 'lobby', groupId: route.game.group.id },
-        { name: 'game', gameId: route.game.id },
-      ];
+      return { name: 'game', gameId: route.game.id };
     case 'lobby':
       prefetched.lobby = route.lobby;
-      return [{ name: 'groups' }, { name: 'lobby', groupId: route.lobby.group.id }];
+      return { name: 'lobby', groupId: route.lobby.group.id };
     case 'settings':
       prefetched.settings = route.settings;
-      return [
-        { name: 'groups' },
-        { name: 'lobby', groupId: route.settings.group.id },
-        { name: 'groupSettings', groupId: route.settings.group.id },
-      ];
+      return { name: 'groupSettings', groupId: route.settings.group.id };
     case 'groups':
       prefetched.groups = route.groups;
-      return [{ name: 'groups' }];
-    // A group the viewer cannot enter: there is no lobby to seed underneath it.
+      return { name: 'groups' };
     case 'locked':
-      return [{ name: 'locked', group: route.group }];
+      return { name: 'locked', group: route.group };
   }
 }
 
