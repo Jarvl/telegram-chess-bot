@@ -1,8 +1,9 @@
 import { spawn } from 'node:child_process';
 import type { EngineLevel } from '@group-chess/shared';
 import type { Config } from '../config';
+import type { Logger } from '../logger';
 import type { BestMove, Engine } from './engine';
-import { optionsForLevel, parseBestMove } from './protocol';
+import { optionsForLevel, parseBestMove, unsupportedOptions } from './protocol';
 
 export type EngineConfig = Pick<Config, 'ENGINE_PATH' | 'ENGINE_MOVETIME_MS'>;
 
@@ -32,8 +33,26 @@ function session(path: string, commands: string[], timeoutMs: number): Promise<s
   });
 }
 
-export function uciEngine(config: EngineConfig): Engine {
+export function uciEngine(config: EngineConfig, log?: Pick<Logger, 'warn'>): Engine {
   const path = config.ENGINE_PATH;
+  // One warning per option per process: a build that ignores an option ignores it on every move,
+  // and the point is to make the fact visible, not to fill the log with it.
+  const warned = new Set<string>();
+  /**
+   * Spec §13: an option the packaged build silently ignores would make two levels play identically,
+   * "the one failure a user would notice and no test asserts". It stays a warning rather than a
+   * failure — a future Stockfish that renames an option should degrade, not refuse to play.
+   */
+  const warnAboutIgnoredOptions = (level: EngineLevel, output: string): void => {
+    for (const option of unsupportedOptions(output)) {
+      if (warned.has(option)) continue;
+      warned.add(option);
+      log?.warn(
+        { option, level },
+        'the engine rejected a UCI option; this level may play at full strength',
+      );
+    }
+  };
   return {
     async bestMove(fen: string, level: EngineLevel, deadlineMs: number): Promise<BestMove> {
       const options = optionsForLevel(level).map(
@@ -52,6 +71,7 @@ export function uciEngine(config: EngineConfig): Engine {
         ],
         deadlineMs,
       );
+      warnAboutIgnoredOptions(level, output);
       const move = parseBestMove(output);
       if (!move) throw new Error(`engine produced no bestmove: ${output.slice(-200)}`);
       return move;

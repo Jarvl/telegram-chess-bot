@@ -222,7 +222,11 @@ export async function playMove(deps: Deps, input: PlayMoveInput): Promise<GameDt
     });
     const opponentId = colour === 'white' ? game.blackId : game.whiteId;
     const opponent = await requireUser(tx, opponentId);
+    // Two different engine questions, named apart on purpose: whether the *next mover* is the
+    // engine (which suppresses the deadline and enqueues its move), and whether this is an engine
+    // *game* at all (which suppresses the card), exactly as `finishGame` above names them.
     const engineNext = opponent.isEngine;
+    const engineGame = isEngineGame(game);
     const timePerMove = game.timePerMove as TimePerMove;
     const offerLapses = game.drawOfferBy !== null && game.drawOfferBy !== colour;
     const [moved] = await tx
@@ -252,7 +256,7 @@ export async function playMove(deps: Deps, input: PlayMoveInput): Promise<GameDt
       // Spec §8: engine games post no card, and the engine has no DM to receive.
       await enqueueEngineMove(tx, moved);
     } else {
-      if (!isEngineGame(moved)) {
+      if (!engineGame) {
         await enqueue(tx, {
           kind: 'edit_card',
           payload: { gameId: game.id },

@@ -21,8 +21,29 @@ const LEVELS: Record<EngineLevel, UciOption[]> = {
   ],
 };
 
-export function optionsForLevel(level: EngineLevel): UciOption[] {
-  return LEVELS[level];
+/**
+ * A copy, and `readonly` besides: the table is per-process configuration shared by every game, and
+ * a caller that mutated what it was handed would silently re-tune every level until the next deploy.
+ */
+export function optionsForLevel(level: EngineLevel): readonly UciOption[] {
+  return LEVELS[level].map((option) => ({ ...option }));
+}
+
+/**
+ * The option names the engine rejected, in the order they appear. Stockfish answers an unknown
+ * `setoption` with `No such option: <name>` and then plays on at full strength, which is spec §13's
+ * named risk: a renamed or missing `Skill Level`/`UCI_LimitStrength`/`UCI_Elo` would make two levels
+ * play identically, and nothing else in the session output would say so.
+ */
+export function unsupportedOptions(output: string): string[] {
+  const names: string[] = [];
+  for (const line of output.split('\n')) {
+    const match = /^No such option:\s*(.+)$/.exec(line.trim());
+    if (!match) continue;
+    const name = match[1]!.trim();
+    if (name.length > 0 && !names.includes(name)) names.push(name);
+  }
+  return names;
 }
 
 /**

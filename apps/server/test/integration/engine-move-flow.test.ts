@@ -1,7 +1,9 @@
+import { t, type EngineLevel } from '@group-chess/shared';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { jobs, ratings } from '../../src/db/schema';
 import { createEngineGame, getEngineUser } from '../../src/domain/engineGames';
 import { playMove, requireGameByPublicId, resign, voidGame } from '../../src/domain/games';
+import { buildGamePgn } from '../../src/domain/pgn';
 import { forfeitOverdueGames } from '../../src/clock/scanners';
 import { touchMember } from '../../src/domain/members';
 import { openTestDb, testDeps, truncateAll } from '../helpers/db';
@@ -189,5 +191,43 @@ describe('playMove and finishGame with an engine opponent', () => {
     const kinds = await jobKinds();
     expect(kinds).not.toContain('edit_card');
     expect(kinds).not.toContain('rebuild_ratings');
+  });
+});
+
+describe('the PGN of an engine game', () => {
+  const pgnOf = async (level: EngineLevel) => {
+    const { group, alice } = await setup();
+    const game = await createEngineGame(deps, {
+      groupId: group.id,
+      userId: alice.id,
+      level,
+      colour: 'white',
+      timePerMove: 86_400,
+    });
+    await playMove(deps, {
+      gameId: game.publicId,
+      userId: alice.id,
+      uci: 'e2e4',
+      expectedPly: 0,
+      clientMoveId: 'c1',
+    });
+    return buildGamePgn(db, await requireGameByPublicId(db, game.publicId));
+  };
+
+  it('names the level, because the PGN is the only permanent record the game gets', async () => {
+    // Spec §5: `Stockfish (Club)`. Engine games get no Lichess URL (spec §8), so a bare `Stockfish`
+    // would leave nothing anywhere saying which level was played.
+    const pgn = await pgnOf('club');
+    expect(pgn).toContain('[Black "Stockfish (Club)"]');
+    expect(pgn).toContain('[White "Alice"]');
+  });
+
+  it('uses the level copy rather than the stored enum value, and no rating numbers', async () => {
+    const pgn = await pgnOf('beginner');
+    // `beginner` is shown as "Easiest" everywhere the player sees it (spec §7's honesty rule), and
+    // spec §7 forbids rating numbers in user-facing output — the PGN included.
+    expect(pgn).toContain(`[Black "Stockfish (${t('app.level.beginner')})"]`);
+    expect(pgn).not.toContain('beginner');
+    expect(pgn).not.toContain('Elo');
   });
 });

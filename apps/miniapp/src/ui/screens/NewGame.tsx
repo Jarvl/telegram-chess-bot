@@ -90,18 +90,21 @@ export function NewGame(props: { groupId: string; defaults?: LobbyDto['settings'
   if (players.error) return <ErrorScreen onRetry={() => void players.reload()} />;
   if (!players.data) return <Loading />;
   const botPicker = players.data.bot;
+  // The picker DTO guarantees at least one level whenever the bot is offered; narrowing on the
+  // first entry carries that guarantee into the types, so no non-null assertion is needed here.
+  const firstLevel = botPicker?.levels[0];
 
   return (
     <div class="screen">
       <h1 class="title">{t('app.new.title')}</h1>
       <div class="section">{t('app.new.opponent')}</div>
       <div class="list">
-        {botPicker ? (
+        {botPicker && firstLevel ? (
           <button
             class="row"
             data-testid="opponent-bot"
             aria-pressed={selection.kind === 'bot' ? 'true' : 'false'}
-            onClick={() => setSelection({ kind: 'bot', level: botPicker.levels[0]! })}
+            onClick={() => setSelection({ kind: 'bot', level: firstLevel })}
           >
             <span class="grow primary">{t('app.new.bot')}</span>
             {selection.kind === 'bot' ? <span class="badge">✓</span> : null}

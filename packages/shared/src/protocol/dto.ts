@@ -207,9 +207,10 @@ export const PlayersPickerDtoSchema = z.object({
   players: z.array(PlayerRefSchema),
   /**
    * Deliberately not a `PlayerRef`: no screen can render the bot as if it were a human, and it
-   * never carries a rating. Null when the engine is unavailable or switched off.
+   * never carries a rating. Null when the engine is unavailable or switched off — a present `bot`
+   * always has at least one level, so the picker never has to invent one.
    */
-  bot: z.object({ levels: z.array(EngineLevelSchema) }).nullable(),
+  bot: z.object({ levels: z.array(EngineLevelSchema).min(1) }).nullable(),
 });
 
 export type PlayersPickerDto = z.infer<typeof PlayersPickerDtoSchema>;

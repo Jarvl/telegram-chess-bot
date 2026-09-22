@@ -1,6 +1,11 @@
 import { ENGINE_LEVELS } from '@group-chess/shared';
 import { describe, expect, it } from 'vitest';
-import { optionsForLevel, parseBestMove } from '../../src/engine/protocol';
+import {
+  optionsForLevel,
+  parseBestMove,
+  unsupportedOptions,
+  type UciOption,
+} from '../../src/engine/protocol';
 
 const byName = (level: Parameters<typeof optionsForLevel>[0]) =>
   new Map(optionsForLevel(level).map((option) => [option.name, option.value]));
@@ -58,5 +63,37 @@ describe('parseBestMove', () => {
 
   it('takes the last bestmove when several are present', () => {
     expect(parseBestMove('bestmove a2a3\nbestmove h2h4\n')).toEqual({ uci: 'h2h4' });
+  });
+});
+
+describe('optionsForLevel', () => {
+  it('hands out a copy, so one caller cannot re-tune every level in the process', () => {
+    const first = optionsForLevel('casual') as UciOption[];
+    first[0]!.value = 20;
+    expect(optionsForLevel('casual')[0]!.value).not.toBe(20);
+  });
+});
+
+describe('unsupportedOptions', () => {
+  // Spec §13: an option the packaged build ignores would make two levels play identically. Stockfish
+  // says so in its session output, and nothing else in the protocol does.
+  it('names an option the engine rejected', () => {
+    const output = 'id name Stockfish 15.1\nNo such option: UCI_Elo\nuciok\nbestmove e2e4\n';
+    expect(unsupportedOptions(output)).toEqual(['UCI_Elo']);
+  });
+
+  it('names each rejected option once, in order', () => {
+    const output = [
+      'No such option: UCI_LimitStrength',
+      'No such option: UCI_Elo',
+      'No such option: UCI_Elo',
+      'bestmove e2e4',
+    ].join('\n');
+    expect(unsupportedOptions(output)).toEqual(['UCI_LimitStrength', 'UCI_Elo']);
+  });
+
+  it('says nothing about a session the engine accepted', () => {
+    expect(unsupportedOptions('uciok\nreadyok\nbestmove e2e4 ponder e7e5\n')).toEqual([]);
+    expect(unsupportedOptions('')).toEqual([]);
   });
 });
