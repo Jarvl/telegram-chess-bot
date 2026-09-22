@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { jobs, ratings } from '../../src/db/schema';
 import { createEngineGame, getEngineUser } from '../../src/domain/engineGames';
-import { playMove, requireGameByPublicId, resign } from '../../src/domain/games';
+import { playMove, requireGameByPublicId, resign, voidGame } from '../../src/domain/games';
 import { forfeitOverdueGames } from '../../src/clock/scanners';
 import { touchMember } from '../../src/domain/members';
 import { openTestDb, testDeps, truncateAll } from '../helpers/db';
@@ -12,6 +12,9 @@ const deps = testDeps(db);
 
 beforeEach(() => truncateAll(db));
 afterAll(() => close());
+
+const jobKinds = async (): Promise<string[]> =>
+  (await db.select().from(jobs)).map((job) => job.kind);
 
 async function setup() {
   const group = await insertGroup(db);
@@ -72,6 +75,9 @@ describe('playMove and finishGame with an engine opponent', () => {
     });
     const after = await requireGameByPublicId(db, game.publicId);
     expect(after.deadlineAt).not.toBeNull();
+    // The engine's own move (e7e5) reaches playMove's non-`engineNext` branch, where the game is
+    // still an engine game and must still get no card.
+    expect(await jobKinds()).not.toContain('edit_card');
   });
 
   it('keeps a clockless engine game clockless for both sides', async () => {
@@ -100,6 +106,7 @@ describe('playMove and finishGame with an engine opponent', () => {
     });
     const after = await requireGameByPublicId(db, game.publicId);
     expect(after.deadlineAt).toBeNull();
+    expect(await jobKinds()).not.toContain('edit_card');
   });
 
   // Correction to the brief: the original test forged a past deadline onto an engine game and
@@ -142,11 +149,45 @@ describe('playMove and finishGame with an engine opponent', () => {
       colour: 'white',
       timePerMove: 86_400,
     });
+    // A move first, so plyCount > 0 and the pre-existing `game.plyCount > 0` term of `importable`
+    // is already satisfied — the `!engineGame` conjunct this task adds is then the only thing
+    // suppressing the import. Resigning immediately (plyCount 0) would make this vacuous.
+    await playMove(deps, {
+      gameId: game.publicId,
+      userId: alice.id,
+      uci: 'e2e4',
+      expectedPly: 0,
+      clientMoveId: 'c1',
+    });
     await resign(deps, { gameId: game.publicId, userId: alice.id });
     const finished = await requireGameByPublicId(db, game.publicId);
     expect(finished.status).toBe('finished');
+    expect(finished.plyCount).toBeGreaterThan(0);
     expect(finished.lichessImportStatus).toBeNull();
     expect(await db.select().from(ratings)).toHaveLength(0);
-    expect((await db.select().from(jobs)).map((job) => job.kind)).not.toContain('lichess_import');
+    const kinds = await jobKinds();
+    expect(kinds).not.toContain('lichess_import');
+    expect(kinds).not.toContain('edit_card');
+  });
+
+  it('voids an engine game without enqueueing a card', async () => {
+    const { group, alice } = await setup();
+    const admin = await insertUser(db, { firstName: 'Admin' });
+    await touchMember(db, group.id, admin.id);
+    const game = await createEngineGame(deps, {
+      groupId: group.id,
+      userId: alice.id,
+      level: 'club',
+      colour: 'white',
+      timePerMove: 86_400,
+    });
+    await voidGame(deps, { gameId: game.publicId, adminUserId: admin.id });
+    const voided = await requireGameByPublicId(db, game.publicId);
+    expect(voided.status).toBe('finished');
+    expect(voided.endReason).toBe('voided');
+    expect(voided.voidedAt).not.toBeNull();
+    const kinds = await jobKinds();
+    expect(kinds).not.toContain('edit_card');
+    expect(kinds).not.toContain('rebuild_ratings');
   });
 });

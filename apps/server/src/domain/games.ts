@@ -336,11 +336,13 @@ export async function voidGame(
         dedupKey: `ratings:${group?.publicId}`,
       });
     }
-    await enqueue(tx, {
-      kind: 'edit_card',
-      payload: { gameId: game.id },
-      dedupKey: `card:g:${game.publicId}`,
-    });
+    if (!isEngineGame(game)) {
+      await enqueue(tx, {
+        kind: 'edit_card',
+        payload: { gameId: game.id },
+        dedupKey: `card:g:${game.publicId}`,
+      });
+    }
     await tx.insert(adminActions).values({
       groupId: game.groupId,
       adminUserId: input.adminUserId,
