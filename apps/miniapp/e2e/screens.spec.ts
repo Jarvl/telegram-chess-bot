@@ -1,9 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
-import { openApp, seed } from './support';
+import { clickBack, openApp, seed } from './support';
 
-// Review Focus 5: a long title must never push the page sideways at phone width.
+// Review Focus 5: a long title or display name must never push the page sideways at phone width.
 const LONG_TITLE = 'The Extremely Long Friday Evening Correspondence Chess Club of Manchester';
+const LONG_NAME = 'Maximilian Alexander Constantine Wolfgang von Hohenzollern-Sigmaringen';
 test.use({ viewport: { width: 390, height: 844 } });
 
 async function fits(page: Page): Promise<void> {
@@ -22,7 +23,7 @@ async function shot(page: Page, name: string): Promise<void> {
 
 for (const colorScheme of ['light', 'dark'] as const) {
   test(`every main screen fits at 390 px (${colorScheme})`, async ({ page }) => {
-    const world = await seed('ranked', {}, { groupTitle: LONG_TITLE });
+    const world = await seed('ranked', {}, { groupTitle: LONG_TITLE, bobName: LONG_NAME });
     await openApp(page, { user: world.users.alice.telegram, colorScheme });
     await expect(page.locator('.title')).toHaveText('Your games');
     await fits(page);
@@ -42,6 +43,12 @@ for (const colorScheme of ['light', 'dark'] as const) {
     await expect(page.locator('[data-player]')).toHaveCount(2);
     await fits(page);
     await shot(page, `${colorScheme}-leaderboard`);
+
+    await page.locator('[data-player]').filter({ hasText: LONG_NAME }).click();
+    await expect(page.locator('.title')).toHaveText(LONG_NAME);
+    await fits(page);
+    await shot(page, `${colorScheme}-player`);
+    await clickBack(page);
 
     await page.locator('[data-nav="games"]').click();
     await page.locator('[data-game]').click();

@@ -37,6 +37,7 @@ type SeedRequest = {
   scenario: Scenario;
   prefs?: Record<string, Record<string, unknown>>;
   groupTitle?: string;
+  bobName?: string;
 };
 
 const TELEGRAM_USERS = {
@@ -87,10 +88,13 @@ async function main(): Promise<void> {
       { id: number; telegram: (typeof TELEGRAM_USERS)[keyof typeof TELEGRAM_USERS] }
     > = {};
     for (const [name, telegram] of Object.entries(TELEGRAM_USERS)) {
+      // Bob's display name is his @username when he has one; a long `bobName` (Review Focus 5's
+      // long-display-name check) needs that username cleared so the long first name shows instead.
+      const bobRenamed = name === 'bob' && request.bobName;
       const row = await insertUser(db, {
         telegramUserId: telegram.id,
-        firstName: telegram.first_name,
-        username: telegram.username,
+        firstName: bobRenamed ? request.bobName! : telegram.first_name,
+        username: bobRenamed ? null : telegram.username,
       });
       const patch = request.prefs?.[name];
       if (patch) await db.update(users).set({ prefs: patch }).where(eq(users.id, row.id));
