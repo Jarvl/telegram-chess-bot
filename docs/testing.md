@@ -8,17 +8,17 @@ exit criteria come from PRD §13.
 
 | Layer | Command | Size | Runs on |
 |---|---|---|---|
-| Unit — shared rules and protocol | `pnpm test` | 100 tests, 13 files | every pull request |
-| Unit — server | `pnpm test` | 51 tests, 16 files | every pull request |
-| Integration — server on real PostgreSQL and a fake Bot API | `pnpm test` | 170 tests, 14 files | every pull request |
-| Unit — Mini App on happy-dom | `pnpm test` | 82 tests, 16 files | every pull request |
-| End-to-end — Playwright on Chromium with touch emulation | `pnpm e2e` | 12 specs, 7 files | pushes to `main`, manual dispatch |
-| Image smoke — build, boot, probe, stop | `.github/workflows/e2e.yml` `docker` job | 1 scenario | pushes to `main`, manual dispatch |
+| Unit — shared rules and protocol | `pnpm test` | 200 tests, 13 files | every pull request |
+| Unit — server | `pnpm test` | 68 tests, 13 files | every pull request |
+| Integration — server on real PostgreSQL and a fake Bot API | `pnpm test` | 176 tests, 18 files | every pull request |
+| Unit — Mini App on happy-dom | `pnpm test` | 94 tests, 17 files | every pull request |
+| End-to-end — Playwright on Chromium with touch emulation | `pnpm e2e` | 13 specs, 7 files | every pull request, pushes to `main`, manual dispatch |
+| Image smoke — build, boot, probe, stop | `.github/workflows/e2e.yml` `docker` job | 1 scenario | every pull request, pushes to `main`, manual dispatch |
 | Bundle budget | `pnpm build && pnpm check:budget` | 2 budgets | every pull request |
 | Licence allow-list | `pnpm check:licences` | 191 packages | every pull request |
 | Dependency advisories | `pnpm audit --prod --audit-level=high` | — | every pull request |
 
-`pnpm test` is 517 tests in about 60 seconds. Integration tests need `TEST_DATABASE_URL`; without
+`pnpm test` is 538 tests in about 60 seconds. Integration tests need `TEST_DATABASE_URL`; without
 it only the unit projects run, which is a silent reduction in coverage, so CI always sets it.
 
 Local setup is one command. `scripts/local-postgres.sh start` creates both databases on port 54329

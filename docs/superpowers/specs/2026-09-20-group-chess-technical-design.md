@@ -694,13 +694,13 @@ Alpha exit criteria from PRD §13 map to: 50 completed games (metrics), no rule 
 ├── packages/
 │   └── shared/            # arbiter, pgn, glicko2, protocol (zod), i18n catalog
 ├── docs/                  # PRD.md, superpowers/specs, superpowers/plans
-├── .github/workflows/     # ci.yml (PR), e2e.yml (main), release.yml (tags)
+├── .github/workflows/     # ci.yml (PR), e2e.yml (PR and main), release.yml (tags)
 ├── Dockerfile             # multi-stage: build miniapp, bundle into the server image
 ├── LICENSE                # GPL-3.0-or-later (D2)
 └── pnpm-workspace.yaml
 ```
 
-Tooling: pnpm workspaces, TypeScript strict, ESLint and Prettier, vitest, Playwright, drizzle-kit migrations, zod, pino, `.nvmrc` pinning Node 22. CI on pull requests: lint, typecheck, unit, integration with a PostgreSQL service, bundle-size check. On `main`: end-to-end with the dev harness, Docker build. On tags: push the image and deploy staging; production is a manual promotion. Dependabot weekly and the licence allow-list from §12.
+Tooling: pnpm workspaces, TypeScript strict, ESLint and Prettier, vitest, Playwright, drizzle-kit migrations, zod, pino, `.nvmrc` pinning Node 22. CI on pull requests: lint, typecheck, unit, integration with a PostgreSQL service, bundle-size check, and the end-to-end suite with the dev harness plus the Docker build — the navigation specs guard behaviour no unit test reaches, so they gate a PR rather than only `main`. On tags: push the image and deploy staging; production is a manual promotion. Dependabot weekly and the licence allow-list from §12.
 
 ## 17. Spikes to run before the implementation plan
 
