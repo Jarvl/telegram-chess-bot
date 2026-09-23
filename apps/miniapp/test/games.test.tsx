@@ -4,32 +4,10 @@ import { setYourMoveCount, yourMoveCount } from '../src/state/yourMove';
 import { App } from '../src/ui/App';
 import { Games } from '../src/ui/screens/Games';
 import { renderApp } from './support/render';
-
-const ref = (id: string, name: string) => ({
-  id,
-  name,
-  username: null,
-  rating: 1500,
-  provisional: true,
-});
+import { gameSummary } from './support/summaryFixtures';
 
 const summary = (id: string, group: string, yourTurn: boolean) => ({
-  id,
-  white: ref('1', 'Alice'),
-  black: ref('2', 'Bob'),
-  status: 'active' as const,
-  timePerMove: 86400 as const,
-  rated: true,
-  plyCount: 3,
-  sideToMove: 'black' as const,
-  yourTurn,
-  deadlineAt: null,
-  lastMoveAt: null,
-  startedAt: '2026-09-20T10:00:00.000Z',
-  finishedAt: null,
-  result: null,
-  endReason: null,
-  voided: false,
+  ...gameSummary({ id, plyCount: 3, sideToMove: 'black', yourTurn }),
   group: { id: group, title: group === 'GrOuPiDxYz' ? 'Chess Club' : 'Pub Team' },
 });
 

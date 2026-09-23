@@ -3,32 +3,20 @@ import { describe, expect, it } from 'vitest';
 import { Lobby } from '../src/ui/screens/Lobby';
 import { gameDto } from './support/gameFixtures';
 import { renderApp } from './support/render';
+import { gameSummary, playerRef } from './support/summaryFixtures';
 
-const ref = (id: string, name: string) => ({
-  id,
-  name,
-  username: null,
-  rating: 1500,
-  provisional: true,
-});
-const summary = (id: string, yourTurn: boolean, status: 'active' | 'finished' = 'active') => ({
-  id,
-  white: ref('1', 'Alice'),
-  black: ref('2', 'Bob'),
-  status,
-  timePerMove: 86400 as const,
-  rated: true,
-  plyCount: 3,
-  sideToMove: 'black' as const,
-  yourTurn,
-  deadlineAt: null,
-  lastMoveAt: null,
-  startedAt: '2026-09-20T10:00:00.000Z',
-  finishedAt: status === 'finished' ? '2026-09-20T12:00:00.000Z' : null,
-  result: status === 'finished' ? ('1-0' as const) : null,
-  endReason: status === 'finished' ? ('resignation' as const) : null,
-  voided: false,
-});
+const ref = (id: string, name: string) => playerRef(id, name);
+const summary = (id: string, yourTurn: boolean, status: 'active' | 'finished' = 'active') =>
+  gameSummary({
+    id,
+    plyCount: 3,
+    sideToMove: 'black',
+    yourTurn,
+    status,
+    finishedAt: status === 'finished' ? '2026-09-20T12:00:00.000Z' : null,
+    result: status === 'finished' ? '1-0' : null,
+    endReason: status === 'finished' ? 'resignation' : null,
+  });
 
 const lobby: LobbyDto = {
   group: { id: 'GrOuPiDxYz', title: 'Chess Club' },

@@ -30,6 +30,8 @@ export const PlayerRefSchema = z.object({
    */
   rating: z.number().int(),
   provisional: z.boolean(),
+  /** The bot opponent: drawn as the Chess Goat mark, with its level instead of a rating. */
+  isBot: z.boolean(),
 });
 
 export type PlayerRef = z.infer<typeof PlayerRefSchema>;
@@ -119,6 +121,12 @@ export const GameSummarySchema = z.object({
   result: GameResultSchema.nullable(),
   endReason: EndReasonSchema.nullable(),
   voided: z.boolean(),
+  /** The current position, drawn as the row's thumbnail. */
+  fen: z.string().min(1),
+  /** The last move played, tinted on the thumbnail; null before the first move. */
+  lastMove: UciSchema.nullable(),
+  /** The bot level when this is a game against the bot, otherwise null (mirrors `GameDto`). */
+  engineLevel: EngineLevelSchema.nullable(),
 });
 
 export type GameSummary = z.infer<typeof GameSummarySchema>;

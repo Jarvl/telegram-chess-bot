@@ -4,12 +4,13 @@ import {
   type GameSummary,
   type TimePerMove,
 } from '@group-chess/shared';
-import { and, eq, type SQL } from 'drizzle-orm';
+import { and, eq, sql, type SQL } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import type { DbOrTx } from '../db/client';
 import {
   challenges,
   games,
+  moves,
   ratings,
   users,
   type ChallengeRow,
@@ -30,9 +31,11 @@ export type GameSummaryRow = {
   black: UserRow;
   whiteRating: RatingRow | null;
   blackRating: RatingRow | null;
+  /** UCI of the move at `ply_count`, or null before the first move. */
+  lastMove: string | null;
 };
 
-/** Games with both players and their current ratings in one query. */
+/** Games with both players, their current ratings and the last move in one query. */
 export async function gameSummaryRows(
   tx: DbOrTx,
   where: SQL | undefined,
@@ -40,7 +43,17 @@ export async function gameSummaryRows(
   limit: number,
 ): Promise<GameSummaryRow[]> {
   return tx
-    .select({ game: games, white: whiteUser, black: blackUser, whiteRating, blackRating })
+    .select({
+      game: games,
+      white: whiteUser,
+      black: blackUser,
+      whiteRating,
+      blackRating,
+      // A primary-key lookup on moves (game_id, ply) per row, for the list thumbnails.
+      lastMove: sql<
+        string | null
+      >`(select ${moves.uci} from ${moves} where ${moves.gameId} = ${games.id} and ${moves.ply} = ${games.plyCount})`,
+    })
     .from(games)
     .innerJoin(whiteUser, eq(whiteUser.id, games.whiteId))
     .innerJoin(blackUser, eq(blackUser.id, games.blackId))
@@ -78,6 +91,9 @@ export function toGameSummary(row: GameSummaryRow, viewerId: number | null): Gam
     result: game.result,
     endReason: game.endReason,
     voided: game.voidedAt !== null,
+    fen: game.fen,
+    lastMove: row.lastMove,
+    engineLevel: game.engineLevel ?? null,
   };
 }
 

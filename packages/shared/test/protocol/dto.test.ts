@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
   GROUP_SETTINGS_DEFAULTS,
   GameDtoSchema,
+  GameSummarySchema,
   GroupSettingsSchema,
   LaunchRouteSchema,
   LeaderboardEntrySchema,
+  PlayerRefSchema,
 } from '../../src/protocol/dto';
 
 const activeGame = {
@@ -17,6 +19,7 @@ const activeGame = {
     username: 'alice',
     rating: 1520,
     provisional: false,
+    isBot: false,
     ratingAfter: null,
     provisionalAfter: null,
   },
@@ -26,6 +29,7 @@ const activeGame = {
     username: null,
     rating: 1498,
     provisional: true,
+    isBot: false,
     ratingAfter: null,
     provisionalAfter: null,
   },
@@ -129,9 +133,68 @@ describe('LeaderboardEntrySchema', () => {
       username: null,
       rating: 1500,
       provisional: true,
+      isBot: false,
       gamesPlayed: 0,
       record: { wins: -1, draws: 0, losses: 0 },
     };
     expect(LeaderboardEntrySchema.safeParse(entry).success).toBe(false);
+  });
+});
+
+const summary = {
+  id: 'aZ09bY18cX',
+  white: {
+    id: '1',
+    name: 'Alice',
+    username: 'alice',
+    rating: 1520,
+    provisional: false,
+    isBot: false,
+  },
+  black: {
+    id: '2',
+    name: 'Stockfish',
+    username: null,
+    rating: 1500,
+    provisional: true,
+    isBot: true,
+  },
+  status: 'active',
+  timePerMove: null,
+  rated: false,
+  plyCount: 1,
+  sideToMove: 'black',
+  yourTurn: false,
+  deadlineAt: null,
+  lastMoveAt: '2026-09-20T10:00:00.000Z',
+  startedAt: '2026-09-20T09:00:00.000Z',
+  finishedAt: null,
+  result: null,
+  endReason: null,
+  voided: false,
+  fen: 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1',
+  lastMove: 'e2e4',
+  engineLevel: 'club',
+};
+
+describe('GameSummarySchema', () => {
+  it('carries the position, the last move and the bot level for the list thumbnails', () => {
+    expect(GameSummarySchema.parse(summary)).toEqual(summary);
+  });
+
+  it('allows a game with no moves yet', () => {
+    expect(GameSummarySchema.safeParse({ ...summary, lastMove: null }).success).toBe(true);
+  });
+
+  it('rejects a malformed last move', () => {
+    expect(GameSummarySchema.safeParse({ ...summary, lastMove: 'e2e9' }).success).toBe(false);
+  });
+});
+
+describe('PlayerRefSchema', () => {
+  it('requires the bot flag', () => {
+    const withoutFlag: Record<string, unknown> = { ...summary.white };
+    delete withoutFlag.isBot;
+    expect(PlayerRefSchema.safeParse(withoutFlag).success).toBe(false);
   });
 });

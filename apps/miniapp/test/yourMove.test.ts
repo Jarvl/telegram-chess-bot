@@ -1,4 +1,4 @@
-import type { MeGamesDto } from '@group-chess/shared';
+import { INITIAL_FEN, type MeGamesDto } from '@group-chess/shared';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
   countYourMove,
@@ -10,8 +10,8 @@ import { AFTER_E4, gameDto } from './support/gameFixtures';
 
 const summary = (id: string, yourTurn: boolean, status: 'active' | 'finished' = 'active') => ({
   id,
-  white: { id: '1', name: 'Alice', username: null, rating: 1500, provisional: true },
-  black: { id: '2', name: 'Bob', username: null, rating: 1500, provisional: true },
+  white: { id: '1', name: 'Alice', username: null, rating: 1500, provisional: true, isBot: false },
+  black: { id: '2', name: 'Bob', username: null, rating: 1500, provisional: true, isBot: false },
   status,
   timePerMove: 86400 as const,
   rated: true,
@@ -25,6 +25,9 @@ const summary = (id: string, yourTurn: boolean, status: 'active' | 'finished' = 
   result: null,
   endReason: null,
   voided: false,
+  fen: INITIAL_FEN,
+  lastMove: null,
+  engineLevel: null,
   group: { id: 'GrOuPiDxYz', title: 'Chess Club' },
 });
 

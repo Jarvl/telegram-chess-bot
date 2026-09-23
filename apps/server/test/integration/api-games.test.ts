@@ -131,6 +131,43 @@ describe('challenges and lobby', () => {
     expect(page.headToHead).toEqual({ wins: 25, draws: 0, losses: 0 });
     expect(page.recentGames).toHaveLength(10);
   });
+
+  it('sends the thumbnail fields on the lobby and the player page too', async () => {
+    const { group, alice, bob, tokens } = await world();
+    const running = await insertGame(db, group.id, alice.id, bob.id, {
+      fen: AFTER_E4,
+      plyCount: 1,
+    });
+    await insertMove(db, running.id, 1, 'e2e4', 'e4', AFTER_E4);
+    const done = await insertGame(db, group.id, bob.id, alice.id, {
+      status: 'finished',
+      result: '1-0',
+      endReason: 'resignation',
+      finishedAt: new Date(),
+    });
+    const lobby = LobbyDtoSchema.parse(
+      await (
+        await api.request('GET', `/api/groups/${group.publicId}`, { token: tokens.alice })
+      ).json(),
+    );
+    expect(lobby.active[0]).toMatchObject({
+      id: running.publicId,
+      fen: AFTER_E4,
+      lastMove: 'e2e4',
+      engineLevel: null,
+      white: { isBot: false },
+    });
+    expect(lobby.finished.items[0]).toMatchObject({ id: done.publicId, lastMove: null });
+    const page = PlayerPageDtoSchema.parse(
+      await (
+        await api.request('GET', `/api/groups/${group.publicId}/players/${bob.id}`, {
+          token: tokens.alice,
+        })
+      ).json(),
+    );
+    expect(page.player.isBot).toBe(false);
+    expect(page.recentGames.map((game) => game.lastMove)).toContain('e2e4');
+  });
 });
 
 describe('games', () => {

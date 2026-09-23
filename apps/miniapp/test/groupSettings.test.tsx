@@ -13,7 +13,9 @@ const dto: GroupSettingsDto = {
     cardTopicMode: 'origin',
     fixedTopicId: null,
   },
-  blocked: [{ id: '3', name: 'Carol', username: null, rating: 1500, provisional: true }],
+  blocked: [
+    { id: '3', name: 'Carol', username: null, rating: 1500, provisional: true, isBot: false },
+  ],
   botIsAdmin: true,
   isForum: true,
 };
@@ -31,6 +33,7 @@ const lobby: LobbyDto = {
       username: null,
       rating: 1500,
       provisional: true,
+      isBot: false,
       gamesPlayed: 1,
       record: { wins: 1, draws: 0, losses: 0 },
     },

@@ -79,6 +79,7 @@ describe('result labels', () => {
         ...gameDto().black,
         rating: 1500,
         provisional: true,
+        isBot: false,
         ratingAfter: 1662,
         provisionalAfter: true,
       },

@@ -4,7 +4,7 @@ import { displayName } from './users';
 
 /** The player shape the API sends everywhere; ratings default to 1500 provisional (spec §7.9). */
 export function toPlayerRef(
-  user: Pick<UserRow, 'id' | 'firstName' | 'username' | 'deletedAt'>,
+  user: Pick<UserRow, 'id' | 'firstName' | 'username' | 'deletedAt' | 'isEngine'>,
   rating: Pick<RatingRow, 'rating' | 'rd'> | null,
 ): PlayerRef {
   return {
@@ -13,5 +13,6 @@ export function toPlayerRef(
     username: user.deletedAt ? null : user.username,
     rating: Math.round(rating?.rating ?? GLICKO2.initialRating),
     provisional: isProvisional(rating?.rd ?? GLICKO2.initialRd),
+    isBot: user.isEngine,
   };
 }

@@ -5,14 +5,18 @@ import { gameDto } from './support/gameFixtures';
 import { renderApp } from './support/render';
 
 const players = {
-  players: [{ id: '2', name: 'Bob', username: 'bob', rating: 1520, provisional: false }],
+  players: [
+    { id: '2', name: 'Bob', username: 'bob', rating: 1520, provisional: false, isBot: false },
+  ],
   bot: null,
 };
 
 const withBot = { players: [], bot: { levels: [...ENGINE_LEVELS] } };
 
 const withBotAndPlayers = {
-  players: [{ id: '2', name: 'Bob', username: 'bob', rating: 1520, provisional: false }],
+  players: [
+    { id: '2', name: 'Bob', username: 'bob', rating: 1520, provisional: false, isBot: false },
+  ],
   bot: { levels: [...ENGINE_LEVELS] },
 };
 
@@ -26,7 +30,14 @@ function pressedOpponentRows(root: HTMLElement): Element[] {
 }
 const challenge = {
   id: 'ChalAaaaaa',
-  challenger: { id: '1', name: 'Alice', username: 'alice', rating: 1500, provisional: true },
+  challenger: {
+    id: '1',
+    name: 'Alice',
+    username: 'alice',
+    rating: 1500,
+    provisional: true,
+    isBot: false,
+  },
   opponent: null,
   timePerMove: 28800,
   challengerColour: 'white',
