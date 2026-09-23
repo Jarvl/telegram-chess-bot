@@ -52,6 +52,7 @@ describe('GroupSettings', () => {
   it('saves only the changed fields and refuses a fixed topic without an id', async () => {
     const r = renderApp(() => <GroupSettings groupId="GrOuPiDxYz" />, route);
     await r.flush();
+    expect(r.root.querySelector('.card [data-setting="defaultTimePerMove"] .tile')).not.toBeNull();
     await r.click('[data-setting="ratedDefault"]');
     await r.click('[data-topic="fixed"]');
     await r.click('[data-setting="defaultTimePerMove"] [data-time="3600"]');

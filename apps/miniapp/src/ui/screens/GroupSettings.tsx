@@ -119,7 +119,7 @@ export function GroupSettings(props: { groupId: string }) {
         <h1 class="title">{t('app.gsettings.title')}</h1>
         <p class="subtitle">{settings.data.group.title}</p>
       </div>
-      <div class="list">
+      <div class="card">
         <div class="field column" data-setting="defaultTimePerMove">
           <span>{t('app.gsettings.default_time')}</span>
           <Tiles
