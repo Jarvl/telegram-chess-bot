@@ -705,3 +705,61 @@ coords.squares:nth-of-type(even) :nth-child(even) {
   color: var(--bl);
   font-weight: 700;
 }
+
+.avatar {
+  --size: 40px;
+  width: var(--size);
+  height: var(--size);
+  border-radius: 50%;
+  color: #fff;
+  font-weight: 700;
+  font-size: calc(var(--size) * 0.42);
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.avatar.bot {
+  object-fit: cover;
+  object-position: 50% 30%;
+}
+
+.avatar.group {
+  border-radius: 30%;
+  font-size: calc(var(--size) * 0.36);
+}
+
+.mini-board {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  grid-template-rows: repeat(8, 1fr);
+  width: 80px;
+  height: 80px;
+  flex: none;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.mini-board .sq {
+  position: relative;
+  background: var(--bd);
+}
+
+.mini-board .sq.l {
+  background: var(--bl);
+}
+
+.mini-board .sq.lm {
+  background-image: linear-gradient(var(--lm), var(--lm));
+}
+
+.mini-board piece {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: none;
+  background-size: cover;
+}
