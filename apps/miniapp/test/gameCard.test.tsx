@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { GameCard } from '../src/ui/GameCard';
 import { AFTER_E4 } from './support/gameFixtures';
 import { renderApp } from './support/render';
@@ -61,5 +61,45 @@ describe('GameCard', () => {
     await r.flush();
     expect(r.root.querySelector('.rating')!.textContent).toBe('Club');
     expect(r.root.querySelector('img.avatar.bot')).not.toBeNull();
+  });
+
+  it('ticks every live row from one interval and stops it when they go', async () => {
+    // Only setInterval/clearInterval/Date are faked: setTimeout stays real so renderApp's
+    // flush() (which polls via real setTimeout) still drains Preact's deferred effects.
+    vi.useFakeTimers({
+      toFake: ['setInterval', 'clearInterval', 'Date'],
+      now: new Date('2026-09-20T12:00:00.000Z'),
+    });
+    try {
+      const deadlineAt = new Date(Date.now() + 5 * 3_600_000).toISOString();
+      const gameA = gameSummary({ id: 'GameAaaaaa', deadlineAt });
+      const gameB = gameSummary({ id: 'GameBbbbbb', deadlineAt });
+      const r = renderApp(
+        () => (
+          <>
+            <GameCard game={gameA} onOpen={() => {}} />
+            <GameCard game={gameB} onOpen={() => {}} />
+          </>
+        ),
+        () => ({ status: 200, body: {} }),
+      );
+      await r.flush();
+      expect(vi.getTimerCount()).toBe(1);
+
+      const before = Array.from(r.root.querySelectorAll('.pill')).map((el) => el.textContent);
+      vi.advanceTimersByTime(1_000);
+      await r.flush();
+      const after = Array.from(r.root.querySelectorAll('.pill')).map((el) => el.textContent);
+      expect(after).not.toEqual(before);
+
+      renderApp(
+        () => null,
+        () => ({ status: 200, body: {} }),
+      );
+      await r.flush();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
