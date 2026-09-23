@@ -712,7 +712,7 @@ button {
   position: sticky;
   bottom: 0;
   padding: 8px 12px 12px;
-  background: var(--bg);
+  background: var(--page);
   display: flex;
   gap: 8px;
 }
@@ -1261,8 +1261,4 @@ coords.squares:nth-of-type(even) :nth-child(even) {
 
 .inert {
   opacity: 0.5;
-}
-
-.inline-main {
-  background: var(--page);
 }
