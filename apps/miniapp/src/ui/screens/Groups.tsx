@@ -1,6 +1,7 @@
 import { MeGroupsDtoSchema, t } from '@group-chess/shared';
 import { useApp } from '../context';
 import { useResource } from '../hooks';
+import { GroupAvatar } from '../Avatar';
 import { ErrorScreen, Loading } from './Status';
 
 export function Groups() {
@@ -13,25 +14,32 @@ export function Groups() {
   return (
     <div class="screen">
       <h1 class="title">{t('app.groups.title')}</h1>
-      {groups.data.groups.length === 0 ? <p class="hint">{t('app.groups.empty')}</p> : null}
-      <div class="list">
-        {groups.data.groups.map((group) => (
-          <button
-            key={group.id}
-            class="row"
-            data-group={group.id}
-            onClick={() => router.push({ name: 'lobby', groupId: group.id })}
-          >
-            <span class="grow">
-              <span class="primary">{group.title}</span>
-              <span class="secondary">
-                {t('app.groups.summary', { active: group.activeGames, yourMove: group.yourMove })}
+      {groups.data.groups.length === 0 ? (
+        <div class="card empty">{t('app.groups.empty')}</div>
+      ) : (
+        <div class="stack">
+          {groups.data.groups.map((group) => (
+            <button
+              key={group.id}
+              class="group-row"
+              data-group={group.id}
+              onClick={() => router.push({ name: 'lobby', groupId: group.id })}
+            >
+              <GroupAvatar group={group} size={48} />
+              <span class="grow">
+                <span class="primary">{group.title}</span>
+                <span class="secondary">
+                  {t('app.groups.summary', { active: group.activeGames, yourMove: group.yourMove })}
+                </span>
               </span>
-            </span>
-            {group.yourMove > 0 ? <span class="badge">{group.yourMove}</span> : null}
-          </button>
-        ))}
-      </div>
+              {group.yourMove > 0 ? <span class="count-badge">{group.yourMove}</span> : null}
+              <span class="chevron" aria-hidden="true">
+                ›
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

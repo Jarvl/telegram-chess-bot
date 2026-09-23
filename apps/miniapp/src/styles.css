@@ -867,3 +867,58 @@ coords.squares:nth-of-type(even) :nth-child(even) {
 .game-card.dim .name {
   color: var(--hint);
 }
+
+.home-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.goat-mark {
+  width: 42px;
+  height: 42px;
+  flex: none;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: 50% 30%;
+  box-shadow: 0 0 0 2px var(--acc);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.group-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 18px;
+  background: var(--card);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.group-row .primary {
+  font-size: 17px;
+}
+
+.count-badge {
+  min-width: 24px;
+  height: 24px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--move);
+  color: var(--move-ink);
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}

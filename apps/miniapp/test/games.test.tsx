@@ -64,6 +64,21 @@ describe('Games', () => {
     expect(r.app.router.tab.value).toBe('groups');
     expect(r.app.router.current.value).toEqual({ name: 'groups' });
   });
+
+  it('heads the list with the goat and a count of what is waiting', async () => {
+    const r = renderApp(
+      (app) => {
+        app.prefetched.games = games;
+        return <Games />;
+      },
+      () => ({ status: 200, body: games }),
+    );
+    await r.flush();
+    expect(r.root.querySelector('img.goat-mark')?.getAttribute('src')).toMatch(/goat-mark/);
+    expect(r.root.querySelector('.section')?.textContent).toBe('2 games · 1 your move');
+    expect(r.root.querySelector('[data-game="GameAaaaaa"]')?.className).toContain('dim');
+    expect(r.root.querySelector('[data-game="GameBbbbbb"]')?.className).not.toContain('dim');
+  });
 });
 
 describe('TabBar', () => {
