@@ -40,7 +40,6 @@ describe('users', () => {
     expect(second.firstName).toBe('Alicia');
     expect(second.username).toBeNull();
     expect(prefsOf(second)).toEqual({
-      confirmMoves: true,
       closeAfterMove: true,
       notifications: true,
       boardTheme: null,
@@ -50,9 +49,15 @@ describe('users', () => {
 
   it('merges preference updates over the defaults', async () => {
     const user = await ensureUser(db, { telegramUserId: 42, firstName: 'Alice' });
-    await updatePrefs(db, user.id, { confirmMoves: false });
+    await updatePrefs(db, user.id, { closeAfterMove: false });
     const prefs = await updatePrefs(db, user.id, { boardTheme: 'wood' });
-    expect(prefs).toMatchObject({ confirmMoves: false, closeAfterMove: true, boardTheme: 'wood' });
+    expect(prefs).toMatchObject({ closeAfterMove: false, notifications: true, boardTheme: 'wood' });
+  });
+
+  it('leaves retired preference keys out of the stored preferences', () => {
+    const prefs = prefsOf({ prefs: { confirmMoves: false, notifications: false } as never });
+    expect(prefs).not.toHaveProperty('confirmMoves');
+    expect(prefs.notifications).toBe(false);
   });
 
   it('validates preference updates and drops unknown keys', async () => {
@@ -60,7 +65,9 @@ describe('users', () => {
     const prefs = await updatePrefs(db, user.id, { pieceSet: 'merida', nope: 1 } as never);
     expect(prefs).not.toHaveProperty('nope');
     expect(prefs.pieceSet).toBe('merida');
-    await expect(updatePrefs(db, user.id, { confirmMoves: 'yes' } as never)).rejects.toMatchObject({
+    await expect(
+      updatePrefs(db, user.id, { closeAfterMove: 'yes' } as never),
+    ).rejects.toMatchObject({
       code: 'validation',
     });
   });

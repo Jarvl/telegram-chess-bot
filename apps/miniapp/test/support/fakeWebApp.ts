@@ -30,7 +30,6 @@ export type FakeWebAppRecord = {
   links: string[];
   downloads: { url: string; file_name: string }[];
   closed: boolean;
-  closingConfirmation: boolean;
   clickMain(): void;
   clickSecondary(): void;
   clickBack(): void;
@@ -66,7 +65,6 @@ export function installFakeWebApp(options: FakeWebAppOptions): void {
     links: [],
     downloads: [],
     closed: false,
-    closingConfirmation: false,
     clickMain: () => {
       for (const cb of [...handlers.main]) cb();
     },
@@ -205,16 +203,6 @@ export function installFakeWebApp(options: FakeWebAppOptions): void {
       impactOccurred: (style: string) => record.haptics.push(`impact:${style}`),
       notificationOccurred: (type: string) => record.haptics.push(`notification:${type}`),
       selectionChanged: () => record.haptics.push('selection'),
-    };
-  }
-  if (atLeast(options.version, '6.2')) {
-    webApp.enableClosingConfirmation = () => {
-      record.closingConfirmation = true;
-      record.calls.push('enableClosingConfirmation');
-    };
-    webApp.disableClosingConfirmation = () => {
-      record.closingConfirmation = false;
-      record.calls.push('disableClosingConfirmation');
     };
   }
   if (atLeast(options.version, '6.9') && options.writeAccess !== undefined) {

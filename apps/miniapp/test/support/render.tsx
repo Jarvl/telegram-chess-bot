@@ -38,7 +38,6 @@ export function renderApp(
     launchedFrom: null,
   };
   prefs.value = {
-    confirmMoves: true,
     closeAfterMove: true,
     notifications: true,
     boardTheme: null,

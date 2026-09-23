@@ -12,16 +12,25 @@ describe('Settings', () => {
         body: { prefs: { ...prefs.value, ...(body as { prefs: object }).prefs }, dmAllowed: false },
       }),
     );
-    await r.click('[data-pref="confirmMoves"]');
+    await r.click('[data-pref="closeAfterMove"]');
     expect(r.calls[0]).toMatchObject({
       method: 'PUT',
       path: '/api/me/prefs',
-      body: { prefs: { confirmMoves: false } },
+      body: { prefs: { closeAfterMove: false } },
     });
-    expect(prefs.value.confirmMoves).toBe(false);
-    expect(r.root.querySelector('[data-pref="confirmMoves"]')?.getAttribute('aria-checked')).toBe(
+    expect(prefs.value.closeAfterMove).toBe(false);
+    expect(r.root.querySelector('[data-pref="closeAfterMove"]')?.getAttribute('aria-checked')).toBe(
       'false',
     );
+  });
+
+  it('has no move confirmation toggle', () => {
+    const r = renderApp(
+      () => <Settings />,
+      () => ({ status: 200, body: { ok: true } }),
+    );
+    expect(r.root.querySelector('[data-pref]')).not.toBeNull();
+    expect(r.root.querySelector('[data-pref="confirmMoves"]')).toBeNull();
   });
 
   it('deletes my data after confirmation and closes the app', async () => {

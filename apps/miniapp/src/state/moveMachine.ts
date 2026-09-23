@@ -2,14 +2,11 @@ export type PendingMove = { uci: string; expectedPly: number; clientMoveId: stri
 
 export type MoveState =
   | { kind: 'idle' }
-  | { kind: 'pendingConfirm'; move: PendingMove }
   | { kind: 'sending'; move: PendingMove; attempt: number }
   | { kind: 'retry'; move: PendingMove; attempt: number; nextAt: number };
 
 export type MoveEvent =
   | { type: 'drop'; uci: string; expectedPly: number; clientMoveId?: string }
-  | { type: 'confirm' }
-  | { type: 'cancel' }
   | { type: 'sent' }
   /** 409 or 422: reload the state and snap back without a message (spec §6.3). */
   | { type: 'rejected' }
@@ -21,7 +18,6 @@ export type MoveEffect =
   | { type: 'send'; move: PendingMove }
   | { type: 'restore' }
   | { type: 'reload' }
-  | { type: 'closingConfirmation'; on: boolean }
   | { type: 'telemetryRetry' };
 
 const RETRY_MAX_MS = 30_000;
@@ -45,7 +41,6 @@ export function newClientMoveId(random: () => number = Math.random): string {
 export function reduceMove(
   state: MoveState,
   event: MoveEvent,
-  options: { confirmMoves: boolean },
 ): { state: MoveState; effects: MoveEffect[] } {
   const same = { state, effects: [] as MoveEffect[] };
   switch (state.kind) {
@@ -56,31 +51,7 @@ export function reduceMove(
         expectedPly: event.expectedPly,
         clientMoveId: event.clientMoveId ?? newClientMoveId(),
       };
-      if (options.confirmMoves) {
-        return {
-          state: { kind: 'pendingConfirm', move },
-          effects: [{ type: 'closingConfirmation', on: true }],
-        };
-      }
       return { state: { kind: 'sending', move, attempt: 1 }, effects: [{ type: 'send', move }] };
-    }
-    case 'pendingConfirm': {
-      if (event.type === 'confirm') {
-        return {
-          state: { kind: 'sending', move: state.move, attempt: 1 },
-          effects: [
-            { type: 'closingConfirmation', on: false },
-            { type: 'send', move: state.move },
-          ],
-        };
-      }
-      if (event.type === 'cancel') {
-        return {
-          state: { kind: 'idle' },
-          effects: [{ type: 'restore' }, { type: 'closingConfirmation', on: false }],
-        };
-      }
-      return same;
     }
     case 'sending': {
       if (event.type === 'sent') return { state: { kind: 'idle' }, effects: [] };
