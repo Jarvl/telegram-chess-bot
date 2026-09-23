@@ -7,9 +7,10 @@ export function Switch(
     checked: boolean;
     onChange: (checked: boolean) => void;
     label?: string;
+    disabled?: boolean;
   } & DataAttributes,
 ) {
-  const { checked, onChange, label, ...rest } = props;
+  const { checked, onChange, label, disabled, ...rest } = props;
   return (
     <button
       type="button"
@@ -17,6 +18,7 @@ export function Switch(
       aria-checked={checked ? 'true' : 'false'}
       aria-label={label}
       class="switch"
+      disabled={disabled}
       onClick={() => onChange(!checked)}
       {...rest}
     />

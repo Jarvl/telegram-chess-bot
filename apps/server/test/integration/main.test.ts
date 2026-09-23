@@ -20,7 +20,9 @@ beforeAll(async () => {
   await writeFile(join(dir, 'index.html'), '<!doctype html><title>Group Chess</title>');
   await writeFile(join(dir, 'assets', 'app-1a2b3c.js'), 'console.log(1)');
   server = await startServer(
-    testConfig({ TELEGRAM_API_ROOT: fake.url, PORT: 0, MINI_APP_DIR: dir }),
+    // ENGINE_ENABLED: false — otherwise startServer's boot probe would spawn a real `stockfish`
+    // process (global constraint: no test may spawn a binary).
+    testConfig({ TELEGRAM_API_ROOT: fake.url, PORT: 0, MINI_APP_DIR: dir, ENGINE_ENABLED: false }),
   );
   base = `http://127.0.0.1:${server.port}`;
 });
@@ -54,7 +56,9 @@ describe('startServer', () => {
   it('still starts when Telegram refuses the webhook or the command registration', async () => {
     fake.failNext('setWebhook', { error_code: 429, description: 'Too Many Requests' });
     fake.failNext('setMyCommands', { error_code: 500, description: 'Internal Server Error' });
-    const second = await startServer(testConfig({ TELEGRAM_API_ROOT: fake.url, PORT: 0 }));
+    const second = await startServer(
+      testConfig({ TELEGRAM_API_ROOT: fake.url, PORT: 0, ENGINE_ENABLED: false }),
+    );
     try {
       expect(await (await fetch(`http://127.0.0.1:${second.port}/healthz`)).text()).toBe('ok');
     } finally {

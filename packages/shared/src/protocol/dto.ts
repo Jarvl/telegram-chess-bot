@@ -4,6 +4,7 @@ import {
   ColourChoiceSchema,
   ColourSchema,
   EndReasonSchema,
+  EngineLevelSchema,
   GameResultSchema,
   GameStatusSchema,
   TimePerMoveSchema,
@@ -92,6 +93,8 @@ export const GameDtoSchema = z.object({
   voided: z.boolean(),
   startedAt: IsoDateSchema,
   finishedAt: IsoDateSchema.nullable(),
+  /** The bot level when this is a game against the bot, otherwise null. */
+  engineLevel: EngineLevelSchema.nullable(),
   /** Only present once the game is finished (spec §7.6). */
   lichessUrl: z.url().optional(),
   analysisUrl: z.url().optional(),
@@ -158,7 +161,6 @@ export const GroupSettingsSchema = z.object({
   defaultTimePerMove: TimePerMoveSchema,
   ratedDefault: z.boolean(),
   allowOpenChallenges: z.boolean(),
-  maxActiveGamesPerUser: z.number().int().min(1).max(20),
   leaderboardMinGames: z.number().int().min(0).max(100),
   cardTopicMode: z.enum(['origin', 'fixed']),
   fixedTopicId: z.number().int().positive().nullable(),
@@ -170,7 +172,6 @@ export const GROUP_SETTINGS_DEFAULTS: GroupSettings = {
   defaultTimePerMove: 86400,
   ratedDefault: true,
   allowOpenChallenges: true,
-  maxActiveGamesPerUser: 5,
   leaderboardMinGames: 5,
   cardTopicMode: 'origin',
   fixedTopicId: null,
@@ -202,6 +203,12 @@ export type LobbyDto = z.infer<typeof LobbyDtoSchema>;
 
 export const PlayersPickerDtoSchema = z.object({
   players: z.array(PlayerRefSchema),
+  /**
+   * Deliberately not a `PlayerRef`: no screen can render the bot as if it were a human, and it
+   * never carries a rating. Null when the engine is unavailable or switched off — a present `bot`
+   * always has at least one level, so the picker never has to invent one.
+   */
+  bot: z.object({ levels: z.array(EngineLevelSchema).min(1) }).nullable(),
 });
 
 export type PlayersPickerDto = z.infer<typeof PlayersPickerDtoSchema>;

@@ -80,7 +80,7 @@ describe('GroupSettingsUpdateRequestSchema', () => {
   });
 
   it('still enforces the range of each field', () => {
-    expect(GroupSettingsUpdateRequestSchema.safeParse({ maxActiveGamesPerUser: 0 }).success).toBe(
+    expect(GroupSettingsUpdateRequestSchema.safeParse({ leaderboardMinGames: -1 }).success).toBe(
       false,
     );
   });

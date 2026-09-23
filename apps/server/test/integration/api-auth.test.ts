@@ -96,7 +96,8 @@ describe('POST /api/launch', () => {
 
   it('marks DMs allowed when init data says the user allows messages', async () => {
     await launch({ user: { ...alice, allows_write_to_pm: true } });
-    expect((await db.select().from(users))[0]?.dmAllowed).toBe(true);
+    const [user] = await db.select().from(users).where(eq(users.telegramUserId, alice.id));
+    expect(user?.dmAllowed).toBe(true);
   });
 
   it('rejects tampered or stale init data with 401 and the error body', async () => {

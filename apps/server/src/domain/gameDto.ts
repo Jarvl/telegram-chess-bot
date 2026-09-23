@@ -124,6 +124,7 @@ export function buildGameDto(input: GameDtoInput): GameDto {
     voided: game.voidedAt !== null,
     startedAt: game.startedAt.toISOString(),
     finishedAt: game.finishedAt ? game.finishedAt.toISOString() : null,
+    engineLevel: game.engineLevel,
   };
   if (game.status === 'finished') {
     if (game.lichessUrl) dto.lichessUrl = game.lichessUrl;

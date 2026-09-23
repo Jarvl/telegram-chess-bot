@@ -36,9 +36,13 @@ export type TestApi = {
   stop(): Promise<void>;
 };
 
-export async function startTestApi(db: Db, extra: RegisterRoutes[] = gameRoutes): Promise<TestApi> {
+export async function startTestApi(
+  db: Db,
+  extra: RegisterRoutes[] = gameRoutes,
+  configOverrides: Partial<Config> = {},
+): Promise<TestApi> {
   const fake = await FakeTelegram.start();
-  const config = testConfig({ TELEGRAM_API_ROOT: fake.url });
+  const config = testConfig({ TELEGRAM_API_ROOT: fake.url, ...configOverrides });
   const deps = testDeps(db);
   const membership = new Membership(deps, createTelegramApi(config, { apiRoot: fake.url }));
   const ctx: ApiContext = {

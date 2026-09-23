@@ -363,11 +363,11 @@ describe('admin routes', () => {
     ).toBe(200);
     const updated = await api.request('PUT', `/api/groups/${group.publicId}/settings`, {
       token: tokens.carol,
-      body: { maxActiveGamesPerUser: 3 },
+      body: { leaderboardMinGames: 3 },
     });
     expect(
-      ((await updated.json()) as { settings: { maxActiveGamesPerUser: number } }).settings
-        .maxActiveGamesPerUser,
+      ((await updated.json()) as { settings: { leaderboardMinGames: number } }).settings
+        .leaderboardMinGames,
     ).toBe(3);
     expect(
       (

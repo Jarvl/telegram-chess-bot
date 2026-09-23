@@ -53,6 +53,7 @@ const activeGame = {
   voided: false,
   startedAt: '2026-09-20T09:00:00.000Z',
   finishedAt: null,
+  engineLevel: null,
 };
 
 describe('GameDtoSchema', () => {
@@ -106,16 +107,15 @@ describe('GroupSettingsSchema', () => {
       defaultTimePerMove: 86400,
       ratedDefault: true,
       allowOpenChallenges: true,
-      maxActiveGamesPerUser: 5,
       leaderboardMinGames: 5,
       cardTopicMode: 'origin',
       fixedTopicId: null,
     });
   });
 
-  it.each([0, 21])('rejects %d active games per user', (value) => {
+  it.each([-1, 101])('rejects %d as a leaderboard minimum', (value) => {
     expect(
-      GroupSettingsSchema.safeParse({ ...GROUP_SETTINGS_DEFAULTS, maxActiveGamesPerUser: value })
+      GroupSettingsSchema.safeParse({ ...GROUP_SETTINGS_DEFAULTS, leaderboardMinGames: value })
         .success,
     ).toBe(false);
   });

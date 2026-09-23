@@ -46,6 +46,26 @@ export class Metrics {
     'miniapp_move_failures_total',
     'Mini App moves that ended in Retry',
   );
+  readonly engineMoves = this.counter('engine_moves_total', 'Engine moves played');
+  readonly engineMoveFailures = this.counter(
+    'engine_move_failures_total',
+    'Engine move attempts that failed',
+  );
+  readonly engineIllegalMoves = this.counter(
+    'engine_illegal_moves_total',
+    'Illegal moves returned by the engine; alert on any increment',
+  );
+  readonly engineMoveDuration = new Histogram({
+    name: 'engine_move_duration_seconds',
+    help: 'Time to obtain an engine move',
+    buckets: [0.05, 0.1, 0.25, 0.5, 1, 2.5, 5],
+    registers: [this.registry],
+  });
+  readonly engineAvailable = new Gauge({
+    name: 'engine_available',
+    help: '1 when the engine binary answered at boot',
+    registers: [this.registry],
+  });
 
   constructor(options: { db?: Db } = {}) {
     collectDefaultMetrics({ register: this.registry });

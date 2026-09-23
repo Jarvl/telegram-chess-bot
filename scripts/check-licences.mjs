@@ -4,6 +4,12 @@
 // Limits: the listing covers the packages installed on this platform (other platforms' optional
 // binaries in the lockfile are not inspected), and `permitted` reads flat SPDX expressions only —
 // anything more elaborate fails closed and needs a human look.
+//
+// This gate reads npm metadata only. The Docker image also installs Stockfish via `apt-get`
+// (Dockerfile, runtime stage) — a non-npm, GPL-3.0 dependency this script cannot see and does not
+// gate. That is compatible with this repository's own GPL-3.0-or-later licence, and is recorded
+// here rather than left implicit: Stockfish, packaged version 15.1-4 (Debian bookworm), GPL-3.0.
+// The licence text ships in the image at /usr/share/doc/stockfish/copyright.
 import { execFileSync } from 'node:child_process';
 
 const DEFAULT_ALLOWED = [
@@ -44,11 +50,14 @@ for (const [licence, packages] of Object.entries(byLicence)) {
   for (const pkg of packages) offenders.push(`${pkg.name}@${pkg.versions.join(',')} (${licence})`);
 }
 console.log(
-  `${total} packages, ${Object.keys(byLicence).length} licence expressions, allow-list: ${[...allowed].join(', ')}`,
+  `${total} npm packages, ${Object.keys(byLicence).length} licence expressions, allow-list: ${[...allowed].join(', ')}`,
 );
 if (offenders.length > 0) {
   console.error('Licences outside the allow-list:');
   for (const line of offenders) console.error(`  ${line}`);
   process.exit(1);
 }
-console.log('All dependency licences are allowed.');
+console.log(
+  'All npm dependency licences are allowed. This covers npm dependencies only — see the top of ' +
+    'this file for the one non-npm exception shipped in the image (Stockfish, GPL-3.0).',
+);

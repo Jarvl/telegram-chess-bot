@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { GroupSettingsSchema, PrefsSchema, UciSchema } from './dto';
-import { ColourChoiceSchema, TimePerMoveSchema } from './enums';
+import { ColourChoiceSchema, EngineLevelSchema, TimePerMoveSchema } from './enums';
 import { UserIdSchema } from './ids';
 
 export const LaunchRequestSchema = z.object({
@@ -27,6 +27,19 @@ export const ChallengeRequestSchema = z.object({
 });
 
 export type ChallengeRequest = z.infer<typeof ChallengeRequestSchema>;
+
+/**
+ * Starts a game against the bot. Two fields the challenge request has are deliberately absent:
+ * `rated`, because the domain layer forces it false (spec §6.1), and `timePerMove`, because a bot
+ * game has no clock at all — the bot answers immediately, so a per-move deadline protects nobody and
+ * could only lose a casual game to inattention (spec §8).
+ */
+export const EngineGameRequestSchema = z.object({
+  level: EngineLevelSchema,
+  colour: ColourChoiceSchema,
+});
+
+export type EngineGameRequest = z.infer<typeof EngineGameRequestSchema>;
 
 export const ShareRequestSchema = z.object({
   ply: z.number().int().min(0),

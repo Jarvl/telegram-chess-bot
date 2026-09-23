@@ -95,24 +95,14 @@ describe('createChallenge', () => {
     });
   });
 
-  it('enforces two concurrent games per pair', async () => {
-    const { group, alice, bob } = await setup();
-    await insertGame(db, group.id, alice.id, bob.id);
-    await insertGame(db, group.id, bob.id, alice.id);
-    await expect(direct(group.id, alice.id, bob.id)).rejects.toMatchObject({
-      code: 'limit_exceeded',
-      details: { reason: 'pair_limit', name: 'Bob', count: 2 },
-    });
-  });
-
-  it('enforces the group’s active games limit for either player', async () => {
+  it('caps nobody: a challenge is fine however many games either player already has', async () => {
     const { group, alice, bob, carol } = await setup();
-    await updateGroupSettings(db, group.id, { maxActiveGamesPerUser: 1 });
-    await insertGame(db, group.id, bob.id, carol.id);
-    await expect(direct(group.id, alice.id, bob.id)).rejects.toMatchObject({
-      code: 'limit_exceeded',
-      details: { reason: 'active_limit', name: 'Bob', count: 1 },
-    });
+    // Well past every limit this project used to impose (5 per player, 2 per pair).
+    for (let i = 0; i < 6; i += 1) {
+      await insertGame(db, group.id, bob.id, carol.id);
+      await insertGame(db, group.id, alice.id, bob.id);
+    }
+    await expect(direct(group.id, alice.id, bob.id)).resolves.toBeDefined();
   });
 
   it('refuses a blocked challenger', async () => {

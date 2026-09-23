@@ -246,7 +246,7 @@ Rules for cards:
 
 | Command | Behaviour | One-line replies (the only case the bot replies to a command) |
 |---|---|---|
-| `/play` as a reply | Direct challenge to the author of the replied-to message using group defaults. Card posted in the same topic (or the fixed topic, per settings) | Reply to yourself; reply to a bot; reply to an anonymous admin or channel post (`sender_chat` set); opponent or you blocked; you have 3 pending challenges; either of you at the active-games limit; you already have 2 games together |
+| `/play` as a reply | Direct challenge to the author of the replied-to message using group defaults. Card posted in the same topic (or the fixed topic, per settings) | Reply to yourself; reply to a bot; reply to an anonymous admin or channel post (`sender_chat` set); opponent or you blocked; you have 3 pending challenges |
 | `/play` without a reply | Open challenge, if the group allows them | Open challenges are off in this group; limits as above |
 | `/chess` | Posts an `♟ Open Chess` URL button (`l_<groupId>`). Rate-limited to one per group per minute; excess is ignored silently | none |
 | `/settings` | Posts an `Open settings` URL button (`s_<groupId>`). Same rate limit. Anyone can see the button; the app enforces admin rights | none |
@@ -384,7 +384,7 @@ Colours come from `themeParams` with a fixed light and dark palette for the boar
 
 | Transition | Who | Conditions |
 |---|---|---|
-| accept (direct) | The challenged user | Challenge pending; both users under the active-games limit and pair limit; neither blocked |
+| accept (direct) | The challenged user | Challenge pending; neither blocked |
 | accept (open) | Any verified member other than the challenger | Same limits; the first committed acceptance wins (row lock) |
 | decline | The challenged user | pending |
 | cancel | The challenger, from the card's `Decline`/`Cancel` button or the app | pending |
@@ -712,6 +712,23 @@ Each is a throwaway probe of half a day to a day, with a go criterion and a fall
 | S2 Open and return round trip | A card with a direct-link button in a test group; open, call `close()`, on iOS, Android, Desktop, Web K, Web A | Every client returns to the group chat | Default `close_after_move` to off on the failing client |
 | S3 SSE inside the WebView | The probe page holds an `EventSource`; background the app for five minutes, resume | Stream resumes or reconnects within 3 s on both platforms | Poll every 3 s on that platform; the transport is isolated |
 | S4 Bot API behaviours | A test bot in a supergroup with and without admin rights | `getChatMember` behaviour for non-admin bots is characterised; General-topic `message_thread_id` handling confirmed; `text_mention` renders for a member without a username; `write_access_allowed` arrives after `requestWriteAccess()` | Adjust the ladder in §5.6 and the topic rule in §5.8 |
+
+## 17a. Amendment, 2026-09-22: no caps on concurrent games
+
+The group setting `maxActiveGamesPerUser` and the `MAX_GAMES_PER_PAIR = 2` constant were removed. Only
+the pending-challenge cap remains, because that one limits unanswered invitations sitting in other
+people's notifications rather than a player's own play.
+
+The bot opponent exposed why the caps were wrong. A bot game has no clock, so nothing ever ends one on
+its own — no forfeit scanner, no prune. Combined with a cap, two abandoned bot games became a
+permanent lockout, and because the group-wide cap counted every active game it blocked challenging
+*people* as well, behind a generic error message. Removing the caps removes the lockout at its source
+instead of adding a cleanup job to work around it.
+
+What this gives up: nothing bounds how many concurrent games a player accumulates, so a group's active
+list can grow long and abandoned games linger in it with nothing to clear them. That is a display
+problem rather than a correctness one, and the fix, if it is ever wanted, is pagination or a cleanup
+pass — not a cap.
 
 ## 18. Open items for the user
 

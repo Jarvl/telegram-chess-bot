@@ -41,4 +41,19 @@ describe('loadConfig', () => {
   it('rejects a short session secret', () => {
     expect(() => loadConfig({ ...valid, SESSION_SECRET: 'short' })).toThrow(/SESSION_SECRET/);
   });
+
+  it('defaults the engine on, at the binary on PATH, with a 200 ms budget', () => {
+    const config = loadConfig(valid);
+    expect(config.ENGINE_ENABLED).toBe(true);
+    expect(config.ENGINE_PATH).toBe('stockfish');
+    expect(config.ENGINE_MOVETIME_MS).toBe(200);
+  });
+
+  it('lets a machine without the binary turn the engine off', () => {
+    expect(loadConfig({ ...valid, ENGINE_ENABLED: 'false' }).ENGINE_ENABLED).toBe(false);
+  });
+
+  it('refuses a non-positive move time', () => {
+    expect(() => loadConfig({ ...valid, ENGINE_MOVETIME_MS: '0' })).toThrow();
+  });
 });

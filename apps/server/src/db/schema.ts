@@ -2,6 +2,7 @@ import type {
   ChallengeStatus,
   ColourChoice,
   EndReason,
+  EngineLevel,
   GameResult,
   GameStatus,
   GroupSettings,
@@ -26,19 +27,28 @@ import {
 const id = () => bigint({ mode: 'number' }).primaryKey().generatedAlwaysAsIdentity();
 const tz = () => timestamp({ withTimezone: true });
 
-export const users = pgTable('users', {
-  id: id(),
-  telegramUserId: bigint({ mode: 'number' }).unique(),
-  firstName: text().notNull(),
-  username: text(),
-  languageCode: text(),
-  dmAllowed: boolean().notNull().default(false),
-  writeAccessAskedAt: tz(),
-  prefs: jsonb().$type<Partial<Prefs>>().notNull().default({}),
-  createdAt: tz().notNull().defaultNow(),
-  lastSeenAt: tz().notNull().defaultNow(),
-  deletedAt: tz(),
-});
+export const users = pgTable(
+  'users',
+  {
+    id: id(),
+    telegramUserId: bigint({ mode: 'number' }).unique(),
+    firstName: text().notNull(),
+    username: text(),
+    languageCode: text(),
+    dmAllowed: boolean().notNull().default(false),
+    writeAccessAskedAt: tz(),
+    prefs: jsonb().$type<Partial<Prefs>>().notNull().default({}),
+    isEngine: boolean().notNull().default(false),
+    createdAt: tz().notNull().defaultNow(),
+    lastSeenAt: tz().notNull().defaultNow(),
+    deletedAt: tz(),
+  },
+  (t) => [
+    uniqueIndex('users_single_engine')
+      .on(t.isEngine)
+      .where(sql`${t.isEngine}`),
+  ],
+);
 
 export const groups = pgTable('groups', {
   id: id(),
@@ -123,6 +133,7 @@ export const games = pgTable(
       .references(() => users.id),
     timePerMove: integer(),
     rated: boolean().notNull(),
+    engineLevel: text().$type<EngineLevel>(),
     status: text().$type<GameStatus>().notNull().default('active'),
     result: text().$type<GameResult>(),
     endReason: text().$type<EndReason>(),

@@ -4,6 +4,7 @@ import { ensurePruneScheduled, pruneHandler } from './prune';
 import { rebuildRatingsHandler } from './rebuildRatings';
 
 export { ensurePruneScheduled };
+export { engineJobHandlers, type EngineHandlerContext } from './engine';
 export { lichessJobHandlers, LichessPacer, type LichessHandlerContext } from './lichess';
 export { sharePhotoJobHandlers } from './sharePhoto';
 export { telegramJobHandlers, type TelegramHandlerContext } from './telegram';

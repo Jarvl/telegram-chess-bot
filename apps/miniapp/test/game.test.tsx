@@ -303,6 +303,29 @@ describe('Game', () => {
     expect(adapter.positions.at(-1)?.lastMove).toEqual(['d8', 'h4']);
   });
 
+  it('starts a fresh bot game on rematch when the finished game was against the engine', async () => {
+    const finished = afterPlies(4, {
+      viewerRole: 'black',
+      status: 'finished',
+      result: '0-1',
+      endReason: 'checkmate',
+      engineLevel: 'club',
+    });
+    const nextGame = gameDto({ id: 'NextGameA1', engineLevel: 'club' });
+    const route: FakeRoute = (call) => {
+      if (call.method === 'POST' && call.path === `/api/groups/${finished.group.id}/engine-games`)
+        return { status: 200, body: nextGame };
+      return okRoute(finished)(call);
+    };
+    const r = mount(finished, route, '7.0');
+    await r.flush();
+    await r.click('[data-action="rematch"]');
+    const post = r.calls.at(-1);
+    expect(post?.path).toBe(`/api/groups/${finished.group.id}/engine-games`);
+    expect(post?.body).toEqual({ level: 'club', colour: 'random' });
+    expect(r.app.router.current.value).toEqual({ name: 'game', gameId: 'NextGameA1' });
+  });
+
   it('lets spectators flip and share the viewed position', async () => {
     const r = mount(afterPlies(3, { viewerRole: 'spectator' }));
     await r.flush();

@@ -146,16 +146,6 @@ export function GroupSettings(props: { groupId: string }) {
             data-setting="allowOpenChallenges"
           />
         </div>
-        <Field label={t('app.gsettings.max_active')}>
-          <input
-            type="number"
-            min={1}
-            max={20}
-            data-setting="maxActiveGamesPerUser"
-            value={current.maxActiveGamesPerUser}
-            onInput={(event) => set('maxActiveGamesPerUser', Number(event.currentTarget.value))}
-          />
-        </Field>
         <Field label={t('app.gsettings.min_games')}>
           <input
             type="number"
