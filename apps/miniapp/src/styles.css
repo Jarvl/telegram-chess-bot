@@ -467,7 +467,7 @@ button {
 .game {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0;
   padding: 8px 0 24px;
 }
 
@@ -488,9 +488,35 @@ button {
 .player-bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 0 12px;
+  gap: 10px;
+  padding: 10px 16px;
+}
+
+.player-bar.yours {
+  background: var(--move-soft);
+}
+
+.player-bar .ring {
+  display: inline-flex;
+  flex: none;
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 2px var(--page),
+    0 0 0 3.5px #ffffff;
+}
+
+.player-bar .ring.black {
+  box-shadow:
+    0 0 0 2px var(--page),
+    0 0 0 3.5px #2b2b2b;
+}
+
+.player-bar .who {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
 }
 
 .player-bar .name {
@@ -501,36 +527,59 @@ button {
 }
 
 .player-bar .rating {
-  color: var(--hint);
   font-size: 14px;
-  margin-left: 6px;
+}
+
+.player-bar .sub {
+  font-size: 12px;
+  color: var(--hint);
+}
+
+.player-bar .sub.yours {
+  color: var(--move-text);
+  font-weight: 600;
+}
+
+.player-bar .sub.to-move {
+  color: var(--acc-text);
+  font-weight: 600;
 }
 
 .clock {
   font-variant-numeric: tabular-nums;
-  padding: 4px 10px;
-  border-radius: 8px;
-  background: var(--secondary-bg);
-  min-width: 72px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--hint);
+  font-weight: 700;
+  min-width: 84px;
   text-align: center;
 }
 
 .clock.active {
-  background: var(--button);
-  color: var(--button-text);
+  background: var(--acc-soft);
+  color: var(--acc-text);
+}
+
+.clock.yours {
+  background: var(--move);
+  color: var(--move-ink);
 }
 
 .clock.urgent {
-  background: var(--destructive);
+  background: var(--urgent);
   color: #fff;
 }
 
 .move-list {
   display: flex;
-  gap: 4px;
+  gap: 2px;
+  align-items: center;
   overflow-x: auto;
-  padding: 4px 12px;
+  white-space: nowrap;
+  padding: 10px 16px 6px;
   scrollbar-width: none;
+  font-size: 15px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -538,19 +587,21 @@ button {
   border: 0;
   background: transparent;
   color: inherit;
-  padding: 4px 6px;
-  border-radius: 6px;
+  padding: 3px 7px;
+  border-radius: 8px;
   white-space: nowrap;
+  font: inherit;
 }
 
 .move-list button[aria-current='true'] {
-  background: var(--secondary-bg);
-  font-weight: 600;
+  background: var(--acc-soft);
+  color: var(--acc-text);
+  font-weight: 700;
 }
 
 .move-list .number {
   color: var(--hint);
-  padding: 4px 0 4px 6px;
+  padding-left: 6px;
 }
 
 .replay-controls {
@@ -564,11 +615,31 @@ button {
   flex: 1;
 }
 
+.result-card {
+  margin: 6px 16px;
+  padding: 14px;
+  border-radius: 16px;
+  background: var(--hero-bg);
+  color: var(--hero-ink);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.result-title {
+  font: 24px/1.15 var(--display);
+}
+
+.result-detail {
+  font-size: 14px;
+  color: var(--hero-sub);
+}
+
 .banner {
-  margin: 0 12px;
+  margin: 6px 16px;
   padding: 10px 14px;
-  border-radius: var(--radius);
-  background: var(--secondary-bg);
+  border-radius: 14px;
+  background: var(--card);
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -579,7 +650,10 @@ button {
   flex: 1;
 }
 
-.banner.result {
+.banner.soft {
+  background: var(--acc-soft);
+  color: var(--acc-text);
+  font-size: 14px;
   font-weight: 600;
 }
 
@@ -587,12 +661,7 @@ button {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  padding: 0 12px;
-}
-
-.toolbar .btn {
-  padding: 8px 12px;
-  font-weight: 500;
+  padding: 6px 16px;
 }
 
 .board-veil {

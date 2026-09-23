@@ -176,6 +176,8 @@ export const en = {
   'app.level.casual': 'Casual',
   'app.level.club': 'Club',
   'app.level.strong': 'Strong',
+  'app.game.to_move': 'To move',
+  'app.game.side_in_group': '{side} · {group}',
   'app.game.latest': 'Latest',
   'app.game.share': 'Share position',
   'app.game.shared': 'Shared to the group',
