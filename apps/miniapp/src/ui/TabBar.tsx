@@ -3,6 +3,7 @@ import type { JSX } from 'preact';
 import { TABS, type TabName } from '../router';
 import { yourMoveCount } from '../state/yourMove';
 import { useApp } from './context';
+import { GEAR_PATH } from './icons';
 
 const TAB_LABEL: Record<TabName, MessageKey> = {
   games: 'app.nav.games',
@@ -26,12 +27,7 @@ const TAB_ICON: Record<TabName, JSX.Element> = {
       <path d="M16.6 12.8c-.8 0-1.5.1-2.2.4 1.3.9 2.1 2.1 2.1 3.4V19H21v-2.5c0-1.9-1.9-3.4-4.4-3.7Z" />
     </>
   ),
-  settings: (
-    <path
-      fill-rule="evenodd"
-      d="M19.4 13a7.6 7.6 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.6 7.6 0 0 0-1.7-1L15 3.4h-4l-.3 2.6c-.6.25-1.2.6-1.7 1l-2.4-1-2 3.4L6.6 11a7.6 7.6 0 0 0 0 2l-2 1.6 2 3.4 2.4-1c.5.4 1.1.75 1.7 1l.3 2.6h4l.3-2.6c.6-.25 1.2-.6 1.7-1l2.4 1 2-3.4-2-1.6ZM12 15.2a3.2 3.2 0 1 1 0-6.4 3.2 3.2 0 0 1 0 6.4Z"
-    />
-  ),
+  settings: <path fill-rule="evenodd" d={GEAR_PATH} />,
 };
 
 /**

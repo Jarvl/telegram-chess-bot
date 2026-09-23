@@ -2,8 +2,6 @@ import type { GroupRef, LobbyDto } from '@group-chess/shared';
 import { computed, signal, type ReadonlySignal, type Signal } from '@preact/signals';
 import type { Tg } from './tg/webapp';
 
-export type LobbyTab = 'active' | 'finished' | 'players';
-
 export type Route =
   | { name: 'loading' }
   | { name: 'error' }
@@ -12,6 +10,7 @@ export type Route =
   | { name: 'games' }
   | { name: 'groups' }
   | { name: 'lobby'; groupId: string }
+  | { name: 'leaderboard'; groupId: string }
   | { name: 'newGame'; groupId: string; defaults?: LobbyDto['settings'] }
   | { name: 'game'; gameId: string }
   | { name: 'player'; groupId: string; userId: string }
