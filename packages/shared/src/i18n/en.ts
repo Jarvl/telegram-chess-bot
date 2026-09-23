@@ -206,7 +206,7 @@ export const en = {
     'Delete your data? Running games are resigned and your name is removed from past games. This cannot be undone.',
   'app.settings.deleted': 'Your data was deleted',
   'app.settings.about':
-    'Pieces by Colin M.L. Burnett (CC BY-SA 3.0). Board by chessground. Group Chess is free software under the GPL-3.0-or-later.',
+    'Pieces by Colin M.L. Burnett (CC BY-SA 3.0). Board by chessground. Chess Goat is free software under the GPL-3.0-or-later.',
   'app.gsettings.title': 'Group settings',
   'app.gsettings.default_time': 'Default time per move',
   'app.gsettings.rated_default': 'Rated by default',

@@ -68,7 +68,7 @@ function wrap(tokens: readonly string[]): string {
 
 export function buildPgn(headers: PgnHeaderInput, sanMoves: readonly string[]): string {
   const tags: Array<[string, string]> = [
-    ['Event', headers.event ?? 'Group Chess'],
+    ['Event', headers.event ?? 'Chess Goat'],
     ['Site', headers.site],
     ['Date', formatPgnDate(headers.date)],
     ['Round', '-'],

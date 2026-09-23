@@ -118,7 +118,7 @@ describe('lichess_import', () => {
     expect(request?.headers.authorization).toBe('Bearer tok');
     expect(request?.headers['content-type']).toContain('application/x-www-form-urlencoded');
     const pgn = new URLSearchParams(request?.body).get('pgn') ?? '';
-    expect(pgn).toContain('[Event "Group Chess"]');
+    expect(pgn).toContain('[Event "Chess Goat"]');
     expect(pgn).toContain('[Site "Chess Club"]');
     expect(pgn).toContain('1. e4 c5 1-0');
     const after = await gameRow(game.id);

@@ -16,10 +16,10 @@ const base = {
 const scholarsMate = ['e4', 'e5', 'Qh5', 'Nc6', 'Bc4', 'Nf6', 'Qxf7#'];
 
 describe('buildPgn', () => {
-  it('writes the seven-tag roster followed by the Group Chess tags', () => {
+  it('writes the seven-tag roster followed by the Chess Goat tags', () => {
     expect(buildPgn(base, scholarsMate)).toBe(
       [
-        '[Event "Group Chess"]',
+        '[Event "Chess Goat"]',
         '[Site "Chess Club"]',
         '[Date "2026.09.20"]',
         '[Round "-"]',

@@ -1,6 +1,17 @@
 @import 'chessground/assets/chessground.base.css';
-@import 'chessground/assets/chessground.brown.css';
 @import 'chessground/assets/chessground.cburnett.css';
+
+/* DM Serif Display, Latin subset, OFL-1.1 (assets/fonts/OFL.txt): display text only. */
+@font-face {
+  font-family: 'DM Serif Display';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./assets/fonts/dm-serif-display-latin-400.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
 
 :root {
   --bg: #ffffff;
@@ -11,6 +22,29 @@
   --button-text: #ffffff;
   --secondary-bg: #f1f1f4;
   --destructive: #d14e4e;
+  --page: var(--secondary-bg);
+  --card: var(--bg);
+  --sep: color-mix(in srgb, var(--hint) 18%, transparent);
+  --sep-strong: color-mix(in srgb, var(--hint) 45%, transparent);
+  --display: 'DM Serif Display', Georgia, serif;
+  /* The light accent set until applyTheme runs (tg/theme.ts ACCENTS). */
+  --acc: #2e7d4f;
+  --acc-ink: #ffffff;
+  --acc-text: #256b42;
+  --acc-soft: #e3f1e7;
+  --move: #e0b94a;
+  --move-ink: #2a2000;
+  --move-soft: #fbf3dc;
+  --move-text: #8a6a00;
+  --urgent: #d14e4e;
+  --hero-bg: linear-gradient(135deg, #236140, #153a26);
+  --hero-ink: #f5f0dc;
+  --hero-sub: #bcd3c2;
+  --bl: #f0ead2;
+  --bd: #7d9f6b;
+  --lm: rgba(224, 185, 74, 0.6);
+  --sel: rgba(46, 125, 79, 0.55);
+  --dot: rgba(21, 58, 38, 0.4);
   --stable-height: 100vh;
   --radius: 12px;
   --tabbar-h: calc(56px + env(safe-area-inset-bottom, 0px));
@@ -27,7 +61,7 @@ html,
 body {
   margin: 0;
   padding: 0;
-  background: var(--bg);
+  background: var(--page);
   color: var(--text);
   font:
     16px/1.4 -apple-system,
@@ -35,6 +69,7 @@ body {
     'Segoe UI',
     Roboto,
     sans-serif;
+  -webkit-font-smoothing: antialiased;
   -webkit-text-size-adjust: 100%;
   overscroll-behavior: none;
 }
@@ -49,7 +84,10 @@ button {
 }
 
 .screen {
-  padding: 12px 12px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 10px 16px 20px;
   max-width: 640px;
   margin: 0 auto;
 }
@@ -66,8 +104,8 @@ button {
   bottom: 0;
   z-index: 10;
   display: flex;
-  background: var(--secondary-bg);
-  border-top: 1px solid color-mix(in srgb, var(--hint) 20%, transparent);
+  background: var(--card);
+  border-top: 1px solid var(--sep);
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
@@ -87,12 +125,26 @@ button {
 }
 
 .tabbar .nav-item.active {
-  color: var(--link);
+  color: var(--acc-text);
 }
 
 .tabbar .nav-icon-wrap {
   position: relative;
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 32px;
+  border-radius: 16px;
+  transition: background 0.15s;
+}
+
+.tabbar .nav-item.active .nav-icon-wrap {
+  background: var(--acc-soft);
+}
+
+.tabbar .nav-item.active .nav-label {
+  font-weight: 600;
 }
 
 .tabbar .nav-icon {
@@ -105,8 +157,8 @@ button {
    count never shifts the icon or the label under it. */
 .tabbar .nav-badge {
   position: absolute;
-  bottom: 58%;
-  left: 58%;
+  top: 0;
+  left: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -114,11 +166,12 @@ button {
   height: 17px;
   padding: 0 4px;
   border-radius: 999px;
-  background: var(--destructive);
-  color: #ffffff;
+  background: var(--move);
+  color: var(--move-ink);
   font-size: 11px;
   font-weight: 600;
   line-height: 1;
+  box-shadow: 0 0 0 2px var(--card);
   /* Centring a line box leaves a digit sitting high, because the box reserves descender space no
      digit uses — and by how much depends on the font, so a fixed nudge would fix one platform and
      break another. Trimming the box to cap height and baseline makes it hug the ink, so centring
@@ -133,34 +186,47 @@ button {
 }
 
 .title {
-  font-size: 20px;
-  font-weight: 600;
-  margin: 4px 0 12px;
+  font: 30px/1.1 var(--display);
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .subtitle {
   color: var(--hint);
   font-size: 14px;
-  margin: 0 0 12px;
+  margin: 0;
 }
 
 .hint {
   color: var(--hint);
   font-size: 14px;
+  margin: 0;
 }
 
+/* The design's section label. */
 .section {
-  margin: 16px 0 8px;
+  margin: 6px 0 0;
   font-size: 13px;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--hint);
 }
 
+.card,
 .list {
-  background: var(--secondary-bg);
-  border-radius: var(--radius);
+  background: var(--card);
+  border-radius: 18px;
   overflow: hidden;
+}
+
+.card.empty {
+  padding: 28px 16px;
+  text-align: center;
+  color: var(--hint);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .row {
@@ -170,40 +236,52 @@ button {
   width: 100%;
   padding: 12px 14px;
   border: 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--hint) 20%, transparent);
+  border-bottom: 1px solid var(--sep);
   background: transparent;
   color: inherit;
+  font: inherit;
   text-align: left;
 }
 
-.row:last-child {
+.card > .row:last-child,
+.list > .row:last-child {
   border-bottom: 0;
 }
 
-.row .grow {
+.grow {
   flex: 1;
   min-width: 0;
 }
 
-.row .primary {
+.grow > .primary {
   display: block;
+  font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.row .secondary {
+.grow > .secondary {
   display: block;
   font-size: 13px;
   color: var(--hint);
 }
 
+.chevron {
+  color: var(--hint);
+  font-size: 22px;
+  line-height: 1;
+  opacity: 0.7;
+  flex: none;
+}
+
 .badge {
   font-size: 12px;
+  font-weight: 700;
   padding: 2px 8px;
   border-radius: 999px;
-  background: var(--button);
-  color: var(--button-text);
+  background: var(--move);
+  color: var(--move-ink);
   white-space: nowrap;
 }
 
@@ -212,53 +290,36 @@ button {
   color: var(--text);
 }
 
-.tabs {
-  display: flex;
-  gap: 6px;
-  margin: 0 0 12px;
-}
-
-.tab {
-  flex: 1;
-  padding: 8px 0;
-  border: 0;
-  border-radius: 999px;
-  background: var(--secondary-bg);
-  color: var(--text);
-}
-
-.tab[aria-selected='true'] {
-  background: var(--button);
-  color: var(--button-text);
-}
-
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 10px 14px;
+  padding: 12px 14px;
   border: 0;
-  border-radius: var(--radius);
-  background: var(--button);
-  color: var(--button-text);
-  font-weight: 600;
+  border-radius: 14px;
+  background: var(--acc);
+  color: var(--acc-ink);
+  font: inherit;
+  font-weight: 700;
 }
 
 .btn.secondary {
-  background: var(--secondary-bg);
+  background: var(--card);
   color: var(--text);
+  font-weight: 600;
 }
 
 .btn.danger {
-  background: var(--secondary-bg);
+  background: var(--card);
   color: var(--destructive);
+  font-weight: 600;
 }
 
 .btn.block {
   display: flex;
   width: 100%;
-  margin: 12px 0;
+  margin: 0;
 }
 
 .btn:disabled {
@@ -297,12 +358,12 @@ button {
   height: 26px;
   border-radius: 13px;
   border: 0;
-  background: color-mix(in srgb, var(--hint) 40%, transparent);
+  background: var(--sep-strong);
   flex: none;
 }
 
 .switch[aria-checked='true'] {
-  background: var(--button);
+  background: var(--acc);
 }
 
 .switch::after {
@@ -322,23 +383,27 @@ button {
 }
 
 .segmented {
-  display: inline-flex;
+  display: flex;
+  padding: 3px;
   border-radius: 999px;
-  background: var(--secondary-bg);
-  padding: 2px;
+  background: var(--card);
 }
 
 .segmented button {
+  flex: 1;
   border: 0;
   background: transparent;
   color: var(--text);
-  padding: 6px 12px;
+  padding: 8px 0;
   border-radius: 999px;
+  font: inherit;
+  font-size: 15px;
 }
 
 .segmented button[aria-pressed='true'] {
-  background: var(--button);
-  color: var(--button-text);
+  background: var(--acc);
+  color: var(--acc-ink);
+  font-weight: 700;
 }
 
 .toast {
@@ -346,13 +411,18 @@ button {
   left: 50%;
   bottom: 24px;
   transform: translateX(-50%);
-  background: color-mix(in srgb, var(--text) 85%, transparent);
-  color: var(--bg);
+  background: color-mix(in srgb, var(--text) 88%, transparent);
+  color: var(--card);
   padding: 10px 16px;
   border-radius: 999px;
   font-size: 14px;
   z-index: 20;
   max-width: calc(100vw - 32px);
+}
+
+/* Above the tab bar when there is one. */
+.with-tabbar ~ .toast {
+  bottom: calc(var(--tabbar-h) + 16px);
 }
 
 .dialog-backdrop {
@@ -576,4 +646,49 @@ button {
   background: var(--bg);
   display: flex;
   gap: 8px;
+}
+
+/* The Chess Goat board: cream and green squares, gold last move, green selection. */
+cg-board {
+  background-color: var(--bd);
+  /* One 2×2 tile per quarter: a8 (top-left, either orientation) is light. */
+  background-image: conic-gradient(var(--bd) 0 25%, var(--bl) 0 50%, var(--bd) 0 75%, var(--bl) 0);
+  background-size: 25% 25%;
+}
+
+cg-board square.last-move {
+  background-color: var(--lm);
+}
+
+cg-board square.selected {
+  background-color: var(--sel);
+}
+
+cg-board square.move-dest {
+  background: radial-gradient(var(--dot) 22%, transparent 23%);
+}
+
+cg-board square.oc.move-dest {
+  background: radial-gradient(transparent 0%, transparent 79%, var(--dot) 80%);
+}
+
+/* Coordinate label colours (chessground.brown.css), matched to the board squares. */
+.orientation-white .ranks :nth-child(odd),
+.orientation-white .files :nth-child(even),
+.orientation-black .ranks :nth-child(even),
+.orientation-black .files :nth-child(odd),
+coords.squares:nth-of-type(odd) :nth-child(even),
+coords.squares:nth-of-type(even) :nth-child(odd) {
+  color: var(--bd);
+  font-weight: 700;
+}
+
+.orientation-white .ranks :nth-child(even),
+.orientation-white .files :nth-child(odd),
+.orientation-black .ranks :nth-child(odd),
+.orientation-black .files :nth-child(even),
+coords.squares:nth-of-type(odd) :nth-child(odd),
+coords.squares:nth-of-type(even) :nth-child(even) {
+  color: var(--bl);
+  font-weight: 700;
 }

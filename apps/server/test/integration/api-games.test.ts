@@ -257,7 +257,7 @@ describe('games', () => {
     });
     expect(pgn.headers.get('content-type')).toContain('application/x-chess-pgn');
     const text = await pgn.text();
-    expect(text).toContain('[Event "Group Chess"]');
+    expect(text).toContain('[Event "Chess Goat"]');
     expect(text).toContain(`[Site "${group.title}"]`);
     expect(text).toContain('1. e4 *');
     expect(
