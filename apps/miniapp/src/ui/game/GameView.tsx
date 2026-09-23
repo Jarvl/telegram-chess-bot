@@ -35,6 +35,9 @@ import { PlayerBar } from './PlayerBar';
 import { ratingChangeFor, reasonForViewer, resultForViewer } from './result';
 import { useClock } from './useClock';
 
+/** A send answered within this shows nothing; a slower one greys the board under a spinner. */
+const SLOW_SEND_MS = 1_000;
+
 const PIECE_CLASS: Record<PromotionPiece, string> = {
   q: 'queen',
   r: 'rook',
@@ -55,7 +58,7 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
   const moveRef = useRef<MoveState>({ kind: 'idle' });
   const [moveState, setMoveState] = useState<MoveState>({ kind: 'idle' });
   const [promotion, setPromotion] = useState<{ orig: string; dest: string } | null>(null);
-  const [inPageCancel, setInPageCancel] = useState(false);
+  const [slowSend, setSlowSend] = useState(false);
   const now = useClock(store);
   const dto = store.dto.value;
   const gameId = dto.id;
@@ -69,7 +72,6 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
     },
     [tg],
   );
-  const dispatchRef = useRef<(event: MoveEvent) => void>(() => undefined);
   const applyState = useCallback(
     (next: GameDto) => {
       const previous = store.dto.value;
@@ -80,13 +82,6 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
       // Spec §6.3: a check buzzes, whichever side gave it.
       if (next.plyCount > previous.plyCount && positionAt(next, next.plyCount).check)
         tg.hapticNotify('warning');
-      // A move waiting for Confirm is void once the game has moved on (the server would reject
-      // its expectedPly anyway): take it off the board and the buttons.
-      if (
-        moveRef.current.kind === 'pendingConfirm' &&
-        (next.plyCount !== previous.plyCount || next.status !== previous.status)
-      )
-        dispatchRef.current({ type: 'cancel' });
     },
     [store, notify, tg],
   );
@@ -121,14 +116,11 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
   // always calls the latest one.
   const runEffectRef = useRef<(effect: MoveEffect) => void>(() => undefined);
   const dispatch = useCallback((event: MoveEvent) => {
-    const { state, effects } = reduceMove(moveRef.current, event, {
-      confirmMoves: prefs.value.confirmMoves,
-    });
+    const { state, effects } = reduceMove(moveRef.current, event);
     moveRef.current = state;
     setMoveState(state);
     for (const effect of effects) runEffectRef.current(effect);
   }, []);
-  dispatchRef.current = dispatch;
 
   const runEffect = (effect: MoveEffect): void => {
     switch (effect.type) {
@@ -157,9 +149,6 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
           .then(applyState)
           .catch(() => undefined);
         return;
-      case 'closingConfirmation':
-        tg.closingConfirmation(effect.on);
-        return;
       case 'telemetryRetry':
         void client
           .post('/api/telemetry', { events: [{ kind: 'move_retry' }] })
@@ -187,46 +176,38 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
     return () => clearTimeout(timer);
   }, [moveState, dispatch]);
 
-  // Telegram buttons per machine state (spec §6.3).
+  // A send that outlasts SLOW_SEND_MS veils the board until the move settles, retries included.
+  useEffect(() => {
+    if (moveState.kind === 'idle') {
+      setSlowSend(false);
+      return;
+    }
+    if (moveState.kind !== 'sending' || slowSend) return;
+    const timer = setTimeout(() => setSlowSend(true), SLOW_SEND_MS);
+    return () => clearTimeout(timer);
+  }, [moveState.kind, slowSend]);
+
+  // Telegram buttons per machine state (spec §6.3). Sending shows none: the main button resizes
+  // the viewport, and the board with it, so flashing it on every move makes the page jump.
   useEffect(() => {
     switch (moveState.kind) {
-      case 'pendingConfirm': {
-        tg.setMainButton({
-          text: t('app.game.confirm'),
-          onClick: () => dispatch({ type: 'confirm' }),
-        });
-        const bound = tg.setSecondaryButton({
-          text: t('app.game.cancel'),
-          onClick: () => dispatch({ type: 'cancel' }),
-        });
-        setInPageCancel(!bound);
-        return;
-      }
       case 'sending':
-        tg.setMainButton({ text: t('app.game.sending'), onClick: () => undefined, progress: true });
-        tg.setSecondaryButton(null);
-        setInPageCancel(false);
+        tg.setMainButton(null);
         return;
       case 'retry':
         tg.setMainButton({
           text: t('app.game.retry'),
           onClick: () => dispatch({ type: 'retryNow' }),
         });
-        tg.setSecondaryButton(null);
-        setInPageCancel(false);
         return;
       case 'idle':
         tg.setMainButton(null);
-        tg.setSecondaryButton(null);
-        setInPageCancel(false);
         return;
     }
   }, [moveState.kind, tg, dispatch]);
   useEffect(
     () => () => {
       tg.setMainButton(null);
-      tg.setSecondaryButton(null);
-      tg.closingConfirmation(false);
     },
     [tg],
   );
@@ -348,12 +329,12 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
   return (
     <div class="game">
       <PlayerBar dto={dto} colour={top} now={now} />
-      <Board
-        store={store}
-        onMove={onDrop}
-        onReady={(adapter) => (adapterRef.current = adapter)}
-        frozen={moveState.kind === 'pendingConfirm'}
-      >
+      <Board store={store} onMove={onDrop} onReady={(adapter) => (adapterRef.current = adapter)}>
+        {slowSend || moveState.kind === 'retry' ? (
+          <div class="board-veil" role="status" aria-label={t('app.game.sending')}>
+            <span class="spinner" />
+          </div>
+        ) : null}
         {promotion ? (
           <div
             class="promotion"
@@ -437,17 +418,6 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
       ) : null}
       {isPlayer && offer && offer.by === myColour && dto.status === 'active' ? (
         <div class="banner">{t('app.game.draw_offered')}</div>
-      ) : null}
-      {inPageCancel && moveState.kind === 'pendingConfirm' ? (
-        <div class="inline-main">
-          <button
-            class="btn secondary block"
-            data-action="cancel-move"
-            onClick={() => dispatch({ type: 'cancel' })}
-          >
-            {t('app.game.cancel')}
-          </button>
-        </div>
       ) : null}
       <div class="toolbar">
         <button class="btn secondary" data-action="share" onClick={() => void share()}>

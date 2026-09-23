@@ -1,21 +1,10 @@
 import { expect, test } from '@playwright/test';
-import {
-  boardBox,
-  clickMain,
-  clickSecondary,
-  dragMove,
-  harnessGame,
-  openApp,
-  seed,
-  squareCentre,
-  tapMove,
-  tgState,
-} from './support';
+import { boardBox, dragMove, harnessGame, openApp, seed, squareCentre, tgState } from './support';
 
 test('drags a move as White, the server records it and the app returns to the chat', async ({
   page,
 }) => {
-  const world = await seed('fresh', { alice: { confirmMoves: false, closeAfterMove: true } });
+  const world = await seed('fresh', { alice: { closeAfterMove: true } });
   await openApp(page, {
     user: world.users.alice.telegram,
     startParam: `g_${world.game!.publicId}`,
@@ -31,8 +20,10 @@ test('drags a move as White, the server records it and the app returns to the ch
   await expect.poll(async () => (await tgState(page)).closed).toBe(true);
 });
 
-test('confirms or cancels a move', async ({ page }) => {
-  const world = await seed('fresh', { alice: { confirmMoves: true, closeAfterMove: false } });
+test('taps a move: the piece shows its destinations and the move is sent on the second tap', async ({
+  page,
+}) => {
+  const world = await seed('fresh', { alice: { closeAfterMove: false } });
   await openApp(page, {
     user: world.users.alice.telegram,
     startParam: `g_${world.game!.publicId}`,
@@ -44,22 +35,9 @@ test('confirms or cancels a move', async ({ page }) => {
   await expect(page.locator('square.move-dest')).toHaveCount(2);
   const e4 = squareCentre(box, 'e4');
   await page.touchscreen.tap(e4.x, e4.y);
-  await expect
-    .poll(async () => (await tgState(page)).mainButton)
-    .toMatchObject({ text: 'Confirm', visible: true });
-  expect((await tgState(page)).secondaryButton).toMatchObject({ text: 'Cancel', visible: true });
-  expect((await tgState(page)).closingConfirmation).toBe(true);
-  await clickSecondary(page);
-  await expect(page.locator('square.last-move')).toHaveCount(0);
-  expect((await harnessGame(world.game!.publicId)).plyCount).toBe(0);
-  await expect.poll(async () => (await tgState(page)).mainButton.visible).toBe(false);
-  await tapMove(page, 'e2', 'e4');
-  // The hidden button keeps its old text, so wait for it to show again before confirming.
-  await expect
-    .poll(async () => (await tgState(page)).mainButton)
-    .toMatchObject({ text: 'Confirm', visible: true });
-  await clickMain(page);
   await expect.poll(async () => (await harnessGame(world.game!.publicId)).plyCount).toBe(1);
+  await expect(page.locator('.move-list [data-ply="1"]')).toHaveText('e4');
   await expect.poll(async () => (await tgState(page)).mainButton.visible).toBe(false);
+  expect((await tgState(page)).secondaryButton?.visible ?? false).toBe(false);
   expect((await tgState(page)).closed).toBe(false);
 });

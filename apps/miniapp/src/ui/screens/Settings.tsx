@@ -8,10 +8,9 @@ import { toast } from '../toast';
 
 const PrefsResponseSchema = z.object({ prefs: PrefsSchema, dmAllowed: z.boolean() });
 const TOGGLES: {
-  key: keyof Pick<Prefs, 'confirmMoves' | 'closeAfterMove' | 'notifications'>;
+  key: keyof Pick<Prefs, 'closeAfterMove' | 'notifications'>;
   label: string;
 }[] = [
-  { key: 'confirmMoves', label: 'app.settings.confirm_moves' },
   { key: 'closeAfterMove', label: 'app.settings.close_after_move' },
   { key: 'notifications', label: 'app.settings.notifications' },
 ];
@@ -52,12 +51,12 @@ export function Settings() {
       <div class="list">
         {TOGGLES.map(({ key, label }) => (
           <div class="field" key={key}>
-            <span>{t(label as 'app.settings.confirm_moves')}</span>
+            <span>{t(label as 'app.settings.close_after_move')}</span>
             <Switch
               checked={current[key]}
               onChange={(value) => void update({ [key]: value })}
               data-pref={key}
-              label={t(label as 'app.settings.confirm_moves')}
+              label={t(label as 'app.settings.close_after_move')}
             />
           </div>
         ))}

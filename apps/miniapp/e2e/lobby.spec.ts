@@ -56,7 +56,7 @@ test('a profile launch lands on the games home and the tabs reach the rest', asy
 
   // Tabs move sideways, they never deepen: Settings is reachable without touching the back stack.
   await page.locator('[data-nav="settings"]').click();
-  await expect(page.locator('[data-pref="confirmMoves"]')).toBeVisible();
+  await expect(page.locator('[data-pref="closeAfterMove"]')).toBeVisible();
   // The Groups tab still holds the lobby it was left in.
   await page.locator('[data-nav="groups"]').click();
   await expect(page.locator('[data-game]')).toHaveCount(1);

@@ -8,22 +8,20 @@ import {
 } from '../src/state/moveMachine';
 
 const drop: MoveEvent = { type: 'drop', uci: 'e2e4', expectedPly: 0, clientMoveId: 'm-0000000001' };
-const run = (events: MoveEvent[], confirmMoves: boolean, from: MoveState = { kind: 'idle' }) => {
+const run = (events: MoveEvent[], from: MoveState = { kind: 'idle' }) => {
   let state = from;
   const effects: string[] = [];
   for (const event of events) {
-    const out = reduceMove(state, event, { confirmMoves });
+    const out = reduceMove(state, event);
     state = out.state;
-    effects.push(
-      ...out.effects.map((effect) => effect.type + ('on' in effect ? `:${effect.on}` : '')),
-    );
+    effects.push(...out.effects.map((effect) => effect.type));
   }
   return { state, effects };
 };
 
 describe('reduceMove', () => {
-  it('sends immediately when confirm moves is off', () => {
-    const { state, effects } = run([drop], false);
+  it('sends a dropped move immediately', () => {
+    const { state, effects } = run([drop]);
     expect(state).toEqual({
       kind: 'sending',
       move: { uci: 'e2e4', expectedPly: 0, clientMoveId: 'm-0000000001' },
@@ -32,33 +30,16 @@ describe('reduceMove', () => {
     expect(effects).toEqual(['send']);
   });
 
-  it('waits for confirmation when confirm moves is on, then sends exactly once', () => {
-    const pending = run([drop], true);
-    expect(pending.state.kind).toBe('pendingConfirm');
-    expect(pending.effects).toEqual(['closingConfirmation:true']);
-    const confirmed = run([{ type: 'confirm' }], true, pending.state);
-    expect(confirmed.state).toMatchObject({ kind: 'sending', attempt: 1 });
-    expect(confirmed.effects).toEqual(['closingConfirmation:false', 'send']);
-    expect(run([{ type: 'confirm' }], true, confirmed.state).effects).toEqual([]);
-  });
-
-  it('cancel restores the position and turns closing confirmation off', () => {
-    const pending = run([drop], true).state;
-    const { state, effects } = run([{ type: 'cancel' }], true, pending);
-    expect(state).toEqual({ kind: 'idle' });
-    expect(effects).toEqual(['restore', 'closingConfirmation:false']);
-  });
-
   it('returns to idle and restores the position on a stale rejection', () => {
-    const sending = run([drop], false).state;
-    const { state, effects } = run([{ type: 'rejected' }], false, sending);
+    const sending = run([drop]).state;
+    const { state, effects } = run([{ type: 'rejected' }], sending);
     expect(state).toEqual({ kind: 'idle' });
     expect(effects).toEqual(['restore', 'reload']);
   });
 
   it('keeps the client move id and backs off across network retries', () => {
-    const sending = run([drop], false).state;
-    const first = run([{ type: 'networkError', now: 1_000 }], false, sending);
+    const sending = run([drop]).state;
+    const first = run([{ type: 'networkError', now: 1_000 }], sending);
     expect(first.state).toEqual({
       kind: 'retry',
       move: { uci: 'e2e4', expectedPly: 0, clientMoveId: 'm-0000000001' },
@@ -66,20 +47,20 @@ describe('reduceMove', () => {
       nextAt: 2_000,
     });
     expect(first.effects).toEqual(['telemetryRetry']);
-    const early = run([{ type: 'tick', now: 1_999 }], false, first.state);
+    const early = run([{ type: 'tick', now: 1_999 }], first.state);
     expect(early.state.kind).toBe('retry');
     expect(early.effects).toEqual([]);
-    const second = run([{ type: 'tick', now: 2_000 }], false, first.state);
+    const second = run([{ type: 'tick', now: 2_000 }], first.state);
     expect(second.state).toMatchObject({
       kind: 'sending',
       attempt: 2,
       move: { clientMoveId: 'm-0000000001' },
     });
     expect(second.effects).toEqual(['send']);
-    const third = run([{ type: 'networkError', now: 5_000 }], false, second.state);
+    const third = run([{ type: 'networkError', now: 5_000 }], second.state);
     expect(third.state).toMatchObject({ kind: 'retry', attempt: 2, nextAt: 7_000 });
     expect(third.effects).toEqual([]);
-    const manual = run([{ type: 'retryNow' }], false, third.state);
+    const manual = run([{ type: 'retryNow' }], third.state);
     expect(manual.state).toMatchObject({ kind: 'sending', attempt: 3 });
     expect(manual.effects).toEqual(['send']);
   });
@@ -93,11 +74,11 @@ describe('reduceMove', () => {
   });
 
   it('ignores a drop while a move is in flight and a stray answer while idle', () => {
-    const sending = run([drop], false).state;
-    const ignored = run([{ ...drop, uci: 'd2d4' }], false, sending);
+    const sending = run([drop]).state;
+    const ignored = run([{ ...drop, uci: 'd2d4' }], sending);
     expect(ignored.state).toBe(sending);
     expect(ignored.effects).toEqual([]);
-    expect(run([{ type: 'sent' }], false).state).toEqual({ kind: 'idle' });
+    expect(run([{ type: 'sent' }]).state).toEqual({ kind: 'idle' });
   });
 
   it('makes client move ids that satisfy the API pattern', () => {

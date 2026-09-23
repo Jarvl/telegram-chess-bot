@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { harnessGame, openApp, seed, tapMove } from './support';
 
 test('promotes through the chooser', async ({ page }) => {
-  const world = await seed('promotion', { alice: { confirmMoves: false, closeAfterMove: false } });
+  const world = await seed('promotion', { alice: { closeAfterMove: false } });
   await openApp(page, {
     user: world.users.alice.telegram,
     startParam: `g_${world.game!.publicId}`,

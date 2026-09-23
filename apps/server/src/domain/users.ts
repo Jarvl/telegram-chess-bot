@@ -41,8 +41,9 @@ export async function requireUser(tx: DbOrTx, id: number): Promise<UserRow> {
   return row;
 }
 
+/** Stored preferences over the defaults; keys no longer in the schema (e.g. `confirmMoves`) are dropped. */
 export function prefsOf(user: Pick<UserRow, 'prefs'>): Prefs {
-  return { ...PREFS_DEFAULTS, ...user.prefs };
+  return PrefsSchema.parse({ ...PREFS_DEFAULTS, ...user.prefs });
 }
 
 /** PRD §7.7: DMs go only to users who allowed them in Telegram and keep notifications on. */

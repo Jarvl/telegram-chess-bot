@@ -306,11 +306,11 @@ The known-players list for the opponent picker is `group_members` with `status =
 | Groups | `GET /api/me/groups` | Pick a group → lobby |
 | Lobby `l_<groupId>` | `GET /api/groups/:g` (Active with "your move" first, Finished page 1, Players, pending challenges, admin flag) | New game, Accept or Decline pending challenges, open any game, Players tab, Settings if admin |
 | New game | `GET /api/groups/:g/players` | Pick opponent or Open challenge, time per move, colour, rated → `POST /api/groups/:g/challenges` |
-| Game `g_<gameId>` (active) | `GET /api/games/:id` + SSE | Move, Confirm or Cancel, Draw offer, Accept or Decline draw, Claim draw, Resign (with confirmation), Abort while allowed, Share position, Flip (spectators), view earlier positions |
+| Game `g_<gameId>` (active) | `GET /api/games/:id` + SSE | Move, Draw offer, Accept or Decline draw, Claim draw, Resign (with confirmation), Abort while allowed, Share position, Flip (spectators), view earlier positions |
 | Game end (same route, `status = finished`) | same | Rematch, Analyse on Lichess (`openLink`), Share final position, Done (`close()`) |
 | Replay (finished game) | `GET /api/games/:id` | Slider and arrows, move list, Share position, Analyse on Lichess, Download PGN (`downloadFile` on 8.0+, else `openLink`) |
 | Player page | `GET /api/groups/:g/players/:u` | Record, head-to-head, recent games |
-| Settings (user), a tab of its own | prefs from launch | Confirm moves, return to chat after moving, notifications, board theme and piece set (P1) |
+| Settings (user), a tab of its own | prefs from launch | Return to chat after moving, notifications, board theme and piece set (P1) |
 | Group settings `s_<groupId>` | `GET /api/groups/:g/settings` | Defaults, limits, topic mode, Void game, Block or unblock user |
 
 ### 6.3 Board adapter and the move flow
@@ -325,9 +325,6 @@ Move state machine for the player to move:
 idle ──pick up──▶ dragging ──drop on legal square──▶ [promotion? chooser over target square]
    ▲                  │ drop elsewhere: snap back, no message
    │                  ▼
-   │        confirm_moves on?  ──yes──▶ pending-confirm (move shown; MainButton "Confirm", SecondaryButton "Cancel";
-   │                  │ no                closing confirmation enabled) ──Cancel──▶ idle (position restored)
-   │                  ▼                                                   ──Confirm──▶ sending
    │               sending: POST /api/games/:id/moves { uci, expectedPly, clientMoveId }
    │                  │ 200 → sent: haptic; close_after_move ? show "Sent" 300 ms then close() : stay
    │                  │ 409 stale_state / not_your_turn / expired → reload state, snap back, no message
@@ -521,7 +518,7 @@ Primary keys are `bigint` identities; `public_id` columns are the 10-character i
 
 | Table | Columns | Notes |
 |---|---|---|
-| `users` | `id`, `telegram_user_id` unique nullable, `first_name`, `username`, `language_code`, `dm_allowed`, `write_access_asked_at`, `prefs jsonb` (`confirm_moves` default true, `close_after_move` default true, `notifications` default true, `board_theme`, `piece_set`), `created_at`, `last_seen_at`, `deleted_at` | Anonymisation nulls `telegram_user_id` and `username`, sets `first_name = 'Deleted player'`, clears `prefs` |
+| `users` | `id`, `telegram_user_id` unique nullable, `first_name`, `username`, `language_code`, `dm_allowed`, `write_access_asked_at`, `prefs jsonb` (`close_after_move` default true, `notifications` default true, `board_theme`, `piece_set`), `created_at`, `last_seen_at`, `deleted_at` | Anonymisation nulls `telegram_user_id` and `username`, sets `first_name = 'Deleted player'`, clears `prefs` |
 | `groups` | `id`, `public_id`, `telegram_chat_id` unique, `title`, `type`, `is_forum`, `bot_status`, `bot_is_admin`, `bot_can_pin`, `welcome_message_id`, `settings jsonb` (`default_time_per_move` 86400, `rated_default` true, `allow_open_challenges` true, `max_active_games_per_user` 5, `leaderboard_min_games` 5, `card_topic_mode` `origin`, `fixed_topic_id`), `created_at`, `updated_at` | `telegram_chat_id` changes on migration |
 | `group_members` | `group_id`, `user_id`, `status` (`member`, `left`, `blocked`), `first_seen_at`, `last_seen_at`, `verified_at`, `blocked_by`, primary key (`group_id`, `user_id`) | Feeds the opponent picker and the membership ladder |
 | `challenges` | `id`, `public_id`, `group_id`, `challenger_id`, `opponent_id` nullable, `time_per_move` nullable, `challenger_colour` (`white`, `black`, `random`), `rated`, `status`, `message_id`, `thread_id`, `game_id`, `created_at`, `expires_at`, `resolved_at` | Index on (`status`, `expires_at`) |
@@ -678,7 +675,7 @@ Telegram pacing lives in the outbound client used by the handlers (§5.8): a 429
 |---|---|---|
 | Unit | vitest | Arbiter: fivefold and 75-move detection, threefold and fifty-move claimability, en passant repetition case, insufficient-material table, checkmate precedence over the 75-move rule, mandatory promotion. Glicko-2: the paper's vector, inactivity inflation, floor and ceiling, void rebuild equals a fresh computation. PGN round trip through chess.js `loadPgn`. Start-payload and callback codecs. Card renderer snapshots for every state in §5.4. `initData` validator with the documented vector, a tampered hash and a stale `auth_date`. Clock math for every time control |
 | Integration | vitest with a real PostgreSQL (testcontainers locally, a service container in CI) and a local fake Bot API server that grammY is pointed at | Move transaction races: two moves, a move against the forfeit scanner, two accepts of an open challenge; idempotent move retry; scanners; job dedup and coalescing; webhook idempotency; the membership ladder with and without admin rights; outbound pacing and 429 handling; delete-my-data |
-| End to end | Playwright, Chromium with touch emulation, against the server plus a dev harness that injects a fake `window.Telegram.WebApp` with configurable version and test-signed `initData` | Drag move, tap-tap move, promotion, confirm and cancel, spectator cannot lift a piece, view earlier position then return, replay slider, live update between two browser contexts, version fallbacks on a simulated 6.0 client, bundle-size and Lighthouse budgets |
+| End to end | Playwright, Chromium with touch emulation, against the server plus a dev harness that injects a fake `window.Telegram.WebApp` with configurable version and test-signed `initData` | Drag move, tap-tap move, promotion, spectator cannot lift a piece, view earlier position then return, replay slider, live update between two browser contexts, version fallbacks on a simulated 6.0 client, bundle-size and Lighthouse budgets |
 | Device matrix (manual, before alpha exit) | Real devices | iPhone and Android with current Telegram, Telegram Desktop, Web K and Web A: 50 drag moves each without a missed drop; card → move → back in chat; background five minutes → resume shows the latest state; DM buttons |
 | Load | k6 | 10× target: 25 moves per second for 10 minutes with 2,000 SSE streams; server p95 move latency under 300 ms; no growth in `jobs_pending` |
 
@@ -739,7 +736,7 @@ pass — not a cap.
 5. Rule question: the PRD scores a timeout as a loss even when the opponent cannot mate; Lichess and Chess.com score it a draw, following FIDE Article 6.9. It is one branch in the arbiter. Recommendation: the draw.
 6. Draw offers can be accepted at any time while pending (§7.1), a superset of the PRD's "on their turn". Confirm.
 7. `Rematch` on aborted cards (§5.4) is an addition; the PRD does not specify aborted cards.
-8. PRD open questions 1, 2, 3 and 6 need no technical decision. The defaults are implemented as preferences and settings: confirm moves on, close after move on, no group-mention fallback, per-group ratings.
+8. PRD open questions 1, 2, 3 and 6 need no technical decision. The defaults are implemented as preferences and settings: close after move on, no group-mention fallback, per-group ratings.
 
 ## Appendix A. Verified facts (2026-09-20)
 
