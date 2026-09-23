@@ -18,11 +18,10 @@ import {
   countActiveGames,
   countActiveGamesBetween,
   deadlineExpression,
-  reminderExpression,
 } from './limits';
 import { isBlocked } from './members';
 import { generatePublicId } from '../db/ids';
-import { requireUser, wantsDms } from './users';
+import { requireUser } from './users';
 
 /** The single engine user, created by migration 0002 (spec §5). */
 export async function getEngineUser(tx: DbOrTx): Promise<UserRow> {
@@ -95,7 +94,9 @@ export async function createEngineGame(deps: Deps, input: CreateEngineGameInput)
         fen: INITIAL_FEN,
         // Spec §9: the engine never carries a deadline, so it can never be forfeited.
         deadlineAt: engineToMove ? null : deadlineExpression(input.timePerMove),
-        reminderAt: engineToMove ? null : reminderExpression(input.timePerMove, wantsDms(player)),
+        // Spec §8: a bot game sends no move notifications, so it never carries a reminder —
+        // not even on the human's turn.
+        reminderAt: null,
       })
       .returning();
     if (!game) throw new Error('engine game insert returned no row');

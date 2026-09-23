@@ -238,7 +238,9 @@ export async function playMove(deps: Deps, input: PlayMoveInput): Promise<GameDt
         lastMoveAt: now,
         // Spec §9: the engine never carries a deadline, so it can never be forfeited.
         deadlineAt: engineNext ? null : deadlineExpression(timePerMove),
-        reminderAt: engineNext ? null : reminderExpression(timePerMove, wantsDms(opponent)),
+        // Spec §8: a bot game sends no move notifications, and the reminder is one. `engineNext`
+        // implies `engineGame`, so the game-level test covers the engine's turn too.
+        reminderAt: engineGame ? null : reminderExpression(timePerMove, wantsDms(opponent)),
         ...(offerLapses ? { drawOfferBy: null, drawOfferPly: null } : {}),
       })
       .where(eq(games.id, game.id))
@@ -255,14 +257,14 @@ export async function playMove(deps: Deps, input: PlayMoveInput): Promise<GameDt
     if (engineNext) {
       // Spec §8: engine games post no card, and the engine has no DM to receive.
       await enqueueEngineMove(tx, moved);
-    } else {
-      if (!engineGame) {
-        await enqueue(tx, {
-          kind: 'edit_card',
-          payload: { gameId: game.id },
-          dedupKey: `card:g:${game.publicId}`,
-        });
-      }
+    } else if (!engineGame) {
+      // Spec §8: a bot game announces nothing when the engine moves — no card, and no turn DM to
+      // the human. The whole branch is a no-op for it.
+      await enqueue(tx, {
+        kind: 'edit_card',
+        payload: { gameId: game.id },
+        dedupKey: `card:g:${game.publicId}`,
+      });
       await enqueue(tx, {
         kind: 'send_dm',
         payload: { userId: opponentId, template: 'turn', gameId: game.id },

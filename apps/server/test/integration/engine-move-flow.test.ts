@@ -5,6 +5,7 @@ import { createEngineGame, getEngineUser } from '../../src/domain/engineGames';
 import { playMove, requireGameByPublicId, resign, voidGame } from '../../src/domain/games';
 import { buildGamePgn } from '../../src/domain/pgn';
 import { forfeitOverdueGames } from '../../src/clock/scanners';
+import { reminderExpression } from '../../src/domain/limits';
 import { touchMember } from '../../src/domain/members';
 import { openTestDb, testDeps, truncateAll } from '../helpers/db';
 import { insertGame, insertGroup, insertUser } from '../helpers/fixtures';
@@ -18,9 +19,9 @@ afterAll(() => close());
 const jobKinds = async (): Promise<string[]> =>
   (await db.select().from(jobs)).map((job) => job.kind);
 
-async function setup() {
+async function setup(userOverrides: { dmAllowed?: boolean } = {}) {
   const group = await insertGroup(db);
-  const alice = await insertUser(db, { firstName: 'Alice' });
+  const alice = await insertUser(db, { firstName: 'Alice', ...userOverrides });
   await touchMember(db, group.id, alice.id);
   return { group, alice };
 }
@@ -78,8 +79,45 @@ describe('playMove and finishGame with an engine opponent', () => {
     const after = await requireGameByPublicId(db, game.publicId);
     expect(after.deadlineAt).not.toBeNull();
     // The engine's own move (e7e5) reaches playMove's non-`engineNext` branch, where the game is
-    // still an engine game and must still get no card.
-    expect(await jobKinds()).not.toContain('edit_card');
+    // still an engine game and must still get no card — and, per spec §8, no move notification to
+    // the human either. The turn DM is enqueued regardless of the recipient's DM preference (the
+    // handler filters later), so its absence here is the branch, not a preference.
+    const kinds = await jobKinds();
+    expect(kinds).not.toContain('edit_card');
+    expect(kinds).not.toContain('send_dm');
+  });
+
+  it('leaves the human no reminder to be notified by after the engine moves', async () => {
+    const { group, alice } = await setup({ dmAllowed: true });
+    // Guard against a vacuous pass: the production expression does produce a reminder for these
+    // inputs, so the null below is spec §8's rule rather than a broken reminder path.
+    expect(reminderExpression(86_400, true)).not.toBeNull();
+    const game = await createEngineGame(deps, {
+      groupId: group.id,
+      userId: alice.id,
+      level: 'club',
+      colour: 'white',
+      timePerMove: 86_400,
+    });
+    await playMove(deps, {
+      gameId: game.publicId,
+      userId: alice.id,
+      uci: 'e2e4',
+      expectedPly: 0,
+      clientMoveId: 'c1',
+    });
+    const engine = await getEngineUser(db);
+    await playMove(deps, {
+      gameId: game.publicId,
+      userId: engine.id,
+      uci: 'e7e5',
+      expectedPly: 1,
+      clientMoveId: 'e1',
+    });
+    const after = await requireGameByPublicId(db, game.publicId);
+    // The human is to move, so they keep a deadline — but nothing will remind them about it.
+    expect(after.deadlineAt).not.toBeNull();
+    expect(after.reminderAt).toBeNull();
   });
 
   it('keeps a clockless engine game clockless for both sides', async () => {

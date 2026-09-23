@@ -229,6 +229,9 @@ In the app, under the group, visible to group admins only (verified against Tele
 - The one exception is **Share position** (§7.6): a player may share a position from a bot game like
   any other, because that is a deliberate tap and goal 4 already allows "positions people choose to
   share". What goal 4 keeps out of the chat is what the system posts unasked.
+- The bot never notifies the player about moves: no "your turn" DM when it replies, and no reminder.
+  The game-end notification stays, since it reports a result rather than a move. A player can
+  therefore run a bot game's clock down without being nudged.
 - No rating numbers are shown for the levels.
 
 ## 8. UX specification

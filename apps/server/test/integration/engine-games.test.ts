@@ -1,6 +1,6 @@
 import type { EngineLevel } from '@group-chess/shared';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { MAX_GAMES_PER_PAIR } from '../../src/domain/limits';
+import { MAX_GAMES_PER_PAIR, reminderExpression } from '../../src/domain/limits';
 import { challenges, games, jobs, users } from '../../src/db/schema';
 import { DomainError } from '../../src/domain/errors';
 import { createEngineGame, getEngineUser } from '../../src/domain/engineGames';
@@ -106,7 +106,7 @@ describe('createEngineGame', () => {
     expect(await db.select().from(games)).toHaveLength(0);
   });
 
-  it('sets a real deadline and reminder only for the human side to move, never for the engine', async () => {
+  it('sets a real deadline only for the human side to move, never for the engine', async () => {
     const { group, alice } = await setup({ dmAllowed: true });
 
     const engineToMove = await createEngineGame(deps, {
@@ -117,7 +117,6 @@ describe('createEngineGame', () => {
       timePerMove: 86_400,
     });
     expect(engineToMove.deadlineAt).toBeNull();
-    expect(engineToMove.reminderAt).toBeNull();
 
     const humanToMove = await createEngineGame(deps, {
       groupId: group.id,
@@ -127,6 +126,25 @@ describe('createEngineGame', () => {
       timePerMove: 86_400,
     });
     expect(humanToMove.deadlineAt).not.toBeNull();
-    expect(humanToMove.reminderAt).not.toBeNull();
+  });
+
+  it('never carries a reminder, even on the human turn a human game would remind about', async () => {
+    const { group, alice } = await setup({ dmAllowed: true });
+
+    // Guard against a vacuous pass: these are inputs the production reminder expression genuinely
+    // produces a reminder for, so a null below is the bot rule at work rather than a broken
+    // reminder path. A fixture that writes reminder_at directly would not prove this.
+    expect(reminderExpression(86_400, true)).not.toBeNull();
+
+    for (const colour of ['white', 'black'] as const) {
+      const game = await createEngineGame(deps, {
+        groupId: group.id,
+        userId: alice.id,
+        level: 'club',
+        colour,
+        timePerMove: 86_400,
+      });
+      expect(game.reminderAt).toBeNull();
+    }
   });
 });

@@ -297,10 +297,10 @@ repetitive openings at the higher levels; the fix is contained and can be added 
 | Leaderboard and stats | Unrated already excludes engine games from Glicko-2. Additionally they are excluded from W/D/L, and the engine user never appears in the Players tab |
 | Draw offers | The bot declines every draw offer. Predictable, and keeps evaluation out of the draw path — which §2 requires anyway |
 | Resign and abort | Unchanged. The human can resign or abort under the existing rules |
-| Clocks | The human keeps a normal per-move deadline and can still forfeit. The engine never can — see §9 |
+| Clocks | The human keeps a normal per-move deadline and can still forfeit. The engine never can — see §9. Note the interaction with the row above: with no reminder DM, a human can now forfeit a bot game without warning |
 | Rematch | Creates a new engine game at the same level directly, not a challenge. Because engine games post no card (above), the affordance exists only on the game-end screen in the app; the card `rematch` callback is never reachable for them |
 | Lichess import | **Skipped for engine games.** The quota is 100 imports per hour shared across the deployment, and unlimited engine games would drain it for games with no human opponent. The analysis-board fallback link and the PGN download both still work and need no quota, so the game-end screen keeps working |
-| Turn DMs | Unchanged. The engine answers within seconds, which makes the existing DM useful rather than noisy |
+| Move notifications | **None.** A bot game sends the human no turn DM and no reminder DM. The bot replies in seconds, so a "your turn" ping arrives for a move the player is already looking at, and a game they are playing alone does not need chasing. The game-end DM is kept: it reports a result, not a move, and without it a player who closed the app would never learn their game finished |
 
 ## 9. Error handling and failure modes
 
@@ -447,4 +447,9 @@ it is Stockfish's behaviour, not this project's (§11).
 - **An illegal move recovers silently**, and only the log and the alert reveal it (E7, §9)
 - **During an engine outage the picker still offers the bot**, and those games queue and then abort
   (§9)
+- **A human can forfeit a bot game on time with no warning.** Suppressing move notifications (§8)
+  removes the reminder DM that would otherwise have nudged them before the deadline. Bot games keep a
+  deadline because the player chooses a time control when creating one; if forgetting a practice game
+  should not cost it, the fix is to stop the human forfeiting in bot games, which is a rule change and
+  deliberately not made here. Players who had notifications switched off already behaved this way
 - **Engine games get no permanent Lichess URL** (§8)
