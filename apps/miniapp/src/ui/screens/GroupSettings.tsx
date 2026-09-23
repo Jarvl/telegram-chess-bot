@@ -3,14 +3,15 @@ import {
   LobbyDtoSchema,
   t,
   TIME_PER_MOVE_OPTIONS,
-  timePerMoveLabel,
+  timeSpanLabel,
   type GameSummary,
   type GroupSettings as Settings,
   type TimePerMove,
 } from '@group-chess/shared';
 import { useMemo, useState } from 'preact/hooks';
+import { Avatar } from '../Avatar';
 import { useApp } from '../context';
-import { Field, Segmented, Select, Switch } from '../controls';
+import { Field, Segmented, Switch, Tiles } from '../controls';
 import { confirmDialog } from '../dialog';
 import { playerLabel, summaryTitle } from '../format';
 import { useMainButton, useResource } from '../hooks';
@@ -114,22 +115,25 @@ export function GroupSettings(props: { groupId: string }) {
 
   return (
     <div class="screen">
-      <h1 class="title">{t('app.gsettings.title')}</h1>
-      <p class="subtitle">{settings.data.group.title}</p>
+      <div>
+        <h1 class="title">{t('app.gsettings.title')}</h1>
+        <p class="subtitle">{settings.data.group.title}</p>
+      </div>
       <div class="list">
-        <Field label={t('app.gsettings.default_time')}>
-          <Select
-            data-setting="defaultTimePerMove"
-            value={String(current.defaultTimePerMove)}
-            onChange={(value) =>
-              set('defaultTimePerMove', (value === 'null' ? null : Number(value)) as TimePerMove)
-            }
-            options={[...TIME_PER_MOVE_OPTIONS, null].map((value) => ({
-              value: String(value),
-              label: timePerMoveLabel(value),
+        <div class="field column" data-setting="defaultTimePerMove">
+          <span>{t('app.gsettings.default_time')}</span>
+          <Tiles
+            columns={3}
+            value={current.defaultTimePerMove}
+            onChange={(value) => set('defaultTimePerMove', value)}
+            tiles={[...TIME_PER_MOVE_OPTIONS, null].map((value) => ({
+              key: String(value),
+              value: value as TimePerMove,
+              label: value === null ? t('time.per_move.none') : timeSpanLabel(value),
+              'data-time': value === null ? 'none' : value,
             }))}
           />
-        </Field>
+        </div>
         <div class="field">
           <span>{t('app.gsettings.rated_default')}</span>
           <Switch
@@ -195,15 +199,16 @@ export function GroupSettings(props: { groupId: string }) {
         </button>
       ) : null}
       <div class="section">{t('app.gsettings.blocked')}</div>
-      <div class="list">
+      <div class="card">
         {settings.data.blocked.length === 0 ? (
           <p class="row hint">{t('app.gsettings.none_blocked')}</p>
         ) : null}
         {settings.data.blocked.map((player) => (
           <div class="row" key={player.id}>
+            <Avatar player={player} size={40} />
             <span class="grow primary">{playerLabel(player)}</span>
             <button
-              class="btn secondary"
+              class="pill-btn"
               data-unblock={player.id}
               onClick={() => void unblock(player.id)}
             >
@@ -213,12 +218,13 @@ export function GroupSettings(props: { groupId: string }) {
         ))}
       </div>
       <div class="section">{t('app.gsettings.block')}</div>
-      <div class="list">
+      <div class="card">
         {candidates.map((player) => (
           <div class="row" key={player.id}>
+            <Avatar player={player} size={40} />
             <span class="grow primary">{playerLabel(player)}</span>
             <button
-              class="btn danger"
+              class="pill-btn danger"
               data-block={player.id}
               onClick={() => void block(player.id, player.name)}
             >
@@ -228,11 +234,11 @@ export function GroupSettings(props: { groupId: string }) {
         ))}
       </div>
       <div class="section">{t('app.gsettings.void')}</div>
-      <div class="list">
+      <div class="card">
         {games.map((game) => (
           <div class="row" key={game.id}>
             <span class="grow primary">{summaryTitle(game)}</span>
-            <button class="btn danger" data-void={game.id} onClick={() => void voidGame(game)}>
+            <button class="pill-btn danger" data-void={game.id} onClick={() => void voidGame(game)}>
               {t('app.game.void')}
             </button>
           </div>

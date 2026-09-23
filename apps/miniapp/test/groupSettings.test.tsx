@@ -54,6 +54,7 @@ describe('GroupSettings', () => {
     await r.flush();
     await r.click('[data-setting="ratedDefault"]');
     await r.click('[data-topic="fixed"]');
+    await r.click('[data-setting="defaultTimePerMove"] [data-time="3600"]');
     expect(window.__tg!.haptics).toContain('selection');
     expect(window.__tg!.mainButton.enabled).toBe(false);
     const input = r.root.querySelector<HTMLInputElement>('[data-setting="fixedTopicId"]')!;
@@ -65,7 +66,12 @@ describe('GroupSettings', () => {
     await r.flush();
     const put = r.calls.find((c) => c.method === 'PUT');
     expect(put?.path).toBe('/api/groups/GrOuPiDxYz/settings');
-    expect(put?.body).toEqual({ ratedDefault: false, cardTopicMode: 'fixed', fixedTopicId: 42 });
+    expect(put?.body).toEqual({
+      defaultTimePerMove: 3600,
+      ratedDefault: false,
+      cardTopicMode: 'fixed',
+      fixedTopicId: 42,
+    });
   });
 
   it('unblocks and blocks players', async () => {

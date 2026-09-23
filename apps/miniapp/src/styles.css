@@ -1310,3 +1310,30 @@ coords.squares:nth-of-type(even) :nth-child(even) {
 .inert {
   opacity: 0.5;
 }
+
+.field.column {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.card .tiles .tile {
+  background: var(--page);
+}
+
+.card .tiles .tile[aria-pressed='true'] {
+  background: var(--acc);
+}
+
+.player-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.status-mark {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: 50% 30%;
+}

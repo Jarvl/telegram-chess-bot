@@ -1,8 +1,8 @@
-import { PlayerPageDtoSchema, t } from '@group-chess/shared';
+import { PlayerPageDtoSchema, ratingLabel, t } from '@group-chess/shared';
+import { Avatar } from '../Avatar';
 import { useApp } from '../context';
-import { playerLabel } from '../format';
+import { GameCard } from '../GameCard';
 import { useResource } from '../hooks';
-import { GameRow } from '../rows';
 import { ErrorScreen, Loading } from './Status';
 
 export function Player(props: { groupId: string; userId: string }) {
@@ -15,16 +15,22 @@ export function Player(props: { groupId: string; userId: string }) {
   const { player, headToHead, recentGames } = page.data;
   return (
     <div class="screen">
-      <h1 class="title">{playerLabel(player)}</h1>
-      <p class="subtitle">
-        {t('app.player.record', player.record)} ·{' '}
-        {t('app.player.games', { count: player.gamesPlayed })}
-      </p>
+      <header class="player-head">
+        <Avatar player={player} size={56} />
+        <div class="grow">
+          <h1 class="title">{player.name}</h1>
+          <p class="subtitle">
+            {ratingLabel(player.rating, player.provisional)} ·{' '}
+            {t('app.player.record', player.record)} ·{' '}
+            {t('app.player.games', { count: player.gamesPlayed })}
+          </p>
+        </div>
+      </header>
       <p class="hint">{t('app.player.head_to_head', headToHead)}</p>
       <div class="section">{t('app.player.recent')}</div>
-      <div class="list">
+      <div class="card">
         {recentGames.map((game) => (
-          <GameRow
+          <GameCard
             key={game.id}
             game={game}
             onOpen={(gameId) => router.push({ name: 'game', gameId })}
