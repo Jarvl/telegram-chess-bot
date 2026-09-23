@@ -107,15 +107,24 @@ button {
   position: absolute;
   bottom: 58%;
   left: 58%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   min-width: 17px;
+  height: 17px;
   padding: 0 4px;
   border-radius: 999px;
   background: var(--destructive);
   color: #ffffff;
   font-size: 11px;
   font-weight: 600;
-  line-height: 17px;
-  text-align: center;
+  line-height: 1;
+  /* Centring a line box leaves a digit sitting high, because the box reserves descender space no
+     digit uses — and by how much depends on the font, so a fixed nudge would fix one platform and
+     break another. Trimming the box to cap height and baseline makes it hug the ink, so centring
+     the box centres the glyph. Clients too old for it fall back to the half-pixel-off line box. */
+  text-box-trim: trim-both;
+  text-box-edge: cap alphabetic;
 }
 
 .tabbar .nav-label {

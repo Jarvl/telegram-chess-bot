@@ -73,7 +73,13 @@ test('a game opened from a card is one tap from the chat and one tap from home',
   await expect(page.locator('.cg-wrap')).toBeVisible();
 
   // The badge counts the boards waiting on this player, and shows while they are inside one.
-  await expect(page.locator('[data-nav="games"] .nav-badge')).toHaveText('1');
+  const badge = page.locator('[data-nav="games"] .nav-badge');
+  await expect(badge).toHaveText('1');
+  // A round badge whose box is trimmed to the glyph, so the digit sits on the circle's centre
+  // rather than high in the descender space no digit uses.
+  expect(await badge.evaluate((el) => getComputedStyle(el).textBoxTrim)).toBe('trim-both');
+  const size = (await badge.boundingBox())!;
+  expect(size.width).toBe(size.height);
 
   // The tab bar is the way home, so it costs no back taps to get there.
   await page.locator('[data-nav="games"]').click();
