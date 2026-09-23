@@ -151,10 +151,10 @@ describe('me routes', () => {
     const token = await api.sessionFor(user);
     const res = await api.request('PUT', '/api/me/prefs', {
       token,
-      body: { prefs: { confirmMoves: false }, writeAccess: { allowed: true } },
+      body: { prefs: { closeAfterMove: false }, writeAccess: { allowed: true } },
     });
     expect(await res.json()).toMatchObject({
-      prefs: { confirmMoves: false, closeAfterMove: true },
+      prefs: { closeAfterMove: false, notifications: true },
       dmAllowed: true,
     });
     const [row] = await db.select().from(users).where(eq(users.id, user.id));

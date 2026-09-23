@@ -13,7 +13,6 @@ const launchBody = (route: unknown, askWriteAccess = false) => ({
   token: 'jwt',
   user: { id: '1', name: 'Alice', username: 'alice' },
   prefs: {
-    confirmMoves: true,
     closeAfterMove: true,
     notifications: true,
     boardTheme: null,

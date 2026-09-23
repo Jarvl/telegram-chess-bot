@@ -70,8 +70,6 @@ export type TelegramWebApp = {
     notificationOccurred(type: 'error' | 'success' | 'warning'): void;
     selectionChanged(): void;
   };
-  enableClosingConfirmation?(): void;
-  disableClosingConfirmation?(): void;
   disableVerticalSwipes?(): void;
   enableVerticalSwipes?(): void;
   requestWriteAccess?(callback?: (granted: boolean) => void): void;

@@ -31,7 +31,7 @@ const okRoute =
     return { status: 200, body: { ok: true } };
   };
 
-const wantPrefs = { confirmMoves: false, closeAfterMove: false };
+const wantPrefs = { closeAfterMove: false };
 
 function mount(
   initial: ReturnType<typeof gameDto>,
@@ -55,7 +55,6 @@ beforeEach(() => {
   adapter = stubAdapter();
   FakeEventSource.reset();
   vi.stubGlobal('EventSource', FakeEventSource);
-  wantPrefs.confirmMoves = false;
   wantPrefs.closeAfterMove = false;
 });
 afterEach(async () => {
@@ -83,7 +82,7 @@ describe('Game', () => {
     expect(adapter.movables.at(-1)).toMatchObject({ colour: 'none' });
   });
 
-  it('sends a move at once when confirmation is off and applies the response', async () => {
+  it('sends a move as soon as it is dropped and applies the response', async () => {
     const r = mount(gameDto());
     await r.flush();
     expect(adapter.movables.at(-1)?.colour).toBe('white');
@@ -96,29 +95,6 @@ describe('Game', () => {
     expect(r.root.querySelectorAll('.move-list [data-ply]')).toHaveLength(1);
     expect(window.__tg!.haptics).toContain('impact:light');
     expect(window.__tg!.mainButton.visible).toBe(false);
-  });
-
-  it('asks for confirmation when the setting is on: cancel restores, confirm sends exactly once', async () => {
-    wantPrefs.confirmMoves = true;
-    const r = mount(gameDto());
-    await r.flush();
-    adapter.drop('e2', 'e4');
-    await r.flush();
-    expect(window.__tg!.mainButton).toMatchObject({ text: 'Confirm', visible: true });
-    expect(window.__tg!.secondaryButton).toMatchObject({ text: 'Cancel', visible: true });
-    expect(window.__tg!.closingConfirmation).toBe(true);
-    const before = adapter.positions.length;
-    window.__tg!.clickSecondary();
-    await r.flush();
-    expect(adapter.positions.length).toBeGreaterThan(before);
-    expect(r.calls.filter((c) => c.method === 'POST')).toHaveLength(0);
-    expect(window.__tg!.closingConfirmation).toBe(false);
-    adapter.drop('e2', 'e4');
-    await r.flush();
-    window.__tg!.clickMain();
-    window.__tg!.clickMain();
-    await r.flush();
-    expect(r.calls.filter((c) => c.method === 'POST')).toHaveLength(1);
   });
 
   it('buzzes a warning when a state arriving over the stream puts the viewer in check', async () => {
@@ -135,50 +111,6 @@ describe('Game', () => {
     await r.flush();
     expect(window.__tg!.haptics).toContain('notification:warning');
     expect(adapter.positions.at(-1)?.check).toBe(true);
-  });
-
-  it('keeps a move awaiting confirmation on the board while snapshots arrive, and drops it when the game moves on', async () => {
-    wantPrefs.confirmMoves = true;
-    const initial = gameDto();
-    const r = mount(initial);
-    await r.flush();
-    adapter.drop('e2', 'e4');
-    await r.flush();
-    expect(window.__tg!.mainButton).toMatchObject({ text: 'Confirm', visible: true });
-    const before = adapter.positions.length;
-    // The refresh on resume returns the same snapshot; a draw offer bumps the version only.
-    FakeEventSource.instances[0]!.send('state', initial, '0');
-    FakeEventSource.instances[0]!.send(
-      'state',
-      gameDto({ version: 1, drawOffer: { by: 'black', atPly: 0 } }),
-      '1',
-    );
-    await r.flush();
-    expect(adapter.positions).toHaveLength(before);
-    expect(window.__tg!.mainButton).toMatchObject({ text: 'Confirm', visible: true });
-    expect(r.text()).toContain('Bob offers a draw');
-    // The opponent aborts: the pending move is void, the board and buttons are restored.
-    FakeEventSource.instances[0]!.send(
-      'state',
-      gameDto({ version: 2, status: 'finished', result: '*', endReason: 'abort' }),
-      '2',
-    );
-    await r.flush();
-    expect(adapter.positions.length).toBeGreaterThan(before);
-    expect(window.__tg!.mainButton.visible).toBe(false);
-    expect(window.__tg!.closingConfirmation).toBe(false);
-    expect(r.calls.filter((c) => c.method === 'POST')).toHaveLength(0);
-  });
-
-  it('renders an in-page cancel below 7.10', async () => {
-    wantPrefs.confirmMoves = true;
-    const r = mount(gameDto(), okRoute(gameDto()), '7.0');
-    await r.flush();
-    adapter.drop('e2', 'e4');
-    await r.flush();
-    expect(r.root.querySelector('[data-action="cancel-move"]')).not.toBeNull();
-    await r.click('[data-action="cancel-move"]');
-    expect(r.calls.filter((c) => c.method === 'POST')).toHaveLength(0);
   });
 
   it('snaps back silently on a stale rejection and reloads the state', async () => {

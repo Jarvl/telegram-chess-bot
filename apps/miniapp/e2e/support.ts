@@ -107,13 +107,11 @@ export async function tgState(
       links: record.links,
       downloads: record.downloads,
       closed: record.closed,
-      closingConfirmation: record.closingConfirmation,
     };
   });
 }
 
 export const clickMain = (page: Page) => page.evaluate(() => window.__tg!.clickMain());
-export const clickSecondary = (page: Page) => page.evaluate(() => window.__tg!.clickSecondary());
 
 export async function boardBox(
   page: Page,

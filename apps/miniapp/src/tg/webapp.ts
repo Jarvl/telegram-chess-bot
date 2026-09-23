@@ -1,17 +1,11 @@
 import type { TelegramButton, TelegramWebApp, ThemeParams } from './types';
 
 export type Feature =
-  | 'haptics'
-  | 'closingConfirmation'
-  | 'writeAccess'
-  | 'verticalSwipes'
-  | 'secondaryButton'
-  | 'downloadFile';
+  'haptics' | 'writeAccess' | 'verticalSwipes' | 'secondaryButton' | 'downloadFile';
 
 /** Spec §6.6: the first Bot API version that has each capability. */
 export const FEATURE_MIN_VERSION: Record<Feature, string> = {
   haptics: '6.1',
-  closingConfirmation: '6.2',
   writeAccess: '6.9',
   verticalSwipes: '7.7',
   secondaryButton: '7.10',
@@ -56,7 +50,6 @@ export interface Tg {
   close(): void;
   /** True when the client supports it and it was called. */
   disableVerticalSwipes(): boolean;
-  closingConfirmation(on: boolean): void;
   haptic(kind: HapticImpact): void;
   hapticNotify(kind: HapticNotification): void;
   /** False when the client has no such button; the caller renders one in the page. */
@@ -116,7 +109,6 @@ function nullTg(): Tg {
     expand: () => undefined,
     close: () => undefined,
     disableVerticalSwipes: () => false,
-    closingConfirmation: () => undefined,
     haptic: () => undefined,
     hapticNotify: () => undefined,
     setMainButton: () => false,
@@ -177,11 +169,6 @@ export function createTg(
       if (!supports('verticalSwipes') || !raw.disableVerticalSwipes) return false;
       raw.disableVerticalSwipes();
       return true;
-    },
-    closingConfirmation(on) {
-      if (!supports('closingConfirmation')) return;
-      if (on) raw.enableClosingConfirmation?.();
-      else raw.disableClosingConfirmation?.();
     },
     haptic(kind) {
       if (supports('haptics')) raw.HapticFeedback?.impactOccurred(kind);

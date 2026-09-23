@@ -190,7 +190,6 @@ export const en = {
   'app.player.recent': 'Recent games',
   'app.player.games': '{count} games',
   'app.settings.title': 'Settings',
-  'app.settings.confirm_moves': 'Confirm moves',
   'app.settings.close_after_move': 'Return to the chat after moving',
   'app.settings.notifications': 'Turn notifications',
   'app.settings.delete': 'Delete my data',
