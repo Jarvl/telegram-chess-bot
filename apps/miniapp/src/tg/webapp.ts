@@ -1,7 +1,13 @@
 import type { TelegramButton, TelegramWebApp, ThemeParams } from './types';
 
 export type Feature =
-  'haptics' | 'writeAccess' | 'verticalSwipes' | 'secondaryButton' | 'downloadFile';
+  | 'haptics'
+  | 'writeAccess'
+  | 'verticalSwipes'
+  | 'secondaryButton'
+  | 'downloadFile'
+  | 'headerColor'
+  | 'bottomBarColor';
 
 /** Spec §6.6: the first Bot API version that has each capability. */
 export const FEATURE_MIN_VERSION: Record<Feature, string> = {
@@ -10,6 +16,8 @@ export const FEATURE_MIN_VERSION: Record<Feature, string> = {
   verticalSwipes: '7.7',
   secondaryButton: '7.10',
   downloadFile: '8.0',
+  headerColor: '6.1',
+  bottomBarColor: '7.10',
 };
 
 export function versionAtLeast(version: string, minimum: string): boolean {
@@ -63,6 +71,10 @@ export interface Tg {
   downloadFile(url: string, fileName: string): boolean;
   onViewportChanged(callback: (stableHeight: number) => void): () => void;
   onThemeChanged(callback: () => void): () => void;
+  /** Header and background (6.1) and bottom bar (7.10) take this theme colour; a no-op below. */
+  setChromeColor(key: 'bg_color' | 'secondary_bg_color'): void;
+  /** Colours Telegram's MainButton; the client keeps the colours across show and hide. */
+  setMainButtonColors(color: string, textColor: string): void;
 }
 
 class ButtonBinding {
@@ -121,6 +133,8 @@ function nullTg(): Tg {
     downloadFile: () => false,
     onViewportChanged: () => () => undefined,
     onThemeChanged: () => () => undefined,
+    setChromeColor: () => undefined,
+    setMainButtonColors: () => undefined,
   };
 }
 
@@ -204,5 +218,14 @@ export function createTg(
       raw.onEvent('themeChanged', callback);
       return () => raw.offEvent('themeChanged', callback);
     },
+    setChromeColor(key) {
+      if (supports('headerColor')) {
+        raw.setHeaderColor?.(key);
+        raw.setBackgroundColor?.(key);
+      }
+      if (supports('bottomBarColor')) raw.setBottomBarColor?.(key);
+    },
+    setMainButtonColors: (color, textColor) =>
+      raw.MainButton.setParams?.({ color, text_color: textColor }),
   };
 }

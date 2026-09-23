@@ -107,6 +107,7 @@ export async function tgState(
       links: record.links,
       downloads: record.downloads,
       closed: record.closed,
+      chrome: record.chrome,
     };
   });
 }

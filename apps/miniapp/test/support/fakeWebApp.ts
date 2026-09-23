@@ -19,6 +19,8 @@ export type FakeButton = {
   visible: boolean;
   progress: boolean;
   enabled: boolean;
+  color?: string;
+  textColor?: string;
 };
 
 export type FakeWebAppRecord = {
@@ -30,6 +32,7 @@ export type FakeWebAppRecord = {
   links: string[];
   downloads: { url: string; file_name: string }[];
   closed: boolean;
+  chrome: { header?: string; background?: string; bottomBar?: string };
   clickMain(): void;
   clickSecondary(): void;
   clickBack(): void;
@@ -65,6 +68,7 @@ export function installFakeWebApp(options: FakeWebAppOptions): void {
     links: [],
     downloads: [],
     closed: false,
+    chrome: {},
     clickMain: () => {
       for (const cb of [...handlers.main]) cb();
     },
@@ -123,6 +127,11 @@ export function installFakeWebApp(options: FakeWebAppOptions): void {
     },
     disable: () => {
       state.enabled = false;
+    },
+    setParams: (params: { color?: string; text_color?: string }) => {
+      if (params.color) state.color = params.color;
+      if (params.text_color) state.textColor = params.text_color;
+      record.calls.push(`${name}.setParams`);
     },
   });
   const params = new URLSearchParams(options.initData);
@@ -203,6 +212,22 @@ export function installFakeWebApp(options: FakeWebAppOptions): void {
       impactOccurred: (style: string) => record.haptics.push(`impact:${style}`),
       notificationOccurred: (type: string) => record.haptics.push(`notification:${type}`),
       selectionChanged: () => record.haptics.push('selection'),
+    };
+  }
+  if (atLeast(options.version, '6.1')) {
+    webApp.setHeaderColor = (color: string) => {
+      record.chrome.header = color;
+      record.calls.push(`setHeaderColor:${color}`);
+    };
+    webApp.setBackgroundColor = (color: string) => {
+      record.chrome.background = color;
+      record.calls.push(`setBackgroundColor:${color}`);
+    };
+  }
+  if (atLeast(options.version, '7.10')) {
+    webApp.setBottomBarColor = (color: string) => {
+      record.chrome.bottomBar = color;
+      record.calls.push(`setBottomBarColor:${color}`);
     };
   }
   if (atLeast(options.version, '6.9') && options.writeAccess !== undefined) {

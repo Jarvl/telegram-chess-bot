@@ -2,7 +2,7 @@ import type { LaunchRoute } from '@group-chess/shared';
 import { launch } from './api/launch';
 import type { Route, TabName } from './router';
 import { applyLaunch } from './state/session';
-import { applyTheme } from './tg/theme';
+import { applyChrome, applyTheme } from './tg/theme';
 import type { AppContextValue, Prefetched } from './ui/context';
 
 /**
@@ -36,10 +36,14 @@ export function landingFor(
 export async function boot(app: AppContextValue): Promise<void> {
   const { tg, client, router, prefetched } = app;
   applyTheme(tg);
+  applyChrome(tg);
   tg.ready();
   tg.expand();
   tg.disableVerticalSwipes();
-  tg.onThemeChanged(() => applyTheme(tg));
+  tg.onThemeChanged(() => {
+    applyTheme(tg);
+    applyChrome(tg);
+  });
   tg.onViewportChanged(() => applyTheme(tg));
 
   const outcome = await launch(client, tg.initData);

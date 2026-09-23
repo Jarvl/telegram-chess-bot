@@ -110,6 +110,23 @@ describe('createTg', () => {
     expect(seen).toEqual([640]);
   });
 
+  it('colours the header and background from 6.1 and the bottom bar from 7.10', () => {
+    tgFor({ version: '6.0' }).setChromeColor('secondary_bg_color');
+    expect(window.__tg!.chrome).toEqual({});
+    tgFor({ version: '7.9' }).setChromeColor('secondary_bg_color');
+    expect(window.__tg!.chrome).toEqual({
+      header: 'secondary_bg_color',
+      background: 'secondary_bg_color',
+    });
+    tgFor({ version: '7.10' }).setChromeColor('secondary_bg_color');
+    expect(window.__tg!.chrome.bottomBar).toBe('secondary_bg_color');
+  });
+
+  it('paints the main button', () => {
+    tgFor({ version: '8.0' }).setMainButtonColors('#2e7d4f', '#ffffff');
+    expect(window.__tg!.mainButton).toMatchObject({ color: '#2e7d4f', textColor: '#ffffff' });
+  });
+
   it('is a null client outside Telegram', () => {
     const tg = createTg(null);
     expect(tg.available).toBe(false);
@@ -127,5 +144,19 @@ describe('themeVariables', () => {
     const light = themeVariables({}, 'light');
     expect(light['--bg']).toBe('#ffffff');
     expect(light['--button']).toBe('#2481cc');
+  });
+
+  it('lays the Chess Goat accents over Telegram’s neutrals, per scheme', () => {
+    const light = themeVariables({ bg_color: '#fafafa', secondary_bg_color: '#eeeeee' }, 'light');
+    expect(light['--card']).toBe('#fafafa');
+    expect(light['--page']).toBe('#eeeeee');
+    expect(light['--acc']).toBe('#2e7d4f');
+    expect(light['--move']).toBe('#e0b94a');
+    expect(light['--bl']).toBe('#f0ead2');
+    const dark = themeVariables({}, 'dark');
+    expect(dark['--page']).toBe('#131b23');
+    expect(dark['--card']).toBe('#18222d');
+    expect(dark['--acc']).toBe('#4cbb7a');
+    expect(dark['--acc-ink']).toBe('#06200f');
   });
 });
