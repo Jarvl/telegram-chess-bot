@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { prefs, session } from '../src/state/session';
 import { Game } from '../src/ui/screens/Game';
 import { FakeEventSource } from './support/fakeEventSource';
-import type { FakeRoute } from './support/fakeFetch';
+import type { FakeResponse, FakeRoute } from './support/fakeFetch';
 import { afterPlies, gameDto } from './support/gameFixtures';
 import { renderApp } from './support/render';
 import { stubAdapter, type StubAdapter } from './support/stubAdapter';
@@ -94,7 +94,31 @@ describe('Game', () => {
     expect((post?.body as { clientMoveId: string }).clientMoveId).toMatch(/^[A-Za-z0-9_-]{8,64}$/);
     expect(r.root.querySelectorAll('.move-list [data-ply]')).toHaveLength(1);
     expect(window.__tg!.haptics).toContain('impact:light');
-    expect(window.__tg!.mainButton.visible).toBe(false);
+    // Showing the Telegram main button resizes the viewport, and with it the board.
+    expect(window.__tg!.calls).not.toContain('MainButton.show');
+    expect(r.root.querySelector('.board-veil')).toBeNull();
+  });
+
+  it('greys the board under a spinner only once a send is slow', async () => {
+    vi.useFakeTimers();
+    let answer: (response: FakeResponse) => void = () => undefined;
+    const r = mount(
+      gameDto(),
+      okRoute(gameDto(), () => new Promise<FakeResponse>((resolve) => (answer = resolve))),
+    );
+    await vi.advanceTimersByTimeAsync(100); // effects run on the next (faked) frame
+    adapter.drop('e2', 'e4');
+    await vi.advanceTimersByTimeAsync(900);
+    expect(r.root.querySelector('.board-veil')).toBeNull();
+    await vi.advanceTimersByTimeAsync(200);
+    const veil = r.root.querySelector('.board-wrap .board-veil');
+    expect(veil?.getAttribute('aria-label')).toBe('Sending…');
+    expect(veil?.querySelector('.spinner')).not.toBeNull();
+    expect(window.__tg!.calls).not.toContain('MainButton.show');
+    answer({ status: 200, body: afterPlies(1) });
+    await vi.advanceTimersByTimeAsync(100);
+    expect(r.root.querySelector('.board-veil')).toBeNull();
+    expect(r.root.querySelectorAll('.move-list [data-ply]')).toHaveLength(1);
   });
 
   it('buzzes a warning when a state arriving over the stream puts the viewer in check', async () => {

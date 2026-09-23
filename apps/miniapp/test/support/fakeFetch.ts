@@ -4,9 +4,12 @@ export type FakeRoute = (input: {
   path: string;
   headers: Headers;
   body: unknown;
-}) => FakeResponse;
+}) => FakeResponse | Promise<FakeResponse>;
 
-/** A `fetch` double: records every call and answers from a handler; `body: null` means no JSON body. */
+/**
+ * A `fetch` double: records every call and answers from a handler, which may hold its answer back
+ * by returning a promise; `body: null` means no JSON body.
+ */
 export function fakeFetch(handler: FakeRoute): {
   fetch: typeof fetch;
   calls: { method: string; path: string; headers: Headers; body: unknown }[];
@@ -19,7 +22,7 @@ export function fakeFetch(handler: FakeRoute): {
     const body = typeof init?.body === 'string' ? (JSON.parse(init.body) as unknown) : null;
     const call = { method: init?.method ?? 'GET', path, headers, body };
     calls.push(call);
-    const answer = handler(call);
+    const answer = await handler(call);
     return new Response(answer.body === undefined ? null : JSON.stringify(answer.body), {
       status: answer.status,
       headers: answer.body === undefined ? {} : { 'content-type': 'application/json' },

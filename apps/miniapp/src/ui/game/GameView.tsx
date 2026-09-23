@@ -34,6 +34,9 @@ import { PlayerBar } from './PlayerBar';
 import { ratingChangeFor, reasonForViewer, resultForViewer } from './result';
 import { useClock } from './useClock';
 
+/** A send answered within this shows nothing; a slower one greys the board under a spinner. */
+const SLOW_SEND_MS = 1_000;
+
 const PIECE_CLASS: Record<PromotionPiece, string> = {
   q: 'queen',
   r: 'rook',
@@ -54,6 +57,7 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
   const moveRef = useRef<MoveState>({ kind: 'idle' });
   const [moveState, setMoveState] = useState<MoveState>({ kind: 'idle' });
   const [promotion, setPromotion] = useState<{ orig: string; dest: string } | null>(null);
+  const [slowSend, setSlowSend] = useState(false);
   const now = useClock(store);
   const dto = store.dto.value;
   const gameId = dto.id;
@@ -170,11 +174,23 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
     return () => clearTimeout(timer);
   }, [moveState, dispatch]);
 
-  // Telegram buttons per machine state (spec §6.3).
+  // A send that outlasts SLOW_SEND_MS veils the board until the move settles, retries included.
+  useEffect(() => {
+    if (moveState.kind === 'idle') {
+      setSlowSend(false);
+      return;
+    }
+    if (moveState.kind !== 'sending' || slowSend) return;
+    const timer = setTimeout(() => setSlowSend(true), SLOW_SEND_MS);
+    return () => clearTimeout(timer);
+  }, [moveState.kind, slowSend]);
+
+  // Telegram buttons per machine state (spec §6.3). Sending shows none: the main button resizes
+  // the viewport, and the board with it, so flashing it on every move makes the page jump.
   useEffect(() => {
     switch (moveState.kind) {
       case 'sending':
-        tg.setMainButton({ text: t('app.game.sending'), onClick: () => undefined, progress: true });
+        tg.setMainButton(null);
         return;
       case 'retry':
         tg.setMainButton({
@@ -312,6 +328,11 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
     <div class="game">
       <PlayerBar dto={dto} colour={top} now={now} />
       <Board store={store} onMove={onDrop} onReady={(adapter) => (adapterRef.current = adapter)}>
+        {slowSend || moveState.kind === 'retry' ? (
+          <div class="board-veil" role="status" aria-label={t('app.game.sending')}>
+            <span class="spinner" />
+          </div>
+        ) : null}
         {promotion ? (
           <div
             class="promotion"
