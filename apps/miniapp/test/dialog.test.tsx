@@ -34,6 +34,17 @@ describe('confirmDialog', () => {
     expect(await answer).toBe(false);
   });
 
+  it('refuses a second popup while one is open, resolving it as no', async () => {
+    const r = mount('8.0');
+    await r.flush();
+    const first = confirmDialog('Resign this game?');
+    const second = confirmDialog('Abort this game?');
+    expect(await second).toBe(false);
+    expect(window.__tg!.popups).toHaveLength(1);
+    window.__tg!.answerPopup('confirm');
+    expect(await first).toBe(true);
+  });
+
   it('falls back to the in-page sheet below 6.2', async () => {
     const r = mount('6.1');
     await r.flush();

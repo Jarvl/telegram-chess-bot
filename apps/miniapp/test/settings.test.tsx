@@ -18,6 +18,7 @@ describe('Settings', () => {
       path: '/api/me/prefs',
       body: { prefs: { closeAfterMove: false } },
     });
+    expect(window.__tg!.haptics).toContain('selection');
     expect(prefs.value.closeAfterMove).toBe(false);
     expect(r.root.querySelector('[data-pref="closeAfterMove"]')?.getAttribute('aria-checked')).toBe(
       'false',

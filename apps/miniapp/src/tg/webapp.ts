@@ -262,9 +262,14 @@ export function createTg(
       raw.MainButton.setParams?.({ color, text_color: textColor }),
     showPopup(params) {
       if (!supports('popup') || !raw.showPopup) return null;
-      return new Promise((resolve) =>
-        raw.showPopup!(params, (buttonId) => resolve(buttonId ? buttonId : null)),
-      );
+      return new Promise((resolve) => {
+        try {
+          raw.showPopup!(params, (buttonId) => resolve(buttonId ? buttonId : null));
+        } catch {
+          // A popup is already open (WebAppPopupOpened): the second caller reads "no".
+          resolve(null);
+        }
+      });
     },
     setClosingConfirmation(enabled) {
       if (!supports('closingConfirmation')) return;

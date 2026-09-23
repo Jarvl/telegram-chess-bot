@@ -54,6 +54,7 @@ describe('GroupSettings', () => {
     await r.flush();
     await r.click('[data-setting="ratedDefault"]');
     await r.click('[data-topic="fixed"]');
+    expect(window.__tg!.haptics).toContain('selection');
     expect(window.__tg!.mainButton.enabled).toBe(false);
     const input = r.root.querySelector<HTMLInputElement>('[data-setting="fixedTopicId"]')!;
     input.value = '42';

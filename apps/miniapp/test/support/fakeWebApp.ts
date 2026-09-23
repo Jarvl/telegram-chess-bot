@@ -254,6 +254,7 @@ export function installFakeWebApp(options: FakeWebAppOptions): void {
   }
   if (atLeast(options.version, '6.2')) {
     webApp.showPopup = (params: FakeWebAppRecord['popups'][number], cb?: (id: string) => void) => {
+      if (pendingPopup !== null) throw new Error('WebAppPopupOpened');
       record.popups.push(params);
       record.calls.push(`showPopup:${params.message}`);
       pendingPopup = cb ?? null;
