@@ -97,3 +97,21 @@ test('a game opened from a card is one tap from the chat and one tap from home',
   await clickBack(page);
   await expect.poll(async () => (await tgState(page)).closed).toBe(true);
 });
+
+test('the lobby’s leaderboard chip ranks you and reaches a player', async ({ page }) => {
+  const world = await seed('ranked');
+  await openApp(page, {
+    user: world.users.alice.telegram,
+    startParam: `l_${world.group.publicId}`,
+  });
+  const chip = page.locator('[data-action="leaderboard"]');
+  await expect(chip).toContainText('#1');
+  await chip.click();
+  await expect(page.locator('.title')).toHaveText('Leaderboard');
+  await expect(page.locator('[data-player]')).toHaveCount(2);
+  await expect(page.locator('.player-row.you')).toContainText('(you)');
+  await page.locator(`[data-player="${world.users.bob.id}"]`).click();
+  await expect(page.locator('.title')).toHaveText('@bob');
+  await clickBack(page);
+  await expect(page.locator('.title')).toHaveText('Leaderboard');
+});

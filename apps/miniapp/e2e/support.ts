@@ -35,13 +35,14 @@ export type Seed = {
 };
 
 export async function seed(
-  scenario: 'none' | 'fresh' | 'opening' | 'promotion' | 'finished',
+  scenario: 'none' | 'fresh' | 'opening' | 'promotion' | 'finished' | 'ranked',
   prefs: Record<string, Record<string, unknown>> = {},
+  options: { groupTitle?: string } = {},
 ): Promise<Seed> {
   const response = await fetch(`${HARNESS}/seed`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ scenario, prefs }),
+    body: JSON.stringify({ scenario, prefs, ...options }),
   });
   if (!response.ok) throw new Error(`seed failed: ${response.status}`);
   return (await response.json()) as Seed;
@@ -75,7 +76,12 @@ export async function openStreams(): Promise<number> {
 /** Installs the fake WebApp with test-signed init data, stubs Telegram's script and opens the app. */
 export async function openApp(
   page: Page,
-  options: { user: TelegramUser; startParam?: string; version?: string },
+  options: {
+    user: TelegramUser;
+    startParam?: string;
+    version?: string;
+    colorScheme?: 'light' | 'dark';
+  },
 ): Promise<void> {
   await page.route('https://telegram.org/js/telegram-web-app.js', (route) =>
     route.fulfill({ status: 200, contentType: 'text/javascript', body: '' }),
@@ -86,6 +92,7 @@ export async function openApp(
     initData,
     startParam: options.startParam,
     writeAccess: true,
+    colorScheme: options.colorScheme,
   };
   await page.addInitScript(installFakeWebApp, fake);
   await page.goto('/app/');

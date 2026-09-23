@@ -22,7 +22,9 @@ test('creates a game against the bot and sees its reply arrive', async ({ page }
   await expect(page.locator('[data-rated]')).toBeDisabled();
   await clickMain(page);
 
-  await expect(page.locator('.cg-wrap')).toBeVisible();
+  // Not `.cg-wrap`: the New game colour tiles reuse that class for their king glyphs, so the
+  // locator would still be ambiguous for an instant after the board mounts.
+  await expect(page.locator('cg-board')).toBeVisible();
   await expect(page.locator('.player-bar[data-colour="black"]')).toContainText('Stockfish');
   await dragMove(page, 'e2', 'e4');
   await expect(page.locator('.move-list [data-ply="1"]')).not.toBeEmpty();
