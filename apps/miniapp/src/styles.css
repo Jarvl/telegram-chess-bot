@@ -1143,3 +1143,126 @@ coords.squares:nth-of-type(even) :nth-child(even) {
   font-size: 13px;
   white-space: nowrap;
 }
+
+.option-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 14px;
+  border: 0;
+  border-top: 1px solid var(--sep);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.card > .option-row:first-child {
+  border-top: 0;
+}
+
+.option-row.on {
+  background: var(--acc-soft);
+}
+
+.avatar.open {
+  box-shadow: inset 0 0 0 2px var(--sep-strong);
+  color: var(--hint);
+  font-size: 22px;
+  font-weight: 400;
+}
+
+.radio {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 2px var(--sep-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.radio.on {
+  background: var(--acc);
+  color: var(--acc-ink);
+  box-shadow: none;
+}
+
+.tiles {
+  display: grid;
+  gap: 8px;
+}
+
+.tiles.cols-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.tiles.cols-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.tile {
+  border: 0;
+  padding: 11px 0;
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.tile[aria-pressed='true'] {
+  background: var(--acc);
+  color: var(--acc-ink);
+  font-weight: 700;
+}
+
+.tiles.soft .tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 0;
+  border-radius: 14px;
+  font-size: 14px;
+}
+
+.tiles.soft .tile[aria-pressed='true'] {
+  background: var(--acc-soft);
+  color: var(--acc-text);
+  box-shadow: inset 0 0 0 2px var(--acc);
+}
+
+.kings {
+  display: flex;
+}
+
+.kings piece {
+  position: static;
+  display: block;
+  width: 36px;
+  height: 36px;
+  transform: none;
+  background-size: cover;
+}
+
+.kings piece + piece {
+  margin-left: -12px;
+}
+
+.card.field {
+  padding: 12px 14px;
+}
+
+.inert {
+  opacity: 0.5;
+}
+
+.inline-main {
+  background: var(--page);
+}

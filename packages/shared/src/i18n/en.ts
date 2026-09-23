@@ -170,8 +170,11 @@ export const en = {
   'app.new.no_players':
     "The bot hasn't seen anyone else here yet. Reply to their message with /play instead.",
   'app.new.bot': 'Play the bot',
+  'app.new.bot_sub': 'Unrated · no clock',
   'app.new.bot_level': 'Bot level',
   'app.new.bot_casual': 'Games against the bot are unrated and have no clock.',
+  'app.new.open_sub': 'Anyone in the group can accept',
+  'app.new.start': 'Start game',
   'app.level.beginner': 'Easiest',
   'app.level.casual': 'Casual',
   'app.level.club': 'Club',

@@ -101,4 +101,14 @@ describe('Router', () => {
     record.clickBack();
     expect(router.current.value).toEqual({ name: 'groups' });
   });
+
+  it('hides the tab bar on New game, where the MainButton owns the bottom edge', () => {
+    const { router } = setup();
+    router.land('groups', { name: 'lobby', groupId: 'GrOuPiDxYz' });
+    expect(router.showTabs.value).toBe(true);
+    router.push({ name: 'newGame', groupId: 'GrOuPiDxYz' });
+    expect(router.showTabs.value).toBe(false);
+    router.back();
+    expect(router.showTabs.value).toBe(true);
+  });
 });

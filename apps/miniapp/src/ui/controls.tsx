@@ -1,4 +1,4 @@
-import type { JSX } from 'preact';
+import type { ComponentChildren, JSX } from 'preact';
 import { useApp } from './context';
 
 export type DataAttributes = Record<`data-${string}`, string | number | boolean | undefined>;
@@ -76,6 +76,42 @@ export function Select<V extends string>(
         </option>
       ))}
     </select>
+  );
+}
+
+export type Tile<V> = { key: string; value: V; label: ComponentChildren } & DataAttributes;
+
+/** A grid of mutually exclusive choices: time per move, bot level, colour. */
+export function Tiles<V>(props: {
+  tiles: Tile<V>[];
+  value: V;
+  onChange: (value: V) => void;
+  columns: 3 | 4;
+  /** Soft: a tinted, ringed pick for tiles that carry a picture. */
+  variant?: 'solid' | 'soft';
+}) {
+  const { tg } = useApp();
+  return (
+    <div
+      class={`tiles cols-${props.columns}${props.variant === 'soft' ? ' soft' : ''}`}
+      role="group"
+    >
+      {props.tiles.map(({ key, value, label, ...data }) => (
+        <button
+          type="button"
+          key={key}
+          class="tile"
+          aria-pressed={value === props.value ? 'true' : 'false'}
+          onClick={() => {
+            tg.hapticSelection();
+            props.onChange(value);
+          }}
+          {...data}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
   );
 }
 

@@ -28,8 +28,14 @@ const TAB_ROOT: Record<TabName, Route> = {
   settings: { name: 'settings' },
 };
 
-/** Screens that exist before or instead of a session, where no tab means anything. */
-const CHROMELESS: ReadonlySet<Route['name']> = new Set(['loading', 'error', 'reopen', 'locked']);
+/** Screens with no tab bar: before a session, and New game, whose MainButton owns the bottom. */
+const TABLESS: ReadonlySet<Route['name']> = new Set([
+  'loading',
+  'error',
+  'reopen',
+  'locked',
+  'newGame',
+]);
 
 type Stacks = Record<TabName, Route[]>;
 
@@ -54,7 +60,7 @@ export class Router {
   ) {
     this.stack = computed(() => this.stacks.value[this.tab.value]);
     this.current = computed(() => this.stack.value.at(-1) ?? { name: 'loading' });
-    this.showTabs = computed(() => !CHROMELESS.has(this.current.value.name));
+    this.showTabs = computed(() => !TABLESS.has(this.current.value.name));
     this.sync();
   }
 
