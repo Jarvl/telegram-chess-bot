@@ -192,9 +192,13 @@ as `acceptChallenge` minus the challenge row. It must force `rated = false` serv
 and must reject a level outside the table in §7. When the engine moves first, creation must also
 apply §9's deadline rule, leaving `deadline_at` and `reminder_at` null.
 
-Limits: the caller's own `maxActiveGamesPerUser` still applies, and the existing
-`MAX_GAMES_PER_PAIR = 2` already caps a user at two concurrent engine games, which is the desired
-behaviour. Only the engine's own active-game count is exempt, since it plays everyone at once.
+Limits: none. Being blocked in the group is the only thing that stops a bot game starting. The two
+caps this section originally leaned on — the group's `maxActiveGamesPerUser` and a two-game-per-pair
+constant — were removed from the whole project on 2026-09-22, for a reason this feature exposed: a bot
+game has no clock, so nothing ever ends an abandoned one, and a cap plus an immortal game is a
+permanent lockout. Two forgotten bot games would have blocked a third for good and, because the
+group-wide cap counted them, human challenges along with it. A player decides how many games they can
+keep up with.
 
 ### 6.2 The engine seam
 

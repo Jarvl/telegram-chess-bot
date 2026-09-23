@@ -209,7 +209,7 @@ Edits to the game card are silent (no notification). There are no per-move messa
 In the app, under the group, visible to group admins only (verified against Telegram's chat member API):
 
 - Default time per move; rated by default; allow open challenges.
-- Maximum active games per user; leaderboard minimum games.
+- Leaderboard minimum games.
 - Where game cards are posted in forum groups: the topic the challenge was made in, or a fixed topic.
 - Void a game (rating reverted, marked void in history) and block a user from starting games in this group.
 

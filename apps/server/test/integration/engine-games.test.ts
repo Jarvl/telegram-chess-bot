@@ -1,10 +1,6 @@
 import type { EngineLevel } from '@group-chess/shared';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import {
-  MAX_GAMES_PER_PAIR,
-  deadlineExpression,
-  reminderExpression,
-} from '../../src/domain/limits';
+import { deadlineExpression, reminderExpression } from '../../src/domain/limits';
 import { challenges, games, jobs, users } from '../../src/db/schema';
 import { DomainError } from '../../src/domain/errors';
 import { createEngineGame, getEngineUser } from '../../src/domain/engineGames';
@@ -70,24 +66,22 @@ describe('createEngineGame', () => {
     expect(game.deadlineAt).toBeNull();
   });
 
-  it('refuses a third concurrent engine game with a domain error, not a crash', async () => {
+  it('caps nothing: a player may have many bot games at once', async () => {
     const { group, alice } = await setup();
-    for (let i = 0; i < MAX_GAMES_PER_PAIR; i += 1) {
-      await createEngineGame(deps, {
-        groupId: group.id,
-        userId: alice.id,
-        level: 'club',
-        colour: 'white',
-      });
+    // This is what keeps an abandoned bot game from locking anyone out. Bot games have no clock, so
+    // nothing ever ends one on its own; if a cap existed, two forgotten games would block the third
+    // for good — and, when the cap was the group-wide one, human challenges too.
+    for (let i = 0; i < 5; i += 1) {
+      await expect(
+        createEngineGame(deps, {
+          groupId: group.id,
+          userId: alice.id,
+          level: 'club',
+          colour: 'white',
+        }),
+      ).resolves.toBeDefined();
     }
-    await expect(
-      createEngineGame(deps, {
-        groupId: group.id,
-        userId: alice.id,
-        level: 'club',
-        colour: 'white',
-      }),
-    ).rejects.toBeInstanceOf(DomainError);
+    expect(await db.select().from(games)).toHaveLength(5);
   });
 
   it('refuses an out-of-table engine level and writes no game row', async () => {

@@ -11,8 +11,7 @@ import { enqueue } from '../jobs/queue';
 import { randomColour } from './challenges';
 import type { Deps } from './deps';
 import { DomainError } from './errors';
-import { requireGroup, settingsOf } from './groups';
-import { MAX_GAMES_PER_PAIR, countActiveGames, countActiveGamesBetween } from './limits';
+import { requireGroup } from './groups';
 import { isBlocked } from './members';
 import { generatePublicId } from '../db/ids';
 import { requireUser } from './users';
@@ -45,30 +44,10 @@ export async function createEngineGame(deps: Deps, input: CreateEngineGameInput)
   }
   const result = await deps.db.transaction(async (tx) => {
     const group = await requireGroup(tx, input.groupId);
-    const settings = settingsOf(group);
     const player = await requireUser(tx, input.userId);
     const engine = await getEngineUser(tx);
     if (await isBlocked(tx, group.id, player.id)) {
       throw new DomainError('forbidden', 'blocked in this group', { reason: 'blocked' });
-    }
-    const active = await countActiveGames(tx, group.id, player.id);
-    if (active >= settings.maxActiveGamesPerUser) {
-      throw new DomainError('limit_exceeded', 'active games limit reached', {
-        reason: 'active_limit',
-        userId: player.id,
-        name: player.firstName,
-        count: active,
-      });
-    }
-    // The engine's own active-game count is exempt — it plays everyone at once — but the pair limit
-    // still caps concurrent engine games per user (spec §6.1).
-    const pair = await countActiveGamesBetween(tx, group.id, player.id, engine.id);
-    if (pair >= MAX_GAMES_PER_PAIR) {
-      throw new DomainError('limit_exceeded', 'too many games against the bot', {
-        reason: 'pair_limit',
-        name: engine.firstName,
-        count: pair,
-      });
     }
     const playerColour = input.colour === 'random' ? randomColour() : input.colour;
     const white = playerColour === 'white' ? player : engine;

@@ -9,10 +9,7 @@ import type { Deps } from './deps';
 import { DomainError } from './errors';
 import { requireGroup, settingsOf } from './groups';
 import {
-  MAX_GAMES_PER_PAIR,
   MAX_PENDING_CHALLENGES,
-  countActiveGames,
-  countActiveGamesBetween,
   countPendingChallenges,
   deadlineExpression,
   reminderExpression,
@@ -36,36 +33,16 @@ export function randomColour(): 'white' | 'black' {
   return randomInt(2) === 0 ? 'white' : 'black';
 }
 
-async function assertCanPlay(
-  tx: DbOrTx,
-  groupId: number,
-  user: UserRow,
-  maxActive: number,
-): Promise<void> {
+/**
+ * There is no cap on how many games someone may have going, or on how many with one opponent — a
+ * player decides what they can keep up with. Being blocked in the group is the only thing that stops
+ * a game starting.
+ */
+async function assertNotBlocked(tx: DbOrTx, groupId: number, user: UserRow): Promise<void> {
   if (await isBlocked(tx, groupId, user.id)) {
     throw new DomainError('forbidden', 'blocked in this group', {
       reason: 'blocked',
       userId: user.id,
-    });
-  }
-  const active = await countActiveGames(tx, groupId, user.id);
-  if (active >= maxActive) {
-    throw new DomainError('limit_exceeded', 'active games limit reached', {
-      reason: 'active_limit',
-      userId: user.id,
-      name: user.firstName,
-      count: active,
-    });
-  }
-}
-
-async function assertPairLimit(tx: DbOrTx, groupId: number, a: UserRow, b: UserRow): Promise<void> {
-  const pair = await countActiveGamesBetween(tx, groupId, a.id, b.id);
-  if (pair >= MAX_GAMES_PER_PAIR) {
-    throw new DomainError('limit_exceeded', 'too many games with this opponent', {
-      reason: 'pair_limit',
-      name: b.firstName,
-      count: pair,
     });
   }
 }
@@ -134,7 +111,7 @@ export async function createChallenge(
       });
     }
     const challenger = await requireUser(tx, input.challengerId);
-    await assertCanPlay(tx, group.id, challenger, settings.maxActiveGamesPerUser);
+    await assertNotBlocked(tx, group.id, challenger);
     const pending = await countPendingChallenges(tx, group.id, challenger.id);
     if (pending >= MAX_PENDING_CHALLENGES) {
       throw new DomainError('limit_exceeded', 'too many pending challenges', {
@@ -150,8 +127,7 @@ export async function createChallenge(
           reason: 'opponent_gone',
         });
       }
-      await assertCanPlay(tx, group.id, opponent, settings.maxActiveGamesPerUser);
-      await assertPairLimit(tx, group.id, challenger, opponent);
+      await assertNotBlocked(tx, group.id, opponent);
     }
     const [challenge] = await tx
       .insert(challenges)
@@ -226,12 +202,10 @@ export async function acceptChallenge(
       });
     }
     const group = await requireGroup(tx, challenge.groupId);
-    const settings = settingsOf(group);
     const challenger = await requireUser(tx, challenge.challengerId);
     const accepter = await requireUser(tx, input.userId);
-    await assertCanPlay(tx, group.id, accepter, settings.maxActiveGamesPerUser);
-    await assertCanPlay(tx, group.id, challenger, settings.maxActiveGamesPerUser);
-    await assertPairLimit(tx, group.id, accepter, challenger);
+    await assertNotBlocked(tx, group.id, accepter);
+    await assertNotBlocked(tx, group.id, challenger);
 
     const challengerColour =
       challenge.challengerColour === 'random' ? randomColour() : challenge.challengerColour;
