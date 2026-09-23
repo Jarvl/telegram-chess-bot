@@ -672,6 +672,19 @@ cg-board square.oc.move-dest {
   background: radial-gradient(transparent 0%, transparent 79%, var(--dot) 80%);
 }
 
+cg-board square.move-dest:hover {
+  background: var(--dot);
+}
+
+cg-board square.check {
+  background: radial-gradient(
+    ellipse at center,
+    var(--urgent) 0%,
+    color-mix(in srgb, var(--urgent) 85%, transparent) 25%,
+    transparent 89%
+  );
+}
+
 /* Coordinate label colours (chessground.brown.css), matched to the board squares. */
 .orientation-white .ranks :nth-child(odd),
 .orientation-white .files :nth-child(even),
