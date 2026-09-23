@@ -6,6 +6,7 @@ import {
   type StartParam,
 } from '@group-chess/shared';
 import { signal } from '@preact/signals';
+import { setYourMoveCount } from './yourMove';
 
 export type Session = {
   user: LaunchResponse['user'];
@@ -35,5 +36,6 @@ export function applyLaunch(response: LaunchResponse, startParam: string | null)
     launchedFrom: decodeStartParam(startParam),
   };
   prefs.value = response.prefs;
+  setYourMoveCount(response.yourMove);
   noteServerTime(response.serverTime);
 }

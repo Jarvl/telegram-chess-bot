@@ -3,6 +3,7 @@ import {
   type FinishedPageDto,
   type LeaderboardEntry,
   type LobbyDto,
+  type MeGamesDto,
   type MeGroupsDto,
   type PlayerPageDto,
   type WinDrawLoss,
@@ -121,9 +122,9 @@ export async function buildLobby(
   };
 }
 
-/** Groups where the user is a known member and the bot is still present (spec §9 `GET /me/groups`). */
-export async function meGroups(deps: Deps, userId: number): Promise<MeGroupsDto> {
-  const memberOf = await deps.db
+/** Groups the user can still see: a known member, not blocked, bot still present. */
+async function visibleGroups(tx: DbOrTx, userId: number): Promise<GroupRow[]> {
+  const rows = await tx
     .select({ group: groups })
     .from(groupMembers)
     .innerJoin(groups, eq(groups.id, groupMembers.groupId))
@@ -136,8 +137,14 @@ export async function meGroups(deps: Deps, userId: number): Promise<MeGroupsDto>
       ),
     )
     .orderBy(groups.title);
-  if (memberOf.length === 0) return { groups: [] };
-  const active = await deps.db
+  return rows.map((row) => row.group);
+}
+
+type TurnRow = { groupId: number; fen: string; whiteId: number; blackId: number };
+
+/** The user's active games in these groups, with just enough of each to tell whose turn it is. */
+async function activeTurnRows(tx: DbOrTx, userId: number, groupIds: number[]): Promise<TurnRow[]> {
+  return tx
     .select({
       groupId: games.groupId,
       fen: games.fen,
@@ -149,20 +156,79 @@ export async function meGroups(deps: Deps, userId: number): Promise<MeGroupsDto>
       and(
         eq(games.status, 'active'),
         or(eq(games.whiteId, userId), eq(games.blackId, userId)),
-        inArray(
-          games.groupId,
-          memberOf.map((row) => row.group.id),
-        ),
+        inArray(games.groupId, groupIds),
       ),
     );
+}
+
+/** Whose move it is, read off the FEN's side-to-move field. One rule, three callers. */
+function waitsOn(row: TurnRow, userId: number): boolean {
+  return (row.fen.split(' ')[1] === 'b' ? row.blackId : row.whiteId) === userId;
+}
+
+/** Groups where the user is a known member and the bot is still present (spec §9 `GET /me/groups`). */
+export async function meGroups(deps: Deps, userId: number): Promise<MeGroupsDto> {
+  const memberOf = await visibleGroups(deps.db, userId);
+  if (memberOf.length === 0) return { groups: [] };
+  const active = await activeTurnRows(
+    deps.db,
+    userId,
+    memberOf.map((group) => group.id),
+  );
   return {
-    groups: memberOf.map(({ group }) => {
+    groups: memberOf.map((group) => {
       const mine = active.filter((game) => game.groupId === group.id);
-      const yourMove = mine.filter(
-        (game) => (game.fen.split(' ')[1] === 'b' ? game.blackId : game.whiteId) === userId,
-      ).length;
+      const yourMove = mine.filter((game) => waitsOn(game, userId)).length;
       return { id: group.publicId, title: group.title, activeGames: mine.length, yourMove };
     }),
+  };
+}
+
+/**
+ * How many active games across every visible group are waiting on this user — the Games tab's
+ * badge (spec §6.2). Counted rather than listed: the launch response carries it for every launch,
+ * including a deep link into one game, where the full list is never built.
+ */
+export async function yourMoveTotal(deps: Deps, userId: number): Promise<number> {
+  const memberOf = await visibleGroups(deps.db, userId);
+  if (memberOf.length === 0) return 0;
+  const rows = await activeTurnRows(
+    deps.db,
+    userId,
+    memberOf.map((group) => group.id),
+  );
+  return rows.filter((row) => waitsOn(row, userId)).length;
+}
+
+/**
+ * The viewer's active games across every group they can still see, their own turn first and
+ * then most recently moved — the Active tab's ordering (PRD §8.2) widened to all groups.
+ * This is the Mini App's home screen (spec §9 `GET /me/games`).
+ */
+export async function meGames(deps: Deps, userId: number): Promise<MeGamesDto> {
+  const memberOf = await visibleGroups(deps.db, userId);
+  if (memberOf.length === 0) return { items: [] };
+  const byId = new Map(memberOf.map((group) => [group.id, group]));
+  const rows = await gameSummaryRows(
+    deps.db,
+    and(
+      eq(games.status, 'active'),
+      or(eq(games.whiteId, userId), eq(games.blackId, userId)),
+      inArray(games.groupId, [...byId.keys()]),
+    ),
+    [desc(games.lastMoveAt), desc(games.startedAt)],
+    200,
+  );
+  return {
+    items: rows
+      .map((row) => {
+        const group = byId.get(row.game.groupId)!;
+        return {
+          ...toGameSummary(row, userId),
+          group: { id: group.publicId, title: group.title },
+        };
+      })
+      .sort((a, b) => Number(b.yourTurn) - Number(a.yourTurn)),
   };
 }
 

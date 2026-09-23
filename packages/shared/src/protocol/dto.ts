@@ -249,6 +249,18 @@ export const MeGroupsDtoSchema = z.object({
 
 export type MeGroupsDto = z.infer<typeof MeGroupsDtoSchema>;
 
+/** An active game on the home screen; it names its group because the list spans all of them. */
+export const MeGameSummarySchema = GameSummarySchema.extend({ group: GroupRefSchema });
+
+export type MeGameSummary = z.infer<typeof MeGameSummarySchema>;
+
+export const MeGamesDtoSchema = z.object({
+  /** The viewer's active games across every group, their own turn first (spec §9 `GET /me/games`). */
+  items: z.array(MeGameSummarySchema),
+});
+
+export type MeGamesDto = z.infer<typeof MeGamesDtoSchema>;
+
 export const GroupSettingsDtoSchema = z.object({
   group: GroupRefSchema,
   settings: GroupSettingsSchema,
@@ -264,7 +276,7 @@ export const LaunchRouteSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('game'), game: GameDtoSchema }),
   z.object({ kind: z.literal('lobby'), lobby: LobbyDtoSchema }),
   z.object({ kind: z.literal('settings'), settings: GroupSettingsDtoSchema }),
-  z.object({ kind: z.literal('groups'), groups: MeGroupsDtoSchema }),
+  z.object({ kind: z.literal('home'), games: MeGamesDtoSchema }),
   z.object({ kind: z.literal('locked'), group: GroupRefSchema }),
 ]);
 
@@ -280,6 +292,11 @@ export const LaunchResponseSchema = z.object({
   prefs: PrefsSchema,
   /** True when the write-access prompt has never been shown to this user (spec §6.1 step 4). */
   askWriteAccess: z.boolean(),
+  /**
+   * Active games across every visible group that are waiting on this user: the Games tab badge.
+   * It ships with the launch so a deep link into one game still shows the true total.
+   */
+  yourMove: z.number().int().min(0),
   route: LaunchRouteSchema,
   serverTime: IsoDateSchema,
   bot: z.object({

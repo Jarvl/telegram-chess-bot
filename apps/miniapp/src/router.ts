@@ -9,6 +9,7 @@ export type Route =
   | { name: 'error' }
   | { name: 'reopen' }
   | { name: 'locked'; group: GroupRef }
+  | { name: 'games' }
   | { name: 'groups' }
   | { name: 'lobby'; groupId: string }
   | { name: 'newGame'; groupId: string; defaults?: LobbyDto['settings'] }
@@ -17,50 +18,85 @@ export type Route =
   | { name: 'settings' }
   | { name: 'groupSettings'; groupId: string };
 
+/** The bottom bar's sections; each keeps its own back stack. */
+export type TabName = 'games' | 'groups' | 'settings';
+
+export const TABS: readonly TabName[] = ['games', 'groups', 'settings'];
+
+const TAB_ROOT: Record<TabName, Route> = {
+  games: { name: 'games' },
+  groups: { name: 'groups' },
+  settings: { name: 'settings' },
+};
+
+/** Screens that exist before or instead of a session, where no tab means anything. */
+const CHROMELESS: ReadonlySet<Route['name']> = new Set(['loading', 'error', 'reopen', 'locked']);
+
+type Stacks = Record<TabName, Route[]>;
+
 /**
- * An in-memory route stack (Telegram owns the URL fragment) bound to the BackButton (spec §6.1
- * step 5): the button shows below the root, or at the root when the app should close from there.
+ * A tabbed in-memory router (Telegram owns the URL fragment). Tabs carry lateral movement and
+ * never deepen a stack; the BackButton carries depth only, so it stays a single tap from the
+ * way out (nav spec, superseding technical design §6.1 step 5).
+ *
+ * `closeFromRoot` is set for a launch that came from a chat link: there the BackButton also
+ * shows at the root, where it closes, so "back to the chat I came from" keeps costing one tap.
  */
 export class Router {
-  readonly stack: Signal<Route[]> = signal([]);
+  readonly tab: Signal<TabName> = signal('games');
+  readonly stacks: Signal<Stacks> = signal({ games: [], groups: [], settings: [] });
+  readonly stack: ReadonlySignal<Route[]>;
   readonly current: ReadonlySignal<Route>;
+  readonly showTabs: ReadonlySignal<boolean>;
 
   constructor(
     private readonly tg: Tg,
-    private readonly options: { closeWhenEmpty: boolean },
+    private readonly options: { closeFromRoot: boolean } = { closeFromRoot: false },
   ) {
+    this.stack = computed(() => this.stacks.value[this.tab.value]);
     this.current = computed(() => this.stack.value.at(-1) ?? { name: 'loading' });
+    this.showTabs = computed(() => !CHROMELESS.has(this.current.value.name));
     this.sync();
   }
 
-  reset(route: Route): void {
-    this.stack.value = [route];
-    this.sync();
+  /** Where a launch lands: one screen in one tab, so back never becomes the way home. */
+  land(tab: TabName, route: Route): void {
+    this.tab.value = tab;
+    this.write(tab, [route]);
+  }
+
+  /** A lateral move: another tab resumes where it was left, the active one returns to its root. */
+  select(tab: TabName): void {
+    const kept = this.stacks.value[tab];
+    const next = tab === this.tab.value || kept.length === 0 ? [TAB_ROOT[tab]] : kept;
+    this.tab.value = tab;
+    this.write(tab, next);
   }
 
   push(route: Route): void {
-    this.stack.value = [...this.stack.value, route];
-    this.sync();
+    this.write(this.tab.value, [...this.stack.value, route]);
   }
 
   replace(route: Route): void {
-    this.stack.value = [...this.stack.value.slice(0, -1), route];
-    this.sync();
+    this.write(this.tab.value, [...this.stack.value.slice(0, -1), route]);
   }
 
-  /** Pops one level; false at the root, where the caller (or the BackButton) may close the app. */
+  /** Pops one level within the active tab; false at its root, where the caller may close. */
   back(): boolean {
     if (this.stack.value.length <= 1) return false;
-    this.stack.value = this.stack.value.slice(0, -1);
-    this.sync();
+    this.write(this.tab.value, this.stack.value.slice(0, -1));
     return true;
   }
 
+  private write(tab: TabName, stack: Route[]): void {
+    this.stacks.value = { ...this.stacks.value, [tab]: stack };
+    this.sync();
+  }
+
   private sync(): void {
-    const depth = this.stack.value.length;
-    const visible = depth > 1 || (depth === 1 && this.options.closeWhenEmpty);
+    const visible = this.stack.value.length > 1 || this.options.closeFromRoot;
     this.tg.setBackButton(visible, () => {
-      if (!this.back() && this.options.closeWhenEmpty) this.tg.close();
+      if (!this.back()) this.tg.close();
     });
   }
 }

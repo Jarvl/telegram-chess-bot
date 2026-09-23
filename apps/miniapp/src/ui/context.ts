@@ -1,4 +1,4 @@
-import type { GameDto, GroupSettingsDto, LobbyDto, MeGroupsDto } from '@group-chess/shared';
+import type { GameDto, GroupSettingsDto, LobbyDto, MeGamesDto } from '@group-chess/shared';
 import { createContext } from 'preact';
 import { useContext } from 'preact/hooks';
 import type { ApiClient } from '../api/client';
@@ -10,7 +10,7 @@ export type Prefetched = {
   game?: GameDto;
   lobby?: LobbyDto;
   settings?: GroupSettingsDto;
-  groups?: MeGroupsDto;
+  games?: MeGamesDto;
 };
 
 export type AppContextValue = {

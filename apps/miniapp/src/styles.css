@@ -13,6 +13,9 @@
   --destructive: #d14e4e;
   --stable-height: 100vh;
   --radius: 12px;
+  --tabbar-h: calc(56px + env(safe-area-inset-bottom, 0px));
+  /** Vertical space the board must leave for chrome below it; the tab bar adds itself here. */
+  --board-reserve: 0px;
   color-scheme: light dark;
 }
 
@@ -49,6 +52,84 @@ button {
   padding: 12px 12px 24px;
   max-width: 640px;
   margin: 0 auto;
+}
+
+.with-tabbar {
+  padding-bottom: var(--tabbar-h);
+  --board-reserve: var(--tabbar-h);
+}
+
+.tabbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  display: flex;
+  background: var(--secondary-bg);
+  border-top: 1px solid color-mix(in srgb, var(--hint) 20%, transparent);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Scoped names of its own: the lobby's segmented control owns `.tab` further down. */
+.tabbar .nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 56px;
+  padding: 6px 4px;
+  border: 0;
+  background: transparent;
+  color: var(--hint);
+}
+
+.tabbar .nav-item.active {
+  color: var(--link);
+}
+
+.tabbar .nav-icon-wrap {
+  position: relative;
+  display: block;
+}
+
+.tabbar .nav-icon {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+
+/* Sits on the icon's top-right corner and grows rightwards from it, so a two- or three-character
+   count never shifts the icon or the label under it. */
+.tabbar .nav-badge {
+  position: absolute;
+  bottom: 58%;
+  left: 58%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--destructive);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  /* Centring a line box leaves a digit sitting high, because the box reserves descender space no
+     digit uses — and by how much depends on the font, so a fixed nudge would fix one platform and
+     break another. Trimming the box to cap height and baseline makes it hug the ink, so centring
+     the box centres the glyph. Clients too old for it fall back to the half-pixel-off line box. */
+  text-box-trim: trim-both;
+  text-box-edge: cap alphabetic;
+}
+
+.tabbar .nav-label {
+  font-size: 11px;
+  line-height: 1;
 }
 
 .title {
@@ -316,7 +397,7 @@ button {
 
 .board-wrap {
   position: relative;
-  width: min(100vw, calc(var(--stable-height) - 200px));
+  width: min(100vw, calc(var(--stable-height) - 200px - var(--board-reserve)));
   max-width: 640px;
   min-width: 280px;
   aspect-ratio: 1;

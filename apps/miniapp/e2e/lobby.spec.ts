@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { clickMain, openApp, seed, telegramCalls } from './support';
+import { clickBack, clickMain, openApp, seed, telegramCalls, tgState } from './support';
 
 test('a challenge made in the app is posted to the group and accepted from the lobby', async ({
   browser,
@@ -41,10 +41,59 @@ test('a challenge made in the app is posted to the group and accepted from the l
   await bobContext.close();
 });
 
-test('the groups screen lists the user’s groups from a profile launch', async ({ page }) => {
+test('a profile launch lands on the games home and the tabs reach the rest', async ({ page }) => {
   const world = await seed('fresh');
   await openApp(page, { user: world.users.alice.telegram });
+  // Home is your games across every group, named by the group they belong to.
+  await expect(page.locator('.title')).toHaveText('Your games');
+  await expect(page.locator('[data-game]')).toHaveCount(1);
+  await expect(page.locator('[data-game]')).toContainText('Chess Club');
+
+  await page.locator('[data-nav="groups"]').click();
   await expect(page.locator('[data-group]')).toHaveText(/Chess Club/);
   await page.locator('[data-group]').click();
   await expect(page.locator('[data-game]')).toHaveCount(1);
+
+  // Tabs move sideways, they never deepen: Settings is reachable without touching the back stack.
+  await page.locator('[data-nav="settings"]').click();
+  await expect(page.locator('[data-pref="closeAfterMove"]')).toBeVisible();
+  // The Groups tab still holds the lobby it was left in.
+  await page.locator('[data-nav="groups"]').click();
+  await expect(page.locator('[data-game]')).toHaveCount(1);
+});
+
+test('a game opened from a card is one tap from the chat and one tap from home', async ({
+  page,
+}) => {
+  const world = await seed('fresh');
+  await openApp(page, {
+    user: world.users.alice.telegram,
+    startParam: `g_${world.game!.publicId}`,
+  });
+  await expect(page.locator('.cg-wrap')).toBeVisible();
+
+  // The badge counts the boards waiting on this player, and shows while they are inside one.
+  const badge = page.locator('[data-nav="games"] .nav-badge');
+  await expect(badge).toHaveText('1');
+  // A round badge whose box is trimmed to the glyph, so the digit sits on the circle's centre
+  // rather than high in the descender space no digit uses.
+  expect(await badge.evaluate((el) => getComputedStyle(el).textBoxTrim)).toBe('trim-both');
+  const size = (await badge.boundingBox())!;
+  expect(size.width).toBe(size.height);
+
+  // The tab bar is the way home, so it costs no back taps to get there.
+  await page.locator('[data-nav="games"]').click();
+  await expect(page.locator('.title')).toHaveText('Your games');
+  await page.locator('[data-game]').click();
+  await expect(page.locator('.cg-wrap')).toBeVisible();
+
+  // Back from that game returns to the list it was opened from, not out of the app.
+  await clickBack(page);
+  await expect(page.locator('.title')).toHaveText('Your games');
+  expect((await tgState(page)).closed).toBe(false);
+
+  // At the root of a launch that came from a chat card, back means leave — one tap, as before.
+  expect((await tgState(page)).backButton.visible).toBe(true);
+  await clickBack(page);
+  await expect.poll(async () => (await tgState(page)).closed).toBe(true);
 });

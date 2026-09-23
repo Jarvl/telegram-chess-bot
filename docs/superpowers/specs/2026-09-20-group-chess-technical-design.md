@@ -295,21 +295,22 @@ The known-players list for the opponent picker is `group_members` with `status =
 2. On start: `ready()`, `expand()`, apply `themeParams` and `colorScheme`, `disableVerticalSwipes()` when `isVersionAtLeast('7.7')`. Fullscreen (`requestFullscreen`, 8.0) is not used at launch; `expand()` gives a full-height sheet and keeps Telegram's own chrome. Revisit after spike S1 if the board needs the extra height.
 3. One request, `POST /api/launch` with `initData` and `start_param`, returns the session token, the user, their preferences, the resolved route and that route's initial data (game state or lobby). One round trip from launch to a painted board.
 4. If the launch response says the write-access prompt has never been shown, call `requestWriteAccess()` after the first screen has rendered, then `PUT /api/me/prefs` with the result.
-5. `BackButton` is bound to the router; `close()` is called when the back stack is empty and the app was opened from a game link, so a player who tapped a card lands back in the chat.
+5. Navigation is a bottom tab bar (Games, Groups, Settings), each tab keeping its own stack; `BackButton` carries depth only and closes from the root of a launch that came from a chat link. See [the navigation spec](./2026-09-22-miniapp-tab-navigation.md), which supersedes this step.
 6. Every subsequent request carries `Authorization: Bearer <session token>`. A 401 re-runs step 3 with the original `initData`; if that is now older than the 24 h window the app shows one screen, "Reopen from Telegram".
 
 ### 6.2 Routes and screens
 
 | Route | Data | Actions |
 |---|---|---|
-| Groups (profile launch, no payload) | `GET /api/me/groups` | Pick a group → lobby |
+| Games — home (profile launch, no payload) | `GET /api/me/games`, prefetched by `/launch` | Open any of your active games, across groups |
+| Groups | `GET /api/me/groups` | Pick a group → lobby |
 | Lobby `l_<groupId>` | `GET /api/groups/:g` (Active with "your move" first, Finished page 1, Players, pending challenges, admin flag) | New game, Accept or Decline pending challenges, open any game, Players tab, Settings if admin |
 | New game | `GET /api/groups/:g/players` | Pick opponent or Open challenge, time per move, colour, rated → `POST /api/groups/:g/challenges` |
 | Game `g_<gameId>` (active) | `GET /api/games/:id` + SSE | Move, Draw offer, Accept or Decline draw, Claim draw, Resign (with confirmation), Abort while allowed, Share position, Flip (spectators), view earlier positions |
 | Game end (same route, `status = finished`) | same | Rematch, Analyse on Lichess (`openLink`), Share final position, Done (`close()`) |
 | Replay (finished game) | `GET /api/games/:id` | Slider and arrows, move list, Share position, Analyse on Lichess, Download PGN (`downloadFile` on 8.0+, else `openLink`) |
 | Player page | `GET /api/groups/:g/players/:u` | Record, head-to-head, recent games |
-| Settings (user) | prefs from launch | Return to chat after moving, notifications, board theme and piece set (P1) |
+| Settings (user), a tab of its own | prefs from launch | Return to chat after moving, notifications, board theme and piece set (P1) |
 | Group settings `s_<groupId>` | `GET /api/groups/:g/settings` | Defaults, limits, topic mode, Void game, Block or unblock user |
 
 ### 6.3 Board adapter and the move flow
@@ -539,6 +540,7 @@ All routes are under `/api`, JSON in and out, validated with the zod schemas in 
 | Method and path | Auth | Purpose |
 |---|---|---|
 | `POST /launch` | `initData` | Validate, upsert user, resolve `start_param`, return `{ token, user, prefs, route, data, serverTime }` |
+| `GET /me/games` | session | The user's active games across those groups, their own turn first |
 | `GET /me/groups` | session | Groups where the user is a verified member with the bot present |
 | `PUT /me/prefs` | session | Preferences, write-access prompt result |
 | `DELETE /me` | session | Delete my data: resigns active games, cancels pending challenges, anonymises (§12) |
@@ -689,13 +691,13 @@ Alpha exit criteria from PRD §13 map to: 50 completed games (metrics), no rule 
 ├── packages/
 │   └── shared/            # arbiter, pgn, glicko2, protocol (zod), i18n catalog
 ├── docs/                  # PRD.md, superpowers/specs, superpowers/plans
-├── .github/workflows/     # ci.yml (PR), e2e.yml (main), release.yml (tags)
+├── .github/workflows/     # ci.yml (PR), e2e.yml (PR and main), release.yml (tags)
 ├── Dockerfile             # multi-stage: build miniapp, bundle into the server image
 ├── LICENSE                # GPL-3.0-or-later (D2)
 └── pnpm-workspace.yaml
 ```
 
-Tooling: pnpm workspaces, TypeScript strict, ESLint and Prettier, vitest, Playwright, drizzle-kit migrations, zod, pino, `.nvmrc` pinning Node 22. CI on pull requests: lint, typecheck, unit, integration with a PostgreSQL service, bundle-size check. On `main`: end-to-end with the dev harness, Docker build. On tags: push the image and deploy staging; production is a manual promotion. Dependabot weekly and the licence allow-list from §12.
+Tooling: pnpm workspaces, TypeScript strict, ESLint and Prettier, vitest, Playwright, drizzle-kit migrations, zod, pino, `.nvmrc` pinning Node 22. CI on pull requests: lint, typecheck, unit, integration with a PostgreSQL service, bundle-size check, and the end-to-end suite with the dev harness plus the Docker build — the navigation specs guard behaviour no unit test reaches, so they gate a PR rather than only `main`. On tags: push the image and deploy staging; production is a manual promotion. Dependabot weekly and the licence allow-list from §12.
 
 ## 17. Spikes to run before the implementation plan
 

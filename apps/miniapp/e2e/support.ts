@@ -112,6 +112,7 @@ export async function tgState(
 }
 
 export const clickMain = (page: Page) => page.evaluate(() => window.__tg!.clickMain());
+export const clickBack = (page: Page) => page.evaluate(() => window.__tg!.clickBack());
 
 export async function boardBox(
   page: Page,
