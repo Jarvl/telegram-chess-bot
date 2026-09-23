@@ -271,6 +271,33 @@ describe('callbacks', () => {
     });
   });
 
+  it('refuses the challenger tapping Accept on their own open challenge', async () => {
+    const { group, a } = await pendingChallenge();
+    const open = await insertChallenge(db, group.id, a.id, null, { messageId: 901 });
+    await post(callbackUpdate({ from: alice, chat, data: `ch/acc/${open.publicId}` }));
+    expect(fake.callsTo('answerCallbackQuery').at(-1)?.body).toMatchObject({
+      text: "You can't accept your own challenge.",
+      show_alert: true,
+    });
+    expect(await db.select().from(games)).toHaveLength(0);
+    expect((await db.select().from(challenges).where(eq(challenges.id, open.id)))[0]?.status).toBe(
+      'pending',
+    );
+  });
+
+  it('tells a bystander who may withdraw an open challenge', async () => {
+    const { group, a } = await pendingChallenge();
+    const open = await insertChallenge(db, group.id, a.id, null, { messageId: 902 });
+    await post(callbackUpdate({ from: bob, chat, data: `ch/dec/${open.publicId}` }));
+    expect(fake.callsTo('answerCallbackQuery').at(-1)?.body).toMatchObject({
+      text: 'Only @alice can withdraw this challenge.',
+      show_alert: true,
+    });
+    expect((await db.select().from(challenges).where(eq(challenges.id, open.id)))[0]?.status).toBe(
+      'pending',
+    );
+  });
+
   it('treats Decline as a withdrawal for the challenger and a decline for the opponent', async () => {
     const first = await pendingChallenge();
     await post(callbackUpdate({ from: alice, chat, data: `ch/dec/${first.challenge.publicId}` }));

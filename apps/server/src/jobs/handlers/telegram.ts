@@ -22,7 +22,7 @@ import type { Deps } from '../../domain/deps';
 import { listMoves, requireGameById } from '../../domain/games';
 import { markBotLeft } from '../../domain/groupLifecycle';
 import { migrateChatId, requireGroup } from '../../domain/groups';
-import { getUserById, requireUser, setDmAllowed, wantsDms } from '../../domain/users';
+import { displayName, getUserById, requireUser, setDmAllowed, wantsDms } from '../../domain/users';
 import {
   renderChallengeCard,
   renderGameCard,
@@ -219,7 +219,7 @@ async function dmContent(
     const group = await requireGroup(deps.db, challenge.groupId);
     return {
       text: t('dm.challenge', {
-        challenger: challenger.firstName,
+        challenger: displayName(challenger),
         timePerMove: timePerMoveLabel(challenge.timePerMove as TimePerMove),
         rated: ratedLabel(challenge.rated),
       }),
@@ -257,7 +257,7 @@ async function dmContent(
     const rdAfter = isWhite ? game.whiteRdAfter : game.blackRdAfter;
     const params = {
       result: resultLabel(game.result),
-      opponent: opponent.firstName,
+      opponent: displayName(opponent),
       endReason: endReasonLabel(game.endReason),
     };
     const text =
@@ -287,7 +287,7 @@ async function dmContent(
   if (payload.template === 'reminder') {
     if (!timeLeft) return null;
     return {
-      text: t('dm.reminder', { timeLeft, opponent: opponent.firstName }),
+      text: t('dm.reminder', { timeLeft, opponent: displayName(opponent) }),
       buttons: [[openGame], goToGroup],
     };
   }
@@ -302,7 +302,7 @@ async function dmContent(
       : 'dm.turn.first_no_clock';
   return {
     text: t(key, {
-      opponent: opponent.firstName,
+      opponent: displayName(opponent),
       lastMove: lastMove ?? '',
       timeLeft: timeLeft ?? '',
     }),

@@ -58,7 +58,7 @@ export const en = {
   'card.share.caption':
     '{sharer} shared move {moveNumber} · {white} vs {black} · {sideToMove} to move',
   'card.welcome':
-    'Play chess with this group on a real board inside Telegram. The chat only sees results and shared positions. Admins: promote me so everyone here can watch games.',
+    'Play chess with this group on a real board inside Telegram. The chat only sees results and shared positions.',
   'button.accept': 'Accept',
   'button.decline': 'Decline',
   'button.cancel': 'Cancel',
@@ -84,6 +84,7 @@ export const en = {
   'reply.pending_limit': 'You already have {count} pending challenges here.',
   'reply.open_disabled': 'Open challenges are off in this group.',
   'alert.not_your_challenge': 'Only {name} can accept this challenge.',
+  'alert.not_the_challenger': 'Only {name} can withdraw this challenge.',
   'alert.own_challenge': "You can't accept your own challenge.",
   'alert.accepted_first': 'Someone accepted first.',
   'alert.challenge_gone': 'This challenge is no longer open.',

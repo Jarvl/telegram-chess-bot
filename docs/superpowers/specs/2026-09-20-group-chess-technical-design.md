@@ -230,16 +230,17 @@ Every card is rendered by a pure function `renderCard(state) → { text, entitie
 | Aborted | `♟ Alice vs Bob · Aborted` · reason (`no move within 1 day`) | `🔁 Rematch` |
 | Voided | `♟ Alice vs Bob · Voided by an admin` · original result | `🔍 Analyse on Lichess` when the game had moves |
 | Shared position | photo, caption `Carol shared move 23 · Alice vs Bob · Black to move` | `♟ Open game` |
-| Welcome | `Play chess with this group on a real board inside Telegram. The chat only sees results and shared positions. Admins: promote me so everyone here can watch games.` | `♟ Open Chess` |
+| Welcome | `Play chess with this group on a real board inside Telegram. The chat only sees results and shared positions.` | `♟ Open Chess` |
 
 Rules for cards:
 
+- Everyone is named by their Telegram handle (`@alice`), in cards, DMs, one-line replies, the Mini App and the PGN alike (PRD §7.12 stores the username as the display field). A user who has no username falls back to their `first_name`, and an anonymised user reads `Deleted player`; the names in the table above stand for whichever of the three applies.
 - The challenged player is mentioned once, on the challenge card: `@username` when they have one, otherwise a `text_mention` entity, which Telegram guarantees to work for members of the group where it is used. `Rated` reads `Casual` for unrated games. Provisional ratings carry a `?` suffix.
 - Edits go through an `edit_card` job with dedup key `card:g:<gameId>` (`card:ch:<challengeId>` before the game exists). Re-enqueueing an existing pending job only moves its `run_at`, so bursts collapse into one edit rendered from the latest state. An edit that runs before the card has a `message_id` retries with backoff. This satisfies "at most one status edit per move" and keeps ordering trivial. A minimum spacing of 2 s per card applies.
 - "Message is not modified" from Telegram is success. "Message to edit not found" marks the card as gone; the game continues without a card.
 - The `Analyse on Lichess` button first carries the fallback URL (§7.6) and is swapped for the imported game URL by one more silent edit when the import lands.
 - `♟ Open game` appears on running cards and on shared positions. Finished cards carry exactly the two buttons the PRD specifies; the replay is reached from the lobby's Finished tab or from a shared position's `♟ Open game`.
-- The welcome card is pinned only when `my_chat_member` shows the bot is an administrator with `can_pin_messages`; otherwise it is left for a human to pin. Its last sentence asks admins to promote the bot, which makes membership checks authoritative (§5.6).
+- The welcome card is pinned only when `my_chat_member` shows the bot is an administrator with `can_pin_messages`; otherwise it is left for a human to pin. The card does not ask admins to promote the bot: whether promotion is needed for membership checks to be authoritative is still open until spike S4 characterises `getChatMember` for a non-admin bot (§5.6).
 
 ### 5.5 Commands
 
@@ -605,7 +606,8 @@ Telegram pacing lives in the outbound client used by the handlers (§5.8): a 429
 | `initData` older than 24 h | `auth_date` | 401 on launch | "Reopen from Telegram" screen |
 | Move arrives after the deadline | Move transaction compares with `now()` | The transaction applies the timeout itself | The player sees the finished state |
 | Two people accept an open challenge at once | Row lock | The second commit fails with `stale_state` | `answerCallbackQuery` alert "Someone accepted first"; a private toast, not a group message |
-| Wrong person taps Accept, Decline or Rematch | Identity check | `answerCallbackQuery` alert ("Only Bob can accept this challenge") | Private toast only |
+| Wrong person taps Accept, Decline or Rematch | Identity check | `answerCallbackQuery` alert ("Only @bob can accept this challenge") | Private toast only |
+| Bystander taps Cancel on an open challenge | Identity check | `answerCallbackQuery` alert ("Only @alice can withdraw this challenge"); the challenger's own tap withdraws it | Private toast only |
 | Job exhausts its attempts | `attempts = max_attempts` | `last_error` kept, `jobs_failed_total` increments, alert | Depends on the kind; the game state is never affected |
 
 ## 12. Security and privacy

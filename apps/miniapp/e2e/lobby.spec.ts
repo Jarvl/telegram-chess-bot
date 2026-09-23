@@ -14,7 +14,7 @@ test('a challenge made in the app is posted to the group and accepted from the l
   await expect(alice.locator('.title')).toHaveText('Chess Club');
   await expect(alice.locator('[data-action="group-settings"]')).toBeVisible();
   await alice.locator('[data-action="new-game"]').click();
-  await alice.locator('[data-opponent]').filter({ hasText: 'Bob' }).click();
+  await alice.locator('[data-opponent]').filter({ hasText: '@bob' }).click();
   await alice.locator('[data-time="28800"]').click();
   await clickMain(alice);
   await expect(alice.locator('.toast')).toHaveText('Challenge posted to the group');
@@ -26,7 +26,7 @@ test('a challenge made in the app is posted to the group and accepted from the l
     )
     .toBeGreaterThan(0);
   const card = (await telegramCalls()).find((call) => call.method === 'sendMessage');
-  expect(String(card?.body.text)).toContain('Alice challenges');
+  expect(String(card?.body.text)).toContain('@alice challenges');
 
   const bobContext = await browser.newContext();
   const bob = await bobContext.newPage();
@@ -36,7 +36,7 @@ test('a challenge made in the app is posted to the group and accepted from the l
   await expect(bob.locator('.cg-wrap')).toBeVisible();
   await expect(
     bob.locator('.player-bar[data-colour="white"], .player-bar[data-colour="black"]').first(),
-  ).toContainText(/Alice|Bob/);
+  ).toContainText(/@alice|@bob/);
   await aliceContext.close();
   await bobContext.close();
 });

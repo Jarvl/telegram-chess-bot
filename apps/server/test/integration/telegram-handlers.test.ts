@@ -75,11 +75,12 @@ describe('send_challenge_card', () => {
     expect(call?.body).toMatchObject({
       chat_id: CHAT,
       message_thread_id: 5,
-      text: '♟ Alice challenges Bob\n1 day per move · Rated',
+      text: '♟ @alice challenges Bob\n1 day per move · Rated',
     });
+    // 'Bob' has no handle, so the card mentions him by entity, after '♟ @alice challenges '.
     expect((call?.body.entities as unknown[])[0]).toMatchObject({
       type: 'text_mention',
-      offset: 19,
+      offset: 20,
       length: 3,
     });
     expect((await db.select().from(challenges))[0]?.messageId).toBe(101);
@@ -120,7 +121,7 @@ describe('edit_card', () => {
     expect(call?.body).toMatchObject({
       chat_id: CHAT,
       message_id: 900,
-      text: '♟ Alice (1500?) vs Bob (1500?)\n1 day per move · Rated · Move 1 · Bob to move',
+      text: '♟ @alice (1500?) vs Bob (1500?)\n1 day per move · Rated · Move 1 · Bob to move',
     });
   });
 
@@ -187,7 +188,7 @@ describe('edit_card', () => {
     await worker.runOnce();
     expect(fake.callsTo('editMessageText')[0]?.body).toMatchObject({
       message_id: 700,
-      text: '♟ Alice vs Bob · Declined',
+      text: '♟ @alice vs Bob · Declined',
     });
   });
 });
