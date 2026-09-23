@@ -116,10 +116,26 @@ filtering reuse `meGroups`'s conditions.
 budget of one request before first paint is preserved. The Groups tab fetches
 `GET /api/me/groups` when first selected, which is a lateral move, not first paint.
 
+## The "your move" badge
+
+The Games tab carries the number of active games waiting on the viewer, across every group, and
+no badge at all at zero. The count has to outlive the Games screen — it is most useful while the
+viewer is deep inside one game — so it is a module signal (`state/yourMove.ts`), fed by three
+sources in order of authority:
+
+1. **The launch response** (`yourMove`) seeds it, so a `g_<gameId>` deep link shows the real total
+   rather than just the game it opened. A home launch derives the figure from the games it already
+   carries; every other launch pays for one count query.
+2. **A fetched games list** recounts it from scratch, healing any drift.
+3. **A game changing hands** adjusts it by one. Every state change on the game screen — SSE, the
+   move response, draw and resign actions — funnels through `applyState`, which holds both the old
+   and the new snapshot, so the delta is exact and cannot double-count.
+
+Drift is possible and self-correcting: accepting a challenge creates a game the badge does not
+learn about until the next list load. The count never goes below zero.
+
 ## Deliberately not in this change
 
-- **A "your move" count badge on the Games tab.** Genuinely useful for correspondence play,
-  but keeping it live needs a store that outlives the Games screen. Worth doing next.
 - **Per-tab scroll restoration.** Stacks are restored; scroll offset is not.
 - **A game-to-game switcher sheet inside the Game screen.** The tab bar already makes it two
   taps; a sheet would make it one, at the cost of another surface.

@@ -94,6 +94,45 @@ describe('POST /api/launch', () => {
     expect(me.status).toBe(200);
   });
 
+  it('counts the games waiting on the user for the Games badge, on any launch', async () => {
+    const opponent = await insertUser(db);
+    const club = await insertGroup(db, { title: 'Club' });
+    const pub = await insertGroup(db, { title: 'Pub' });
+    const stranger = await insertGroup(db, { title: 'Stranger' });
+    const body = LaunchResponseSchema.parse(await (await launch({ user: alice })).json());
+    const [viewer] = await db.select().from(users).where(eq(users.telegramUserId, alice.id));
+    for (const group of [club, pub]) await touchMember(db, group.id, viewer!.id);
+    await touchMember(db, stranger.id, opponent.id);
+
+    const blackToMove = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1';
+    // Two waiting on the viewer: one in each group they belong to.
+    await insertGame(db, club.id, opponent.id, viewer!.id, { fen: blackToMove });
+    const theirs = await insertGame(db, pub.id, opponent.id, viewer!.id, { fen: blackToMove });
+    // None of these count: the opponent's turn, a finished game, and a group they are not in.
+    await insertGame(db, club.id, viewer!.id, opponent.id, { fen: blackToMove });
+    await insertGame(db, pub.id, opponent.id, viewer!.id, {
+      fen: blackToMove,
+      status: 'finished',
+      result: '0-1',
+      endReason: 'resignation',
+      finishedAt: new Date(),
+    });
+    await insertGame(db, stranger.id, opponent.id, opponent.id, { fen: blackToMove });
+
+    // A profile launch derives it from the games it already carries...
+    const home = LaunchResponseSchema.parse(await (await launch({ user: alice })).json());
+    expect(home.route.kind).toBe('home');
+    expect(home.yourMove).toBe(2);
+
+    // ...and a deep link into one game counts across every group instead.
+    const deep = LaunchResponseSchema.parse(
+      await (await launch({ user: alice, startParam: `g_${theirs.publicId}` })).json(),
+    );
+    expect(deep.route.kind).toBe('game');
+    expect(deep.yourMove).toBe(2);
+    expect(body.yourMove).toBe(0);
+  });
+
   it('marks DMs allowed when init data says the user allows messages', async () => {
     await launch({ user: { ...alice, allows_write_to_pm: true } });
     const [user] = await db.select().from(users).where(eq(users.telegramUserId, alice.id));

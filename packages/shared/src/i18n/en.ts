@@ -112,6 +112,7 @@ export const en = {
   'app.locked.title': 'This group is private',
   'app.nav.label': 'Sections',
   'app.nav.games': 'Games',
+  'app.nav.games_waiting': 'Games, {count} waiting on you',
   'app.nav.groups': 'Groups',
   'app.nav.settings': 'Settings',
   'app.games.title': 'Your games',

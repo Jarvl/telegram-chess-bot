@@ -72,6 +72,9 @@ test('a game opened from a card is one tap from the chat and one tap from home',
   });
   await expect(page.locator('.cg-wrap')).toBeVisible();
 
+  // The badge counts the boards waiting on this player, and shows while they are inside one.
+  await expect(page.locator('[data-nav="games"] .nav-badge')).toHaveText('1');
+
   // The tab bar is the way home, so it costs no back taps to get there.
   await page.locator('[data-nav="games"]').click();
   await expect(page.locator('.title')).toHaveText('Your games');

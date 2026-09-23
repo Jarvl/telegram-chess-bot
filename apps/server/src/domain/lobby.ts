@@ -140,11 +140,11 @@ async function visibleGroups(tx: DbOrTx, userId: number): Promise<GroupRow[]> {
   return rows.map((row) => row.group);
 }
 
-/** Groups where the user is a known member and the bot is still present (spec §9 `GET /me/groups`). */
-export async function meGroups(deps: Deps, userId: number): Promise<MeGroupsDto> {
-  const memberOf = await visibleGroups(deps.db, userId);
-  if (memberOf.length === 0) return { groups: [] };
-  const active = await deps.db
+type TurnRow = { groupId: number; fen: string; whiteId: number; blackId: number };
+
+/** The user's active games in these groups, with just enough of each to tell whose turn it is. */
+async function activeTurnRows(tx: DbOrTx, userId: number, groupIds: number[]): Promise<TurnRow[]> {
+  return tx
     .select({
       groupId: games.groupId,
       fen: games.fen,
@@ -156,21 +156,48 @@ export async function meGroups(deps: Deps, userId: number): Promise<MeGroupsDto>
       and(
         eq(games.status, 'active'),
         or(eq(games.whiteId, userId), eq(games.blackId, userId)),
-        inArray(
-          games.groupId,
-          memberOf.map((group) => group.id),
-        ),
+        inArray(games.groupId, groupIds),
       ),
     );
+}
+
+/** Whose move it is, read off the FEN's side-to-move field. One rule, three callers. */
+function waitsOn(row: TurnRow, userId: number): boolean {
+  return (row.fen.split(' ')[1] === 'b' ? row.blackId : row.whiteId) === userId;
+}
+
+/** Groups where the user is a known member and the bot is still present (spec §9 `GET /me/groups`). */
+export async function meGroups(deps: Deps, userId: number): Promise<MeGroupsDto> {
+  const memberOf = await visibleGroups(deps.db, userId);
+  if (memberOf.length === 0) return { groups: [] };
+  const active = await activeTurnRows(
+    deps.db,
+    userId,
+    memberOf.map((group) => group.id),
+  );
   return {
     groups: memberOf.map((group) => {
       const mine = active.filter((game) => game.groupId === group.id);
-      const yourMove = mine.filter(
-        (game) => (game.fen.split(' ')[1] === 'b' ? game.blackId : game.whiteId) === userId,
-      ).length;
+      const yourMove = mine.filter((game) => waitsOn(game, userId)).length;
       return { id: group.publicId, title: group.title, activeGames: mine.length, yourMove };
     }),
   };
+}
+
+/**
+ * How many active games across every visible group are waiting on this user — the Games tab's
+ * badge (spec §6.2). Counted rather than listed: the launch response carries it for every launch,
+ * including a deep link into one game, where the full list is never built.
+ */
+export async function yourMoveTotal(deps: Deps, userId: number): Promise<number> {
+  const memberOf = await visibleGroups(deps.db, userId);
+  if (memberOf.length === 0) return 0;
+  const rows = await activeTurnRows(
+    deps.db,
+    userId,
+    memberOf.map((group) => group.id),
+  );
+  return rows.filter((row) => waitsOn(row, userId)).length;
 }
 
 /**

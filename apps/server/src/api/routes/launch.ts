@@ -2,6 +2,7 @@ import { decodeStartParam, LaunchRequestSchema, type LaunchResponse } from '@gro
 import { Hono } from 'hono';
 import { dbNow } from '../../db/client';
 import { DomainError } from '../../domain/errors';
+import { yourMoveTotal } from '../../domain/lobby';
 import { displayName, ensureUser, prefsOf, setDmAllowed } from '../../domain/users';
 import type { ApiContext, ApiEnv } from '../context';
 import { validateInitData } from '../initData';
@@ -27,11 +28,18 @@ export function launchRoutes(ctx: ApiContext): Hono<ApiEnv> {
     }
     const token = await issueSessionToken(ctx.config.SESSION_SECRET, user.id);
     const route = await resolveLaunchRoute(ctx, user, decodeStartParam(parsed.startParam));
+    // A home launch already carries every active game, so the badge is a filter rather than a
+    // second query; every other launch pays for the count it cannot derive.
+    const yourMove =
+      route.kind === 'home'
+        ? route.games.items.filter((game) => game.yourTurn).length
+        : await yourMoveTotal(ctx.deps, user.id);
     const response: LaunchResponse = {
       token,
       user: { id: String(user.id), name: displayName(user), username: user.username },
       prefs: prefsOf(user),
       askWriteAccess: user.writeAccessAskedAt === null && !user.dmAllowed,
+      yourMove,
       route,
       serverTime: (await dbNow(ctx.deps.db)).toISOString(),
       bot: { username: ctx.config.BOT_USERNAME, miniAppShortName: ctx.config.MINI_APP_SHORT_NAME },

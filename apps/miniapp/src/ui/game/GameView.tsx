@@ -18,6 +18,7 @@ import {
   type PromotionPiece,
 } from '../../board/promotion';
 import { diffNotices, GameStore, positionAt, type Notice } from '../../state/game';
+import { noteTurnChange } from '../../state/yourMove';
 import {
   reduceMove,
   type MoveEffect,
@@ -74,6 +75,7 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
       const previous = store.dto.value;
       noteServerTime(next.serverTime);
       if (!store.apply(next)) return;
+      noteTurnChange(previous, next);
       for (const notice of diffNotices(previous, next)) notify(notice);
       // Spec §6.3: a check buzzes, whichever side gave it.
       if (next.plyCount > previous.plyCount && positionAt(next, next.plyCount).check)

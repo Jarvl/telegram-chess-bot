@@ -1,6 +1,7 @@
 import { t, type MessageKey } from '@group-chess/shared';
 import type { JSX } from 'preact';
 import { TABS, type TabName } from '../router';
+import { yourMoveCount } from '../state/yourMove';
 import { useApp } from './context';
 
 const TAB_LABEL: Record<TabName, MessageKey> = {
@@ -41,24 +42,38 @@ export function TabBar() {
   const { router } = useApp();
   if (!router.showTabs.value) return null;
   const active = router.tab.value;
+  // Only Games carries a count, and only while something is actually waiting: a zero badge is
+  // noise on a bar the viewer sees on every screen.
+  const waiting = yourMoveCount.value;
   return (
     <nav class="tabbar" role="tablist" aria-label={t('app.nav.label')}>
-      {TABS.map((tab) => (
-        <button
-          key={tab}
-          type="button"
-          role="tab"
-          class={tab === active ? 'nav-item active' : 'nav-item'}
-          aria-selected={tab === active}
-          data-nav={tab}
-          onClick={() => router.select(tab)}
-        >
-          <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            {TAB_ICON[tab]}
-          </svg>
-          <span class="nav-label">{t(TAB_LABEL[tab])}</span>
-        </button>
-      ))}
+      {TABS.map((tab) => {
+        const badge = tab === 'games' && waiting > 0 ? waiting : null;
+        return (
+          <button
+            key={tab}
+            type="button"
+            role="tab"
+            class={tab === active ? 'nav-item active' : 'nav-item'}
+            aria-selected={tab === active}
+            aria-label={badge === null ? undefined : t('app.nav.games_waiting', { count: badge })}
+            data-nav={tab}
+            onClick={() => router.select(tab)}
+          >
+            <span class="nav-icon-wrap">
+              <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                {TAB_ICON[tab]}
+              </svg>
+              {badge === null ? null : (
+                <span class="nav-badge" data-badge={badge} aria-hidden="true">
+                  {badge > 99 ? '99+' : badge}
+                </span>
+              )}
+            </span>
+            <span class="nav-label">{t(TAB_LABEL[tab])}</span>
+          </button>
+        );
+      })}
     </nav>
   );
 }

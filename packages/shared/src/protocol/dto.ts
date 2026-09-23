@@ -294,6 +294,11 @@ export const LaunchResponseSchema = z.object({
   prefs: PrefsSchema,
   /** True when the write-access prompt has never been shown to this user (spec §6.1 step 4). */
   askWriteAccess: z.boolean(),
+  /**
+   * Active games across every visible group that are waiting on this user: the Games tab badge.
+   * It ships with the launch so a deep link into one game still shows the true total.
+   */
+  yourMove: z.number().int().min(0),
   route: LaunchRouteSchema,
   serverTime: IsoDateSchema,
   bot: z.object({

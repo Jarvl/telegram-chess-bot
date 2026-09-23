@@ -4,13 +4,14 @@ import { createApiClient } from '../src/api/client';
 import { boot } from '../src/boot';
 import { Router } from '../src/router';
 import { prefs, session } from '../src/state/session';
+import { setYourMoveCount, yourMoveCount } from '../src/state/yourMove';
 import { createTg } from '../src/tg/webapp';
 import type { Prefetched } from '../src/ui/context';
 import { fakeFetch } from './support/fakeFetch';
 import { installFakeWebApp } from './support/fakeWebApp';
 import { gameDto } from './support/gameFixtures';
 
-const launchBody = (route: unknown, askWriteAccess = false) => ({
+const launchBody = (route: unknown, askWriteAccess = false, yourMove = 0) => ({
   token: 'jwt',
   user: { id: '1', name: 'Alice', username: 'alice' },
   prefs: {
@@ -21,6 +22,7 @@ const launchBody = (route: unknown, askWriteAccess = false) => ({
     pieceSet: null,
   },
   askWriteAccess,
+  yourMove,
   route,
   serverTime: new Date().toISOString(),
   bot: { username: 'TestChessBot', miniAppShortName: 'chess' },
@@ -155,6 +157,18 @@ describe('boot', () => {
     await boot(app);
     expect(app.router.tab.value).toBe('groups');
     expect(app.router.stack.value).toEqual([{ name: 'groupSettings', groupId: 'GrOuPiDxYz' }]);
+  });
+
+  it('seeds the Games badge from the launch, so a deep link shows the real total', async () => {
+    setYourMoveCount(0);
+    const game = gameDto();
+    const app = setup('8.0', 'g_AbCdEfGhIj', () => ({
+      status: 200,
+      body: launchBody({ kind: 'game', game }, false, 4),
+    }));
+    await boot(app);
+    // The launch landed on one game, but the badge counts every group the viewer can see.
+    expect(yourMoveCount.value).toBe(4);
   });
 
   it('routes a locked launch to the locked screen', async () => {

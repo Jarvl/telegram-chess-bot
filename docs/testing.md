@@ -10,15 +10,15 @@ exit criteria come from PRD §13.
 |---|---|---|---|
 | Unit — shared rules and protocol | `pnpm test` | 202 tests, 14 files | every pull request |
 | Unit — server | `pnpm test` | 88 tests, 15 files | every pull request |
-| Integration — server on real PostgreSQL and a fake Bot API | `pnpm test` | 219 tests, 25 files | every pull request |
-| Unit — Mini App on happy-dom | `pnpm test` | 103 tests, 17 files | every pull request |
+| Integration — server on real PostgreSQL and a fake Bot API | `pnpm test` | 220 tests, 25 files | every pull request |
+| Unit — Mini App on happy-dom | `pnpm test` | 118 tests, 18 files | every pull request |
 | End-to-end — Playwright on Chromium with touch emulation | `pnpm e2e` | 14 specs, 8 files | every pull request, pushes to `main`, manual dispatch |
 | Image smoke — build, boot, probe, stop | `.github/workflows/e2e.yml` `docker` job | 1 scenario | every pull request, pushes to `main`, manual dispatch |
 | Bundle budget | `pnpm build && pnpm check:budget` | 2 budgets | every pull request |
 | Licence allow-list | `pnpm check:licences` | 191 npm packages | every pull request |
 | Dependency advisories | `pnpm audit --prod --audit-level=high` | — | every pull request |
 
-`pnpm test` is 612 tests in about 75 seconds. Integration tests need `TEST_DATABASE_URL`; without
+`pnpm test` is 628 tests in about 75 seconds. Integration tests need `TEST_DATABASE_URL`; without
 it only the unit projects run, which is a silent reduction in coverage, so CI always sets it.
 
 Local setup is one command. `scripts/local-postgres.sh start` creates both databases on port 54329

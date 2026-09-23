@@ -1,5 +1,6 @@
 import type { MeGamesDto } from '@group-chess/shared';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { setYourMoveCount, yourMoveCount } from '../src/state/yourMove';
 import { App } from '../src/ui/App';
 import { Games } from '../src/ui/screens/Games';
 import { renderApp } from './support/render';
@@ -109,5 +110,75 @@ describe('TabBar', () => {
     r.app.router.land('groups', { name: 'locked', group: { id: 'GrOuPiDxYz', title: 'Club' } });
     await r.flush();
     expect(r.root.querySelector('[data-nav="games"]')).toBeNull();
+  });
+});
+
+describe('the Games tab badge', () => {
+  beforeEach(() => setYourMoveCount(0));
+
+  // Rendered over the Groups screen on purpose: the badge's whole job is to be right while the
+  // viewer is somewhere other than the list it came from. Landing on Games instead would have the
+  // screen recount from its own list and overwrite whatever this set.
+  const bar = (count: number) =>
+    renderApp(
+      (app) => {
+        setYourMoveCount(count);
+        app.router.land('groups', { name: 'groups' });
+        return <App />;
+      },
+      () => ({ status: 200, body: { groups: [] } }),
+    );
+
+  it('shows the number of games waiting on you, over the games icon only', async () => {
+    const r = bar(3);
+    await r.flush();
+    const badge = r.root.querySelector('[data-nav="games"] .nav-badge');
+    expect(badge?.textContent).toBe('3');
+    expect(r.root.querySelector('[data-nav="groups"] .nav-badge')).toBeNull();
+    expect(r.root.querySelector('[data-nav="settings"] .nav-badge')).toBeNull();
+    expect(r.root.querySelector('[data-nav="games"]')?.getAttribute('aria-label')).toBe(
+      'Games, 3 waiting on you',
+    );
+  });
+
+  it('shows no badge at all when nothing is waiting', async () => {
+    const r = bar(0);
+    await r.flush();
+    expect(r.root.querySelector('.nav-badge')).toBeNull();
+    // With no badge the tab is just its label, so it keeps no count in its accessible name.
+    expect(r.root.querySelector('[data-nav="games"]')?.getAttribute('aria-label')).toBeNull();
+  });
+
+  it('caps the printed count so a long number cannot stretch the bar', async () => {
+    const r = bar(120);
+    await r.flush();
+    expect(r.root.querySelector('.nav-badge')?.textContent).toBe('99+');
+  });
+
+  it('follows the count as it changes, without a re-render from the caller', async () => {
+    const r = bar(1);
+    await r.flush();
+    expect(r.root.querySelector('.nav-badge')?.textContent).toBe('1');
+    setYourMoveCount(2);
+    await r.flush();
+    expect(r.root.querySelector('.nav-badge')?.textContent).toBe('2');
+    setYourMoveCount(0);
+    await r.flush();
+    expect(r.root.querySelector('.nav-badge')).toBeNull();
+  });
+
+  it('is recounted from the list the Games screen loads', async () => {
+    setYourMoveCount(99);
+    const r = renderApp(
+      (app) => {
+        app.router.land('games', { name: 'games' });
+        return <App />;
+      },
+      () => ({ status: 200, body: games }),
+    );
+    await r.flush();
+    // One of the two fixture games is the viewer's move.
+    expect(yourMoveCount.value).toBe(1);
+    expect(r.root.querySelector('.nav-badge')?.textContent).toBe('1');
   });
 });

@@ -1,4 +1,6 @@
 import { MeGamesDtoSchema, t } from '@group-chess/shared';
+import { useEffect } from 'preact/hooks';
+import { countYourMove } from '../../state/yourMove';
 import { useApp } from '../context';
 import { useResource } from '../hooks';
 import { GameRow } from '../rows';
@@ -10,6 +12,10 @@ export function Games() {
   const initial = prefetched.games;
   delete prefetched.games;
   const games = useResource('games', () => client.get('/api/me/games', MeGamesDtoSchema), initial);
+  // The full list outranks the badge's running count, so every load resets it.
+  useEffect(() => {
+    if (games.data) countYourMove(games.data);
+  }, [games.data]);
   if (games.error) return <ErrorScreen onRetry={() => void games.reload()} />;
   if (!games.data) return <Loading />;
   return (
