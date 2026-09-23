@@ -54,7 +54,7 @@ export function NewGame(props: { groupId: string; defaults?: LobbyDto['settings'
       setSending(true);
       try {
         if (selection.kind === 'bot') {
-          const body: EngineGameRequest = { level: selection.level, colour, timePerMove };
+          const body: EngineGameRequest = { level: selection.level, colour };
           const game = await client.post(
             `/api/groups/${props.groupId}/engine-games`,
             body,
@@ -156,24 +156,28 @@ export function NewGame(props: { groupId: string; defaults?: LobbyDto['settings'
               </button>
             ))}
           </div>
-          <p class="hint">{t('app.new.bot_unrated')}</p>
+          <p class="hint">{t('app.new.bot_casual')}</p>
         </>
       ) : null}
-      <div class="section">{t('app.new.time')}</div>
-      <div class="list">
-        {TIME_VALUES.map((value) => (
-          <button
-            key={String(value)}
-            class="row"
-            data-time={value === null ? 'none' : value}
-            aria-pressed={timePerMove === value ? 'true' : 'false'}
-            onClick={() => setTimePerMove(value)}
-          >
-            <span class="grow primary">{timePerMoveLabel(value)}</span>
-            {timePerMove === value ? <span class="badge">✓</span> : null}
-          </button>
-        ))}
-      </div>
+      {selection.kind === 'bot' ? null : (
+        <>
+          <div class="section">{t('app.new.time')}</div>
+          <div class="list">
+            {TIME_VALUES.map((value) => (
+              <button
+                key={String(value)}
+                class="row"
+                data-time={value === null ? 'none' : value}
+                aria-pressed={timePerMove === value ? 'true' : 'false'}
+                onClick={() => setTimePerMove(value)}
+              >
+                <span class="grow primary">{timePerMoveLabel(value)}</span>
+                {timePerMove === value ? <span class="badge">✓</span> : null}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
       <div class="section">{t('app.new.colour')}</div>
       <Segmented
         value={colour}

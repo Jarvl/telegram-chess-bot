@@ -28,11 +28,15 @@ export const ChallengeRequestSchema = z.object({
 
 export type ChallengeRequest = z.infer<typeof ChallengeRequestSchema>;
 
-/** Starts a game against the bot. No `rated` field: the domain layer forces it false (spec §6.1). */
+/**
+ * Starts a game against the bot. Two fields the challenge request has are deliberately absent:
+ * `rated`, because the domain layer forces it false (spec §6.1), and `timePerMove`, because a bot
+ * game has no clock at all — the bot answers immediately, so a per-move deadline protects nobody and
+ * could only lose a casual game to inattention (spec §8).
+ */
 export const EngineGameRequestSchema = z.object({
   level: EngineLevelSchema,
   colour: ColourChoiceSchema,
-  timePerMove: TimePerMoveSchema,
 });
 
 export type EngineGameRequest = z.infer<typeof EngineGameRequestSchema>;

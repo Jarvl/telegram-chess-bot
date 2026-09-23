@@ -39,7 +39,6 @@ describe('GameDto.engineLevel', () => {
       userId: alice.id,
       level: 'strong',
       colour: 'white',
-      timePerMove: 86_400,
     });
     const dto = await getGameDto(deps, { gameId: game.publicId, viewerUserId: alice.id });
     expect(dto.engineLevel).toBe('strong');
@@ -61,7 +60,6 @@ describe('draw offers against the bot', () => {
       userId: alice.id,
       level: 'club',
       colour: 'white',
-      timePerMove: 86_400,
     });
     await playMove(deps, {
       gameId: game.publicId,
@@ -85,7 +83,6 @@ describe('draw offers against the bot', () => {
       userId: alice.id,
       level: 'club',
       colour: 'white',
-      timePerMove: 86_400,
     });
     await offerDraw(deps, { gameId: game.publicId, userId: alice.id });
     await runEngineJob(engine, game.id);
@@ -103,7 +100,6 @@ describe('rematch against the bot', () => {
       userId: alice.id,
       level: 'club',
       colour: 'white',
-      timePerMove: 86_400,
     });
     await resign(deps, { gameId: game.publicId, userId: alice.id });
     const error = await createRematch(deps, { gameId: game.id, userId: alice.id }).catch(

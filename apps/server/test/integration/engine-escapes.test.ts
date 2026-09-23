@@ -62,7 +62,6 @@ async function gameAwaitingTheEngine() {
     userId: alice.id,
     level: 'club',
     colour: 'white',
-    timePerMove: 86_400,
   });
   await playMove(deps, {
     gameId: game.publicId,

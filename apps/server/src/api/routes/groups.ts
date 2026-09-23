@@ -96,7 +96,6 @@ export function groupsRoutes(api: Hono<ApiEnv>, ctx: ApiContext): void {
       userId: c.get('user').id,
       level: body.level,
       colour: body.colour,
-      timePerMove: body.timePerMove,
     });
     return c.json(
       await getGameDto(ctx.deps, { gameId: game.publicId, viewerUserId: c.get('user').id }),

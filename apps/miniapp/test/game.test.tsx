@@ -322,11 +322,7 @@ describe('Game', () => {
     await r.click('[data-action="rematch"]');
     const post = r.calls.at(-1);
     expect(post?.path).toBe(`/api/groups/${finished.group.id}/engine-games`);
-    expect(post?.body).toEqual({
-      level: 'club',
-      colour: 'random',
-      timePerMove: finished.timePerMove,
-    });
+    expect(post?.body).toEqual({ level: 'club', colour: 'random' });
     expect(r.app.router.current.value).toEqual({ name: 'game', gameId: 'NextGameA1' });
   });
 

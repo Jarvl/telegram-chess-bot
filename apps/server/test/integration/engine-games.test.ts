@@ -1,6 +1,10 @@
 import type { EngineLevel } from '@group-chess/shared';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { MAX_GAMES_PER_PAIR, reminderExpression } from '../../src/domain/limits';
+import {
+  MAX_GAMES_PER_PAIR,
+  deadlineExpression,
+  reminderExpression,
+} from '../../src/domain/limits';
 import { challenges, games, jobs, users } from '../../src/db/schema';
 import { DomainError } from '../../src/domain/errors';
 import { createEngineGame, getEngineUser } from '../../src/domain/engineGames';
@@ -29,7 +33,6 @@ describe('createEngineGame', () => {
       userId: alice.id,
       level: 'club',
       colour: 'white',
-      timePerMove: 86_400,
     });
     expect(game.status).toBe('active');
     expect(game.rated).toBe(false);
@@ -50,7 +53,6 @@ describe('createEngineGame', () => {
       userId: alice.id,
       level: 'club',
       colour: 'random',
-      timePerMove: null,
     });
     expect(game.rated).toBe(false);
   });
@@ -62,7 +64,6 @@ describe('createEngineGame', () => {
       userId: alice.id,
       level: 'club',
       colour: 'black',
-      timePerMove: 86_400,
     });
     const engineJobs = (await db.select().from(jobs)).filter((job) => job.kind === 'engine_move');
     expect(engineJobs).toHaveLength(1);
@@ -77,7 +78,6 @@ describe('createEngineGame', () => {
         userId: alice.id,
         level: 'club',
         colour: 'white',
-        timePerMove: 86_400,
       });
     }
     await expect(
@@ -86,7 +86,6 @@ describe('createEngineGame', () => {
         userId: alice.id,
         level: 'club',
         colour: 'white',
-        timePerMove: 86_400,
       }),
     ).rejects.toBeInstanceOf(DomainError);
   });
@@ -100,40 +99,18 @@ describe('createEngineGame', () => {
         // Cast past the compile-time union: the point of this test is the runtime guard.
         level: 'grandmaster' as EngineLevel,
         colour: 'white',
-        timePerMove: 86_400,
       }),
     ).rejects.toBeInstanceOf(DomainError);
     expect(await db.select().from(games)).toHaveLength(0);
   });
 
-  it('sets a real deadline only for the human side to move, never for the engine', async () => {
+  it('has no clock at all: no time control, no deadline, no reminder, on either colour', async () => {
     const { group, alice } = await setup({ dmAllowed: true });
 
-    const engineToMove = await createEngineGame(deps, {
-      groupId: group.id,
-      userId: alice.id,
-      level: 'club',
-      colour: 'black',
-      timePerMove: 86_400,
-    });
-    expect(engineToMove.deadlineAt).toBeNull();
-
-    const humanToMove = await createEngineGame(deps, {
-      groupId: group.id,
-      userId: alice.id,
-      level: 'club',
-      colour: 'white',
-      timePerMove: 86_400,
-    });
-    expect(humanToMove.deadlineAt).not.toBeNull();
-  });
-
-  it('never carries a reminder, even on the human turn a human game would remind about', async () => {
-    const { group, alice } = await setup({ dmAllowed: true });
-
-    // Guard against a vacuous pass: these are inputs the production reminder expression genuinely
-    // produces a reminder for, so a null below is the bot rule at work rather than a broken
-    // reminder path. A fixture that writes reminder_at directly would not prove this.
+    // Guard against a vacuous pass: both production expressions do produce a value for a real
+    // clock, so the nulls below are spec §8's rule and not a broken clock path. A bot game reaches
+    // them with a null time control, which is why both come back null.
+    expect(deadlineExpression(86_400)).not.toBeNull();
     expect(reminderExpression(86_400, true)).not.toBeNull();
 
     for (const colour of ['white', 'black'] as const) {
@@ -142,8 +119,9 @@ describe('createEngineGame', () => {
         userId: alice.id,
         level: 'club',
         colour,
-        timePerMove: 86_400,
       });
+      expect(game.timePerMove).toBeNull();
+      expect(game.deadlineAt).toBeNull();
       expect(game.reminderAt).toBeNull();
     }
   });

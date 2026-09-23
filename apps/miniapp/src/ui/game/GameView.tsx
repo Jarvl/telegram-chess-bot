@@ -301,11 +301,7 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
   const rematch = async (): Promise<void> => {
     try {
       if (dto.engineLevel !== null) {
-        const body: EngineGameRequest = {
-          level: dto.engineLevel,
-          colour: 'random',
-          timePerMove: dto.timePerMove,
-        };
+        const body: EngineGameRequest = { level: dto.engineLevel, colour: 'random' };
         const next = await client.post(
           `/api/groups/${dto.group.id}/engine-games`,
           body,

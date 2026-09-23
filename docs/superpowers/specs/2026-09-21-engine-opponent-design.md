@@ -186,9 +186,9 @@ headers). Naming it is also the honest thing to do for a GPL-3.0 dependency.
 ### 6.1 Creating a game
 
 Engine games skip the challenge entirely: there is nothing to accept, nothing to expire, and no card
-to edit. A new endpoint `POST /api/groups/:groupId/engine-games` takes a level, a colour choice and a
-time-per-move, and creates the game in one transaction with the same shape as `acceptChallenge` minus
-the challenge row. It must force `rated = false` server-side rather than trusting the client (E3),
+to edit. A new endpoint `POST /api/groups/:groupId/engine-games` takes a level and a colour choice —
+and deliberately **not** a time-per-move — and creates the game in one transaction with the same shape
+as `acceptChallenge` minus the challenge row. It must force `rated = false` server-side rather than trusting the client (E3),
 and must reject a level outside the table in §7. When the engine moves first, creation must also
 apply §9's deadline rule, leaving `deadline_at` and `reminder_at` null.
 
@@ -297,10 +297,10 @@ repetitive openings at the higher levels; the fix is contained and can be added 
 | Leaderboard and stats | Unrated already excludes engine games from Glicko-2. Additionally they are excluded from W/D/L, and the engine user never appears in the Players tab |
 | Draw offers | The bot declines every draw offer. Predictable, and keeps evaluation out of the draw path — which §2 requires anyway |
 | Resign and abort | Unchanged. The human can resign or abort under the existing rules |
-| Clocks | The human keeps a normal per-move deadline and can still forfeit. The engine never can — see §9. Note the interaction with the row above: with no reminder DM, a human can now forfeit a bot game without warning |
+| Clocks | **A bot game has no clock at all.** `time_per_move` is null, so neither side ever carries a deadline and neither can be forfeited. The bot answers immediately, so a per-move clock measures nothing about it, and the only thing it could do is lose a casual game to inattention. The time control is therefore not offered in the picker once the bot is selected, and not accepted by the endpoint |
 | Rematch | Creates a new engine game at the same level directly, not a challenge. Because engine games post no card (above), the affordance exists only on the game-end screen in the app; the card `rematch` callback is never reachable for them |
 | Lichess import | **Skipped for engine games.** The quota is 100 imports per hour shared across the deployment, and unlimited engine games would drain it for games with no human opponent. The analysis-board fallback link and the PGN download both still work and need no quota, so the game-end screen keeps working |
-| Move notifications | **None.** A bot game sends the human no turn DM and no reminder DM. The bot replies in seconds, so a "your turn" ping arrives for a move the player is already looking at, and a game they are playing alone does not need chasing. The game-end DM is kept: it reports a result, not a move, and without it a player who closed the app would never learn their game finished |
+| Move notifications | **None.** A bot game sends the human no turn DM and no reminder DM. The bot replies in seconds, so a "your turn" ping arrives for a move the player is already looking at, and a game they are playing alone does not need chasing. The game-end DM is kept: it reports a result, not a move, and without it a player who closed the app would never learn their game finished. With no clock in a bot game (see below) there is nothing a reminder could have warned about anyway |
 
 ## 9. Error handling and failure modes
 
@@ -447,9 +447,4 @@ it is Stockfish's behaviour, not this project's (§11).
 - **An illegal move recovers silently**, and only the log and the alert reveal it (E7, §9)
 - **During an engine outage the picker still offers the bot**, and those games queue and then abort
   (§9)
-- **A human can forfeit a bot game on time with no warning.** Suppressing move notifications (§8)
-  removes the reminder DM that would otherwise have nudged them before the deadline. Bot games keep a
-  deadline because the player chooses a time control when creating one; if forgetting a practice game
-  should not cost it, the fix is to stop the human forfeiting in bot games, which is a rule change and
-  deliberately not made here. Players who had notifications switched off already behaved this way
 - **Engine games get no permanent Lichess URL** (§8)

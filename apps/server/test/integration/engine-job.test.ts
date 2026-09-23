@@ -34,7 +34,6 @@ async function startedEngineGame(colour: ColourChoice) {
     userId: alice.id,
     level: 'club',
     colour,
-    timePerMove: 86_400,
   });
 }
 

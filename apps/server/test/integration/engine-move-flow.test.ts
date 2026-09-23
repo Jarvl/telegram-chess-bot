@@ -34,7 +34,6 @@ describe('playMove and finishGame with an engine opponent', () => {
       userId: alice.id,
       level: 'club',
       colour: 'white',
-      timePerMove: 86_400,
     });
     await playMove(deps, {
       gameId: game.publicId,
@@ -52,14 +51,13 @@ describe('playMove and finishGame with an engine opponent', () => {
     expect(kinds).not.toContain('send_dm');
   });
 
-  it('gives the human a deadline again once the engine has moved', async () => {
+  it('announces nothing and grants no clock when the engine has moved', async () => {
     const { group, alice } = await setup();
     const game = await createEngineGame(deps, {
       groupId: group.id,
       userId: alice.id,
       level: 'club',
       colour: 'white',
-      timePerMove: 86_400,
     });
     await playMove(deps, {
       gameId: game.publicId,
@@ -77,11 +75,13 @@ describe('playMove and finishGame with an engine opponent', () => {
       clientMoveId: 'e1',
     });
     const after = await requireGameByPublicId(db, game.publicId);
-    expect(after.deadlineAt).not.toBeNull();
+    // Spec §8: a bot game has no clock, so the human gets no deadline back either — the bot answers
+    // immediately, so there is nothing to time.
+    expect(after.deadlineAt).toBeNull();
     // The engine's own move (e7e5) reaches playMove's non-`engineNext` branch, where the game is
-    // still an engine game and must still get no card — and, per spec §8, no move notification to
-    // the human either. The turn DM is enqueued regardless of the recipient's DM preference (the
-    // handler filters later), so its absence here is the branch, not a preference.
+    // still an engine game and must still get no card — and no move notification to the human
+    // either. The turn DM is enqueued regardless of the recipient's DM preference (the handler
+    // filters later), so its absence here is the branch, not a preference.
     const kinds = await jobKinds();
     expect(kinds).not.toContain('edit_card');
     expect(kinds).not.toContain('send_dm');
@@ -97,7 +97,6 @@ describe('playMove and finishGame with an engine opponent', () => {
       userId: alice.id,
       level: 'club',
       colour: 'white',
-      timePerMove: 86_400,
     });
     await playMove(deps, {
       gameId: game.publicId,
@@ -115,38 +114,9 @@ describe('playMove and finishGame with an engine opponent', () => {
       clientMoveId: 'e1',
     });
     const after = await requireGameByPublicId(db, game.publicId);
-    // The human is to move, so they keep a deadline — but nothing will remind them about it.
-    expect(after.deadlineAt).not.toBeNull();
-    expect(after.reminderAt).toBeNull();
-  });
-
-  it('keeps a clockless engine game clockless for both sides', async () => {
-    const { group, alice } = await setup();
-    const game = await createEngineGame(deps, {
-      groupId: group.id,
-      userId: alice.id,
-      level: 'club',
-      colour: 'white',
-      timePerMove: null,
-    });
-    await playMove(deps, {
-      gameId: game.publicId,
-      userId: alice.id,
-      uci: 'e2e4',
-      expectedPly: 0,
-      clientMoveId: 'c1',
-    });
-    const engine = await getEngineUser(db);
-    await playMove(deps, {
-      gameId: game.publicId,
-      userId: engine.id,
-      uci: 'e7e5',
-      expectedPly: 1,
-      clientMoveId: 'e1',
-    });
-    const after = await requireGameByPublicId(db, game.publicId);
+    // Nothing to remind about, because there is nothing to be late for.
     expect(after.deadlineAt).toBeNull();
-    expect(await jobKinds()).not.toContain('edit_card');
+    expect(after.reminderAt).toBeNull();
   });
 
   // Correction to the brief: the original test forged a past deadline onto an engine game and
@@ -162,7 +132,6 @@ describe('playMove and finishGame with an engine opponent', () => {
       userId: alice.id,
       level: 'club',
       colour: 'black',
-      timePerMove: 86_400,
     });
     expect(engineGame.deadlineAt).toBeNull();
 
@@ -187,7 +156,6 @@ describe('playMove and finishGame with an engine opponent', () => {
       userId: alice.id,
       level: 'club',
       colour: 'white',
-      timePerMove: 86_400,
     });
     // A move first, so plyCount > 0 and the pre-existing `game.plyCount > 0` term of `importable`
     // is already satisfied — the `!engineGame` conjunct this task adds is then the only thing
@@ -219,7 +187,6 @@ describe('playMove and finishGame with an engine opponent', () => {
       userId: alice.id,
       level: 'club',
       colour: 'white',
-      timePerMove: 86_400,
     });
     await voidGame(deps, { gameId: game.publicId, adminUserId: admin.id });
     const voided = await requireGameByPublicId(db, game.publicId);
@@ -240,7 +207,6 @@ describe('the PGN of an engine game', () => {
       userId: alice.id,
       level,
       colour: 'white',
-      timePerMove: 86_400,
     });
     await playMove(deps, {
       gameId: game.publicId,

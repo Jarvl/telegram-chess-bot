@@ -59,7 +59,6 @@ describe('the bot in the picker and the engine-games endpoint', () => {
     const response = await post(`/api/groups/${group.publicId}/engine-games`, tokens.member, {
       level: 'club',
       colour: 'white',
-      timePerMove: 86_400,
     });
     expect(response.status).toBe(200);
     const body = GameDtoSchema.parse(await response.json());
@@ -71,7 +70,6 @@ describe('the bot in the picker and the engine-games endpoint', () => {
     const response = await post(`/api/groups/${group.publicId}/engine-games`, tokens.member, {
       level: 'grandmaster',
       colour: 'white',
-      timePerMove: 86_400,
     });
     expect(response.status).toBeGreaterThanOrEqual(400);
     expect(response.status).toBeLessThan(500);
@@ -82,7 +80,6 @@ describe('the bot in the picker and the engine-games endpoint', () => {
     const response = await post(`/api/groups/${group.publicId}/engine-games`, tokens.outsider, {
       level: 'club',
       colour: 'white',
-      timePerMove: 86_400,
     });
     expect(response.status).toBe(403);
   });

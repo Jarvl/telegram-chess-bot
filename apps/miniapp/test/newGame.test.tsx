@@ -139,6 +139,21 @@ describe('NewGame', () => {
     expect(r.text()).not.toMatch(/\b\d{3,4}\b/);
   });
 
+  it('offers no time control once the bot is selected, and offers one otherwise', async () => {
+    const r = renderApp(
+      () => <NewGame groupId="GrOuPiDxYz" />,
+      () => ({ status: 200, body: withBotAndPlayers }),
+    );
+    await r.flush();
+    // A human opponent keeps the choice.
+    await r.click('[data-opponent="2"]');
+    expect(r.root.querySelectorAll('[data-time]').length).toBeGreaterThan(0);
+    // The bot cannot have a clock, so the control goes away rather than sitting there doing nothing.
+    await r.click('[data-testid="opponent-bot"]');
+    expect(r.root.querySelectorAll('[data-time]')).toHaveLength(0);
+    expect(r.text()).toContain('no clock');
+  });
+
   it('posts to the engine-games endpoint with the chosen level', async () => {
     const r = renderApp(
       () => <NewGame groupId="GrOuPiDxYz" />,
@@ -152,7 +167,8 @@ describe('NewGame', () => {
     await r.flush();
     const post = r.calls.find((c) => c.method === 'POST');
     expect(post?.path).toBe('/api/groups/GrOuPiDxYz/engine-games');
-    expect(post?.body).toEqual({ level: 'strong', colour: 'random', timePerMove: 86400 });
+    // toEqual is exact, so this also pins that no clock is sent: a bot game has none.
+    expect(post?.body).toEqual({ level: 'strong', colour: 'random' });
     expect(r.app.router.current.value).toEqual({ name: 'game', gameId: 'EnGiNeGam1' });
   });
 

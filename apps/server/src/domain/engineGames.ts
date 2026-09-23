@@ -3,7 +3,6 @@ import {
   INITIAL_FEN,
   type ColourChoice,
   type EngineLevel,
-  type TimePerMove,
 } from '@group-chess/shared';
 import { eq } from 'drizzle-orm';
 import type { DbOrTx } from '../db/client';
@@ -13,12 +12,7 @@ import { randomColour } from './challenges';
 import type { Deps } from './deps';
 import { DomainError } from './errors';
 import { requireGroup, settingsOf } from './groups';
-import {
-  MAX_GAMES_PER_PAIR,
-  countActiveGames,
-  countActiveGamesBetween,
-  deadlineExpression,
-} from './limits';
+import { MAX_GAMES_PER_PAIR, countActiveGames, countActiveGamesBetween } from './limits';
 import { isBlocked } from './members';
 import { generatePublicId } from '../db/ids';
 import { requireUser } from './users';
@@ -39,7 +33,6 @@ export type CreateEngineGameInput = {
   userId: number;
   level: EngineLevel;
   colour: ColourChoice;
-  timePerMove: TimePerMove;
 };
 
 /** Spec §6.1. No challenge, no card, no expiry: there is nothing to accept. */
@@ -88,12 +81,15 @@ export async function createEngineGame(deps: Deps, input: CreateEngineGameInput)
         groupId: group.id,
         whiteId: white.id,
         blackId: black.id,
-        timePerMove: input.timePerMove,
+        // Spec §8: a bot game has no clock. The bot replies immediately, so a deadline measures
+        // nothing about it, and its only possible effect is losing a casual game to inattention.
+        timePerMove: null,
         rated: false,
         engineLevel: input.level,
         fen: INITIAL_FEN,
         // Spec §9: the engine never carries a deadline, so it can never be forfeited.
-        deadlineAt: engineToMove ? null : deadlineExpression(input.timePerMove),
+        // Follows from the null clock above, and stated outright so it survives a later edit.
+        deadlineAt: null,
         // Spec §8: a bot game sends no move notifications, so it never carries a reminder —
         // not even on the human's turn.
         reminderAt: null,
