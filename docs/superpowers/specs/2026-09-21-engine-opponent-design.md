@@ -304,12 +304,19 @@ repetitive openings at the higher levels; the fix is contained and can be added 
 
 ## 9. Error handling and failure modes
 
-**The engine must never lose on time.** `playMove` sets `deadline_at` and `reminder_at` to **null
-when the next side to move is the engine**, in the same place it already recomputes them.
-`forfeitOverdueGames` only considers games with a non-null `deadline_at` and re-checks it inside the
-transaction (`clock/scanners.ts`), so the engine becomes unforfeitable by construction and the
-scanner needs no change — no parsing side-to-move out of a FEN in SQL. The human's own deadline is
-unaffected.
+**Neither side can lose on time, because a bot game has no clock.** `time_per_move` is null (§8), so
+`deadlineExpression` and `reminderExpression` both return null for it through the ordinary code path,
+and `forfeitOverdueGames` only considers games with a non-null `deadline_at` (`clock/scanners.ts`).
+The scanner needs no change — no parsing side-to-move out of a FEN in SQL — and neither does
+`playMove`, which asks nothing about the engine when it computes the clock columns.
+
+An earlier revision reached the same guarantee differently, by nulling the clock columns whenever the
+engine was the next mover. That guard was removed once bot games lost their time control: it was
+redundant against a null clock, and two dead engine conditionals in the project's most critical
+transaction cost more in reading than they bought. The consequence to know: the property now rests on
+`time_per_move` being null, so **restoring a clock to bot games would also restore both the engine's
+exposure to the forfeit scanner and the human's reminder DMs.** Anything reversing §8's no-clock rule
+has to re-derive both.
 
 | Failure | Behaviour |
 |---|---|

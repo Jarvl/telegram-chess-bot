@@ -222,9 +222,9 @@ export async function playMove(deps: Deps, input: PlayMoveInput): Promise<GameDt
     });
     const opponentId = colour === 'white' ? game.blackId : game.whiteId;
     const opponent = await requireUser(tx, opponentId);
-    // Two different engine questions, named apart on purpose: whether the *next mover* is the
-    // engine (which suppresses the deadline and enqueues its move), and whether this is an engine
-    // *game* at all (which suppresses the card), exactly as `finishGame` above names them.
+    // `engineNext` decides whether to enqueue the engine's reply; `engineGame` suppresses the card
+    // and the turn DM. Neither touches the clock any more: a bot game has no time control, so both
+    // clock expressions below already return null for it without being asked about the engine.
     const engineNext = opponent.isEngine;
     const engineGame = isEngineGame(game);
     const timePerMove = game.timePerMove as TimePerMove;
@@ -236,11 +236,11 @@ export async function playMove(deps: Deps, input: PlayMoveInput): Promise<GameDt
         plyCount: ply,
         version: sql`${games.version} + 1`,
         lastMoveAt: now,
-        // Spec §9: the engine never carries a deadline, so it can never be forfeited.
-        deadlineAt: engineNext ? null : deadlineExpression(timePerMove),
-        // Spec §8: a bot game sends no move notifications, and the reminder is one. `engineNext`
-        // implies `engineGame`, so the game-level test covers the engine's turn too.
-        reminderAt: engineGame ? null : reminderExpression(timePerMove, wantsDms(opponent)),
+        // No engine special case: a bot game's time control is null (spec §8), so both of these
+        // already yield null for it. That null clock is what makes the engine unforfeitable and
+        // leaves the human nothing to be reminded about.
+        deadlineAt: deadlineExpression(timePerMove),
+        reminderAt: reminderExpression(timePerMove, wantsDms(opponent)),
         ...(offerLapses ? { drawOfferBy: null, drawOfferPly: null } : {}),
       })
       .where(eq(games.id, game.id))
