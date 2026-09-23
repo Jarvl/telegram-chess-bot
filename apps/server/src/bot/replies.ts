@@ -6,7 +6,6 @@ import { displayName, getUserById } from '../domain/users';
 /** The one-line command replies of spec §5.5, chosen from a DomainError's reason. */
 export function replyFor(error: unknown): { key: MessageKey; params: MessageParams } | null {
   if (!isDomainError(error)) return null;
-  const name = String(error.details.name ?? '');
   const count = Number(error.details.count ?? 0);
   switch (error.details.reason) {
     case 'self':
@@ -16,10 +15,6 @@ export function replyFor(error: unknown): { key: MessageKey; params: MessagePara
       return { key: 'reply.blocked', params: {} };
     case 'pending_limit':
       return { key: 'reply.pending_limit', params: { count } };
-    case 'active_limit':
-      return { key: 'reply.active_limit', params: { name, count } };
-    case 'pair_limit':
-      return { key: 'reply.pair_limit', params: { name, count } };
     case 'open_disabled':
       return { key: 'reply.open_disabled', params: {} };
     default:

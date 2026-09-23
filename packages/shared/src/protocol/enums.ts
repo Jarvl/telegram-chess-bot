@@ -87,3 +87,10 @@ export type ChallengeStatus = z.infer<typeof ChallengeStatusSchema>;
 export const ViewerRoleSchema = z.enum(['white', 'black', 'spectator']);
 
 export type ViewerRole = z.infer<typeof ViewerRoleSchema>;
+
+/** Engine opponent strength, weakest first (spec §6.2). No rating numbers here — see the engine config. */
+export const ENGINE_LEVELS = ['beginner', 'casual', 'club', 'strong'] as const;
+
+export type EngineLevel = (typeof ENGINE_LEVELS)[number];
+
+export const EngineLevelSchema = z.enum(ENGINE_LEVELS);

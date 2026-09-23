@@ -9,7 +9,6 @@ const dto: GroupSettingsDto = {
     defaultTimePerMove: 86400,
     ratedDefault: true,
     allowOpenChallenges: true,
-    maxActiveGamesPerUser: 5,
     leaderboardMinGames: 5,
     cardTopicMode: 'origin',
     fixedTopicId: null,

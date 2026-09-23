@@ -8,21 +8,45 @@ exit criteria come from PRD §13.
 
 | Layer | Command | Size | Runs on |
 |---|---|---|---|
-| Unit — shared rules and protocol | `pnpm test` | 100 tests, 13 files | every pull request |
-| Unit — server | `pnpm test` | 51 tests, 16 files | every pull request |
-| Integration — server on real PostgreSQL and a fake Bot API | `pnpm test` | 170 tests, 14 files | every pull request |
-| Unit — Mini App on happy-dom | `pnpm test` | 82 tests, 16 files | every pull request |
+| Unit — shared rules and protocol | `pnpm test` | 202 tests, 14 files | every pull request |
+| Unit — server | `pnpm test` | 81 tests, 14 files | every pull request |
+| Integration — server on real PostgreSQL and a fake Bot API | `pnpm test` | 204 tests, 24 files | every pull request |
+| Unit — Mini App on happy-dom | `pnpm test` | 90 tests, 16 files | every pull request |
 | End-to-end — Playwright on Chromium with touch emulation | `pnpm e2e` | 12 specs, 7 files | pushes to `main`, manual dispatch |
 | Image smoke — build, boot, probe, stop | `.github/workflows/e2e.yml` `docker` job | 1 scenario | pushes to `main`, manual dispatch |
 | Bundle budget | `pnpm build && pnpm check:budget` | 2 budgets | every pull request |
-| Licence allow-list | `pnpm check:licences` | 191 packages | every pull request |
+| Licence allow-list | `pnpm check:licences` | 192 npm packages | every pull request |
 | Dependency advisories | `pnpm audit --prod --audit-level=high` | — | every pull request |
 
-`pnpm test` is 517 tests in about 60 seconds. Integration tests need `TEST_DATABASE_URL`; without
+`pnpm test` is 591 tests in about 45 seconds. Integration tests need `TEST_DATABASE_URL`; without
 it only the unit projects run, which is a silent reduction in coverage, so CI always sets it.
 
 Local setup is one command. `scripts/local-postgres.sh start` creates both databases on port 54329
 and prints the two exports.
+
+**No CI runner installs Stockfish.** Every test above — unit, integration and end-to-end — runs
+against `fakeEngine`, a scripted stand-in that never spawns a real process. The real Stockfish
+binary is covered in exactly two non-test places: the Dockerfile's build-time assertion
+(`scripts/assert-engine.mjs`, run in the runtime stage against the binary that actually ships) and
+the image smoke job in `.github/workflows/e2e.yml`, which probes `engine_available` on the built
+image. **No test may assert a specific engine move, an evaluation, a mate score, or that a level
+plays at its labelled strength** — those are Stockfish's behaviour, not this project's, and they
+change between versions. What is ours to test, and what every layer above does test, is the UCI
+options this project sends for each level, engine games staying unrated and off the leaderboard,
+the illegal-move fallback, and the rest of spec §9's failure modes — all against the fake. The
+end-to-end suite plays one whole bot game through the composed stack (picker, endpoint, job row,
+worker, handler, `playMove`, SSE) because `startServer` takes the engine as an optional argument and
+the harness passes `fakeEngine`; it asserts that the bot answered, never what it answered.
+
+**What the real binary was checked to do, by hand, once.** On 2026-09-22, `stockfish=15.1-4` in
+`node:22-bookworm-slim` was run directly and its session output read. It declares and accepts
+`Skill Level` (spin, 0–20), `UCI_LimitStrength` (check) and `UCI_Elo` (spin, 1350–2850), embeds the
+NNUE network, and installs and answers on both `linux/amd64` and `linux/arm64`; a deliberately bogus
+option in the same session came back as `No such option: …`, which is what makes the absence of that
+line for the real three meaningful. This is not a test and must not become one — it is Stockfish's
+behaviour, not ours, and it changes between versions. What guards it in production instead is a
+warning: `uciEngine` watches the session output for `No such option` and logs the option's name, so a
+renamed option degrades loudly rather than silently making two levels play alike (spec §13).
 
 ## What each layer owns
 

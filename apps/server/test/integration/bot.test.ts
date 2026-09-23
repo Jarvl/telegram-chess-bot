@@ -123,7 +123,11 @@ describe('/play', () => {
       }),
     );
     const [challenge] = await db.select().from(challenges);
-    const people = await db.select().from(users).orderBy(users.telegramUserId);
+    const people = await db
+      .select()
+      .from(users)
+      .where(eq(users.isEngine, false))
+      .orderBy(users.telegramUserId);
     expect(people.map((u) => [u.telegramUserId, u.firstName, u.username])).toEqual([
       [11, 'Alice', 'alice'],
       [22, 'Bob', null],
@@ -220,7 +224,7 @@ describe('/chess, /settings and /start', () => {
 
   it('marks DMs allowed on /start in private and sends the Open Chess button there', async () => {
     await post(commandUpdate({ chat: privateChat(alice), from: alice, text: '/start' }));
-    const [user] = await db.select().from(users);
+    const [user] = await db.select().from(users).where(eq(users.telegramUserId, alice.id));
     expect(user?.dmAllowed).toBe(true);
     expect((await messagesSent())[0]).toMatchObject({
       chatId: alice.id,
@@ -374,6 +378,7 @@ describe('membership events', () => {
     await post(
       serviceUpdate(privateChat(bob), bob, { write_access_allowed: { from_request: true } }),
     );
-    expect((await db.select().from(users))[0]?.dmAllowed).toBe(true);
+    const [user] = await db.select().from(users).where(eq(users.telegramUserId, bob.id));
+    expect(user?.dmAllowed).toBe(true);
   });
 });

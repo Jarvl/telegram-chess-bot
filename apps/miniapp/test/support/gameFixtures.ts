@@ -67,6 +67,7 @@ export function gameDto(overrides: Partial<GameDto> = {}): GameDto {
     voided: false,
     startedAt: '2026-09-20T10:00:00.000Z',
     finishedAt: null,
+    engineLevel: null,
     ...overrides,
   };
 }

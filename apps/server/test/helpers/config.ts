@@ -17,6 +17,9 @@ export function testConfig(overrides: Partial<Config> = {}): Config {
     TELEGRAM_POLLING: false,
     LICHESS_API_URL: 'https://lichess.org',
     MINI_APP_DIR: undefined,
+    ENGINE_ENABLED: true,
+    ENGINE_PATH: 'stockfish',
+    ENGINE_MOVETIME_MS: 200,
     ...overrides,
   };
 }
