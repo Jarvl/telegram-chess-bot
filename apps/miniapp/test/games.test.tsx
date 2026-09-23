@@ -84,6 +84,7 @@ describe('TabBar', () => {
     expect(r.app.router.stack.value).toHaveLength(1);
     expect(r.tg.available).toBe(true);
     expect(window.__tg!.backButton.visible).toBe(false);
+    expect(window.__tg!.haptics).toContain('selection');
 
     r.app.router.land('groups', { name: 'locked', group: { id: 'GrOuPiDxYz', title: 'Club' } });
     await r.flush();

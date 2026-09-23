@@ -59,6 +59,9 @@ export async function boot(app: AppContextValue): Promise<void> {
   const landing = landingFor(outcome.response.route, prefetched);
   router.land(landing.tab, landing.route);
 
+  // Telegram's ⋯ menu gains Settings once there is a session to have settings for.
+  tg.onSettingsButton(() => router.select('settings'));
+
   if (outcome.response.askWriteAccess && tg.supports('writeAccess')) {
     setTimeout(() => {
       void tg.requestWriteAccess().then(async (granted) => {

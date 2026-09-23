@@ -39,11 +39,12 @@ describe('Settings', () => {
       () => ({ status: 200, body: { ok: true } }),
     );
     await r.click('[data-action="delete"]');
-    expect(r.calls).toHaveLength(0);
-    await r.click('[data-dialog="cancel"]');
+    window.__tg!.answerPopup('cancel');
+    await r.flush();
     expect(r.calls).toHaveLength(0);
     await r.click('[data-action="delete"]');
-    await r.click('[data-dialog="confirm"]');
+    window.__tg!.answerPopup('confirm');
+    await r.flush();
     expect(r.calls[0]).toMatchObject({ method: 'DELETE', path: '/api/me' });
     expect(window.__tg!.closed).toBe(true);
   });

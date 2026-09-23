@@ -33,6 +33,15 @@ export type FakeWebAppRecord = {
   downloads: { url: string; file_name: string }[];
   closed: boolean;
   chrome: { header?: string; background?: string; bottomBar?: string };
+  popups: {
+    title?: string;
+    message: string;
+    buttons: { id?: string; type?: string; text?: string }[];
+  }[];
+  answerPopup(id: string): void;
+  closingConfirmation: boolean;
+  settingsButton: { visible: boolean } | null;
+  clickSettings(): void;
   clickMain(): void;
   clickSecondary(): void;
   clickBack(): void;
@@ -57,6 +66,7 @@ export function installFakeWebApp(options: FakeWebAppOptions): void {
     }
     return true;
   };
+  let pendingPopup: ((id: string) => void) | null = null;
   const record: FakeWebAppRecord = {
     calls: [],
     mainButton: { text: '', visible: false, progress: false, enabled: true },
@@ -69,6 +79,17 @@ export function installFakeWebApp(options: FakeWebAppOptions): void {
     downloads: [],
     closed: false,
     chrome: {},
+    popups: [],
+    closingConfirmation: false,
+    settingsButton: atLeast(options.version, '7.0') ? { visible: false } : null,
+    answerPopup: (id) => {
+      const answer = pendingPopup;
+      pendingPopup = null;
+      answer?.(id);
+    },
+    clickSettings: () => {
+      for (const cb of [...handlers.settings]) cb();
+    },
     clickMain: () => {
       for (const cb of [...handlers.main]) cb();
     },
@@ -91,6 +112,7 @@ export function installFakeWebApp(options: FakeWebAppOptions): void {
     main: [] as (() => void)[],
     secondary: [] as (() => void)[],
     back: [] as (() => void)[],
+    settings: [] as (() => void)[],
   };
   const listeners: Record<string, ((...args: unknown[]) => void)[]> = {};
   const button = (state: FakeButton, list: (() => void)[], name: string) => ({
@@ -228,6 +250,39 @@ export function installFakeWebApp(options: FakeWebAppOptions): void {
     webApp.setBottomBarColor = (color: string) => {
       record.chrome.bottomBar = color;
       record.calls.push(`setBottomBarColor:${color}`);
+    };
+  }
+  if (atLeast(options.version, '6.2')) {
+    webApp.showPopup = (params: FakeWebAppRecord['popups'][number], cb?: (id: string) => void) => {
+      record.popups.push(params);
+      record.calls.push(`showPopup:${params.message}`);
+      pendingPopup = cb ?? null;
+    };
+    webApp.enableClosingConfirmation = () => {
+      record.closingConfirmation = true;
+      record.calls.push('enableClosingConfirmation');
+    };
+    webApp.disableClosingConfirmation = () => {
+      record.closingConfirmation = false;
+      record.calls.push('disableClosingConfirmation');
+    };
+  }
+  if (record.settingsButton) {
+    const state = record.settingsButton;
+    webApp.SettingsButton = {
+      show: () => {
+        state.visible = true;
+        record.calls.push('SettingsButton.show');
+      },
+      hide: () => {
+        state.visible = false;
+        record.calls.push('SettingsButton.hide');
+      },
+      onClick: (cb: () => void) => handlers.settings.push(cb),
+      offClick: (cb: () => void) => {
+        const at = handlers.settings.indexOf(cb);
+        if (at >= 0) handlers.settings.splice(at, 1);
+      },
     };
   }
   if (atLeast(options.version, '6.9') && options.writeAccess !== undefined) {

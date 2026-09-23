@@ -77,6 +77,10 @@ describe('boot', () => {
       ['PUT', '/api/me/prefs'],
     ]);
     expect(calls[1]?.body).toEqual({ writeAccess: { allowed: true } });
+    // Telegram's own ⋯ menu gets a Settings entry that opens the Settings tab.
+    expect(record.settingsButton?.visible).toBe(true);
+    record.clickSettings();
+    expect(router.tab.value).toBe('settings');
   });
 
   it('records a declined write-access prompt too', async () => {

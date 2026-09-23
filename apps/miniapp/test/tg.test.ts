@@ -127,6 +127,41 @@ describe('createTg', () => {
     expect(window.__tg!.mainButton).toMatchObject({ color: '#2e7d4f', textColor: '#ffffff' });
   });
 
+  it('confirms closing only from 6.2', () => {
+    tgFor({ version: '6.1' }).setClosingConfirmation(true);
+    expect(window.__tg!.calls).not.toContain('enableClosingConfirmation');
+    const tg = tgFor({ version: '6.2' });
+    tg.setClosingConfirmation(true);
+    expect(window.__tg!.closingConfirmation).toBe(true);
+    tg.setClosingConfirmation(false);
+    expect(window.__tg!.closingConfirmation).toBe(false);
+  });
+
+  it('offers no popup below 6.2', () => {
+    expect(tgFor({ version: '6.1' }).showPopup({ message: 'x', buttons: [] })).toBeNull();
+  });
+
+  it('shows the settings button from 7.0 and routes its taps until unsubscribed', () => {
+    let taps = 0;
+    tgFor({ version: '6.9' }).onSettingsButton(() => (taps += 1));
+    expect(window.__tg!.settingsButton).toBeNull();
+    const off = tgFor({ version: '7.0' }).onSettingsButton(() => (taps += 1));
+    expect(window.__tg!.settingsButton?.visible).toBe(true);
+    window.__tg!.clickSettings();
+    off();
+    window.__tg!.clickSettings();
+    expect(taps).toBe(1);
+    expect(window.__tg!.settingsButton?.visible).toBe(false);
+  });
+
+  it('forwards selection haptics from 6.1 and opens Telegram links', () => {
+    const tg = tgFor({ version: '6.1' });
+    tg.hapticSelection();
+    tg.openTelegramLink('https://t.me/Jarvl');
+    expect(window.__tg!.haptics).toEqual(['selection']);
+    expect(window.__tg!.links).toEqual(['https://t.me/Jarvl']);
+  });
+
   it('is a null client outside Telegram', () => {
     const tg = createTg(null);
     expect(tg.available).toBe(false);

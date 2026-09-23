@@ -7,7 +7,10 @@ export type Feature =
   | 'secondaryButton'
   | 'downloadFile'
   | 'headerColor'
-  | 'bottomBarColor';
+  | 'bottomBarColor'
+  | 'popup'
+  | 'closingConfirmation'
+  | 'settingsButton';
 
 /** Spec §6.6: the first Bot API version that has each capability. */
 export const FEATURE_MIN_VERSION: Record<Feature, string> = {
@@ -18,6 +21,9 @@ export const FEATURE_MIN_VERSION: Record<Feature, string> = {
   downloadFile: '8.0',
   headerColor: '6.1',
   bottomBarColor: '7.10',
+  popup: '6.2',
+  closingConfirmation: '6.2',
+  settingsButton: '7.0',
 };
 
 export function versionAtLeast(version: string, minimum: string): boolean {
@@ -41,6 +47,14 @@ export type ButtonSpec = {
   progress?: boolean;
   enabled?: boolean;
 };
+
+export type PopupButton = {
+  id: string;
+  type: 'default' | 'ok' | 'close' | 'cancel' | 'destructive';
+  text?: string;
+};
+
+export type PopupParams = { title?: string; message: string; buttons: PopupButton[] };
 
 export interface Tg {
   /** False in a plain browser: every capability is off and buttons are rendered in-page. */
@@ -75,6 +89,18 @@ export interface Tg {
   setChromeColor(key: 'bg_color' | 'secondary_bg_color'): void;
   /** Colours Telegram's MainButton; the client keeps the colours across show and hide. */
   setMainButtonColors(color: string, textColor: string): void;
+  /**
+   * Telegram's native alert (6.2+): resolves the pressed button's id, or null when dismissed.
+   * Returns null instead of a promise when the client has none, so the caller renders its own.
+   */
+  showPopup(params: PopupParams): Promise<string | null> | null;
+  /** Asks before a swipe or Close discards the page (6.2+); a no-op below. */
+  setClosingConfirmation(enabled: boolean): void;
+  /** Shows Telegram's Settings menu item (7.0+) and routes its taps here; returns the undo. */
+  onSettingsButton(callback: () => void): () => void;
+  hapticSelection(): void;
+  /** A t.me link, opened inside Telegram. */
+  openTelegramLink(url: string): void;
 }
 
 class ButtonBinding {
@@ -135,6 +161,13 @@ function nullTg(): Tg {
     onThemeChanged: () => () => undefined,
     setChromeColor: () => undefined,
     setMainButtonColors: () => undefined,
+    showPopup: () => null,
+    setClosingConfirmation: () => undefined,
+    onSettingsButton: () => () => undefined,
+    hapticSelection: () => undefined,
+    openTelegramLink: (url) => {
+      window.open(url, '_blank', 'noopener');
+    },
   };
 }
 
@@ -227,5 +260,30 @@ export function createTg(
     },
     setMainButtonColors: (color, textColor) =>
       raw.MainButton.setParams?.({ color, text_color: textColor }),
+    showPopup(params) {
+      if (!supports('popup') || !raw.showPopup) return null;
+      return new Promise((resolve) =>
+        raw.showPopup!(params, (buttonId) => resolve(buttonId ? buttonId : null)),
+      );
+    },
+    setClosingConfirmation(enabled) {
+      if (!supports('closingConfirmation')) return;
+      if (enabled) raw.enableClosingConfirmation?.();
+      else raw.disableClosingConfirmation?.();
+    },
+    onSettingsButton(callback) {
+      const button = supports('settingsButton') ? raw.SettingsButton : undefined;
+      if (!button) return () => undefined;
+      button.onClick(callback);
+      button.show();
+      return () => {
+        button.offClick(callback);
+        button.hide();
+      };
+    },
+    hapticSelection() {
+      if (supports('haptics')) raw.HapticFeedback?.selectionChanged();
+    },
+    openTelegramLink: (url) => raw.openTelegramLink(url),
   };
 }

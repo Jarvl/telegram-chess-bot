@@ -39,7 +39,7 @@ const TAB_ICON: Record<TabName, JSX.Element> = {
  * spent on getting home and the BackButton is left free to mean "leave".
  */
 export function TabBar() {
-  const { router } = useApp();
+  const { router, tg } = useApp();
   if (!router.showTabs.value) return null;
   const active = router.tab.value;
   // Only Games carries a count, and only while something is actually waiting: a zero badge is
@@ -58,7 +58,10 @@ export function TabBar() {
             aria-selected={tab === active}
             aria-label={badge === null ? undefined : t('app.nav.games_waiting', { count: badge })}
             data-nav={tab}
-            onClick={() => router.select(tab)}
+            onClick={() => {
+              tg.hapticSelection();
+              router.select(tab);
+            }}
           >
             <span class="nav-icon-wrap">
               <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">

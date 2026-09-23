@@ -76,8 +76,9 @@ describe('GroupSettings', () => {
       '/api/groups/GrOuPiDxYz/blocks/3',
     );
     await r.click('[data-block="2"]');
-    expect(document.querySelector('.dialog p')?.textContent).toBe('Block Bob?');
-    await r.click('[data-dialog="confirm"]');
+    expect(window.__tg!.popups.at(-1)?.message).toBe('Block Bob?');
+    window.__tg!.answerPopup('confirm');
+    await r.flush();
     const post = r.calls.find((c) => c.method === 'POST');
     expect(post).toMatchObject({ path: '/api/groups/GrOuPiDxYz/blocks', body: { userId: '2' } });
   });

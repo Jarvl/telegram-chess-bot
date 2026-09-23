@@ -94,7 +94,16 @@ export async function openApp(
 export async function tgState(
   page: Page,
 ): Promise<
-  Omit<FakeWebAppRecord, 'clickMain' | 'clickSecondary' | 'clickBack' | 'emit' | 'setStableHeight'>
+  Omit<
+    FakeWebAppRecord,
+    | 'clickMain'
+    | 'clickSecondary'
+    | 'clickBack'
+    | 'emit'
+    | 'setStableHeight'
+    | 'answerPopup'
+    | 'clickSettings'
+  >
 > {
   return page.evaluate(() => {
     const record = window.__tg!;
@@ -108,6 +117,9 @@ export async function tgState(
       downloads: record.downloads,
       closed: record.closed,
       chrome: record.chrome,
+      popups: record.popups,
+      closingConfirmation: record.closingConfirmation,
+      settingsButton: record.settingsButton,
     };
   });
 }

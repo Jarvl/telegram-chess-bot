@@ -25,9 +25,18 @@ let lastRoot: HTMLElement | null = null;
 export function renderApp(
   ui: (app: AppContextValue) => ComponentChildren,
   route: FakeRoute,
-  options: { version?: string; closeFromRoot?: boolean; client?: ApiClient } = {},
+  options: {
+    version?: string;
+    closeFromRoot?: boolean;
+    client?: ApiClient;
+    writeAccess?: boolean;
+  } = {},
 ): Rendered {
-  installFakeWebApp({ version: options.version ?? '8.0', initData: 'user=x&hash=y' });
+  installFakeWebApp({
+    version: options.version ?? '8.0',
+    initData: 'user=x&hash=y',
+    writeAccess: options.writeAccess,
+  });
   const tg = createTg(window.Telegram!.WebApp);
   const { fetch, calls } = fakeFetch(route);
   const client = options.client ?? createApiClient({ fetch });

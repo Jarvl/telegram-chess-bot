@@ -368,13 +368,19 @@ button {
 .dialog {
   width: 100%;
   max-width: 640px;
-  background: var(--bg);
-  border-radius: var(--radius) var(--radius) 0 0;
+  background: var(--card);
+  border-radius: 18px 18px 0 0;
   padding: 16px 16px 24px;
 }
 
 .dialog p {
   margin: 0 0 16px;
+}
+
+.dialog strong {
+  display: block;
+  font-size: 17px;
+  margin-bottom: 4px;
 }
 
 .centered {

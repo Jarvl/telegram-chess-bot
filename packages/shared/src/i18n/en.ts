@@ -107,6 +107,7 @@ export const en = {
   'app.common.save': 'Save',
   'app.common.saved': 'Saved',
   'app.common.more': 'More',
+  'app.common.ok': 'OK',
   'app.reopen.title': 'Reopen from Telegram',
   'app.reopen.body': 'This session has expired. Open the app again from a game card or the bot.',
   'app.locked.title': 'This group is private',
