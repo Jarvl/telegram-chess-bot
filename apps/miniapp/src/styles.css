@@ -533,6 +533,26 @@ button {
   height: 100%;
 }
 
+/* chessground's stock coordinate rows hang outside the board (`coords.ranks` above it,
+   `coords.files` below), which assumes a wrap with extra margin reserved around the board. This
+   wrap is sized flush to the board, so the default offsets both overshoot the wrap (files) and
+   get painted over by the player bar that follows in the DOM (both). Flush them to the board's
+   own edges instead, matching the prototype's corner-of-the-square coordinates (spec §1 Board). */
+.board-wrap coords.files {
+  left: 0;
+  bottom: 0;
+}
+
+.board-wrap coords.ranks {
+  top: 0;
+}
+
+/* Pieces carry their own stacking z-index (chessground render.js, 2-11) so they paint over
+   coordinates placed on the board unless the coordinates are lifted above that range. */
+.board-wrap coords {
+  z-index: 20;
+}
+
 .player-bar {
   display: flex;
   align-items: center;
@@ -802,10 +822,13 @@ cg-board square.check {
   );
 }
 
-/* Coordinate label colours (chessground.brown.css), matched to the board squares. */
-.orientation-white .ranks :nth-child(odd),
+/* Coordinate label colours (chessground.brown.css), matched to the board squares: each label
+   takes the colour opposite its own square, for contrast. The `.ranks` column's DOM order (1-8)
+   never reverses (only its `flex-flow` does, per orientation), so unlike `.files` its odd/even
+   parity flips between the two orientations. */
+.orientation-white .ranks :nth-child(even),
 .orientation-white .files :nth-child(even),
-.orientation-black .ranks :nth-child(even),
+.orientation-black .ranks :nth-child(odd),
 .orientation-black .files :nth-child(odd),
 coords.squares:nth-of-type(odd) :nth-child(even),
 coords.squares:nth-of-type(even) :nth-child(odd) {
@@ -813,9 +836,9 @@ coords.squares:nth-of-type(even) :nth-child(odd) {
   font-weight: 700;
 }
 
-.orientation-white .ranks :nth-child(even),
+.orientation-white .ranks :nth-child(odd),
 .orientation-white .files :nth-child(odd),
-.orientation-black .ranks :nth-child(odd),
+.orientation-black .ranks :nth-child(even),
 .orientation-black .files :nth-child(even),
 coords.squares:nth-of-type(odd) :nth-child(odd),
 coords.squares:nth-of-type(even) :nth-child(even) {
