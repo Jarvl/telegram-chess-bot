@@ -52,6 +52,8 @@ export async function startTestApi(
     metrics: new Metrics(),
     streams: new StreamGate(),
     rateLimiter: new RateLimiter(120, 60_000),
+    api: createTelegramApi(config, { apiRoot: fake.url, throttle: false }),
+    tipLimiter: new RateLimiter(10, 60_000),
   };
   const app = createApiApp(ctx, extra);
   return {

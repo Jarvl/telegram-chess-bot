@@ -4,6 +4,7 @@ import { challengeRoutes } from './challenges';
 import { eventsRoutes } from './events';
 import { gamesRoutes } from './games';
 import { groupsRoutes } from './groups';
+import { tipRoutes } from './tips';
 
 /** Everything behind a session besides the account routes. */
 export const gameRoutes: RegisterRoutes[] = [
@@ -12,4 +13,5 @@ export const gameRoutes: RegisterRoutes[] = [
   gamesRoutes,
   eventsRoutes,
   adminRoutes,
+  tipRoutes,
 ];

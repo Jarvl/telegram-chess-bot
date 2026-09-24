@@ -103,6 +103,8 @@ export async function startServer(
     metrics,
     streams: new StreamGate(),
     rateLimiter: new RateLimiter(120, 60_000),
+    api,
+    tipLimiter: new RateLimiter(10, 60_000),
   };
 
   const app = createApiApp(apiCtx, has('api') ? gameRoutes : []);

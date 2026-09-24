@@ -126,6 +126,8 @@ export class FakeTelegram {
             user: { id, is_bot: false, first_name: 'Admin' },
           })),
         );
+      case 'createInvoiceLink':
+        return ok('https://t.me/$TestInvoice');
       default:
         return ok(true);
     }
