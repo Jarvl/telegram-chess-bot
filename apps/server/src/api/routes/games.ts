@@ -1,4 +1,9 @@
-import { MoveRequestSchema, ShareRequestSchema, type PgnLinkDto } from '@group-chess/shared';
+import {
+  MoveRequestSchema,
+  PremovesRequestSchema,
+  ShareRequestSchema,
+  type PgnLinkDto,
+} from '@group-chess/shared';
 import { eq } from 'drizzle-orm';
 import type { Context, Hono } from 'hono';
 import { challenges } from '../../db/schema';
@@ -12,6 +17,7 @@ import {
   resign,
 } from '../../domain/games';
 import { buildGamePgn } from '../../domain/pgn';
+import { setPremoves } from '../../domain/premoves';
 import { sharePosition } from '../../domain/sharing';
 import { challengeDtoRows, challengeToDto } from '../../domain/summaries';
 import { requireGameAccess } from '../access';
@@ -50,6 +56,16 @@ export function gamesRoutes(api: Hono<ApiEnv>, ctx: ApiContext): void {
       ctx.metrics.gamesFinished.inc({ end_reason: dto.endReason });
     return c.json(dto);
   });
+
+  api.put('/games/:id/premoves', validate('json', PremovesRequestSchema), async (c) =>
+    c.json(
+      await setPremoves(ctx.deps, {
+        gameId: gameId(c),
+        userId: userId(c),
+        ...c.req.valid('json'),
+      }),
+    ),
+  );
 
   api.post('/games/:id/draw/offer', async (c) =>
     c.json(await offerDraw(ctx.deps, { gameId: gameId(c), userId: userId(c) })),
