@@ -78,6 +78,7 @@ const sendSharePhoto =
       plyCount: game.plyCount,
       deadlineAt: game.deadlineAt,
       sharedAt: share.createdAt,
+      voided: game.voidedAt !== null,
     });
     const svg = await renderSnapshotSvg(model, fonts);
     const key = snapshotImageKey(svg);

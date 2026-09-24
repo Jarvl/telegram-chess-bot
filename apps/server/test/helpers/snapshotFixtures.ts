@@ -21,6 +21,7 @@ export function snapshotInput(overrides: Partial<SnapshotInput> = {}): SnapshotI
     plyCount: 0,
     deadlineAt: new Date(SHARED_AT.getTime() + 86_400_000),
     sharedAt: SHARED_AT,
+    voided: false,
     ...overrides,
   };
 }

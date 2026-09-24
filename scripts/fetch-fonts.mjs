@@ -73,7 +73,7 @@ export async function fetchFonts({
     const path = join(dir, entry.file);
     const existing = await readIfPresent(path);
     if (existing && sha256(existing) === entry.sha256) continue;
-    const response = await fetchImpl(entry.url);
+    const response = await fetchImpl(entry.url, { signal: AbortSignal.timeout(120_000) });
     if (!response.ok) throw new Error(`${entry.file}: HTTP ${response.status} from ${entry.url}`);
     const data = Buffer.from(await response.arrayBuffer());
     const actual = sha256(data);

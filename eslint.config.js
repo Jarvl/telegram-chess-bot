@@ -19,6 +19,7 @@ export default defineConfig([
     extends: [js.configs.recommended],
     languageOptions: {
       globals: {
+        AbortSignal: 'readonly',
         Buffer: 'readonly',
         console: 'readonly',
         fetch: 'readonly',

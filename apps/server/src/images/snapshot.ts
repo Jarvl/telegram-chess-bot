@@ -121,9 +121,7 @@ function playerRow(player: SnapshotPlayer): El {
       : { background: '#2b2b2b' };
   return el('div', { display: 'flex', alignItems: 'center', gap: 20 }, [
     el('div', { width: 34, height: 34, borderRadius: 17, flexShrink: 0, ...dot }),
-    el('span', { fontSize: 46, fontWeight: 600, lineHeight: 1, flexShrink: 1, ...ONE_LINE }, [
-      player.name,
-    ]),
+    el('span', { fontSize: 46, fontWeight: 600, flexShrink: 1, ...ONE_LINE }, [player.name]),
     ...(player.rating
       ? [el('span', { fontSize: 38, color: MUTED, lineHeight: 1, flexShrink: 0 }, [player.rating])]
       : []),
@@ -165,7 +163,7 @@ function panel(model: SnapshotModel): El {
       flex: 1,
       minWidth: 0,
       padding: '44px 56px',
-      gap: 26,
+      gap: 22,
     },
     [
       pill(model.pill),
@@ -189,8 +187,19 @@ function panel(model: SnapshotModel): El {
         },
         model.rows.map(moveRow),
       ),
-      el('div', { display: 'flex', flexDirection: 'column', gap: 10, flexShrink: 0 }, [
-        el('span', { fontSize: 40, fontWeight: 700, color: GREEN, ...ONE_LINE }, [model.status]),
+      el('div', { display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0 }, [
+        el(
+          'span',
+          {
+            fontSize: 40,
+            fontWeight: 700,
+            lineHeight: 1.15,
+            color: GREEN,
+            display: 'block',
+            lineClamp: 2,
+          },
+          [model.status],
+        ),
         el('span', { fontSize: 32, color: MUTED, ...ONE_LINE }, [model.group]),
         el('span', { fontSize: 32, color: MUTED, ...ONE_LINE }, [model.terms]),
       ]),

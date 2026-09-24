@@ -43,6 +43,8 @@ export type SnapshotInput = {
   deadlineAt: Date | null;
   /** When the user tapped Share: the clock is shown as it was then (spec §3.2). */
   sharedAt: Date;
+  /** A finished game keeps its result/endReason when voided; this names no winner instead. */
+  voided: boolean;
 };
 
 export type SnapshotPlayer = { colour: Colour; name: string; rating: string | null };
@@ -119,12 +121,14 @@ function resultLine(input: SnapshotInput): string {
   }
   if (input.result === '1/2-1/2')
     return joined([t('app.game.result.draw'), reason, resultLabel(input.result)]);
+  // A finished game always carries a result; a null one here falls back to the aborted wording.
   return reason ?? t('app.game.result.aborted');
 }
 
 /** Spec §3.2, first match wins. */
 function statusLine(input: SnapshotInput): string {
   const latest = input.ply === input.plyCount;
+  if (input.status === 'finished' && latest && input.voided) return t('end_reason.voided');
   if (input.status === 'finished' && latest) return resultLine(input);
   const toMove = t('image.share.to_move', { side: t(`colour.${sideToMove(input.board.fen)}`) });
   if (input.timePerMove === null) return joined([toMove, timePerMoveLabel(null)]);

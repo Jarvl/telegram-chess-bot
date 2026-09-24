@@ -160,6 +160,34 @@ describe('buildSnapshotModel', () => {
       expect(status({ ...finished, endReason: null })).toBe('Aborted');
     });
 
+    it('names no winner when a finished game was voided by an admin', () => {
+      expect(
+        status({
+          status: 'finished',
+          result: '1-0',
+          endReason: 'checkmate',
+          deadlineAt: null,
+          voided: true,
+        }),
+      ).toBe('Voided by an admin');
+    });
+
+    it('shows whose move it was for an earlier position of a voided game', () => {
+      expect(
+        status({
+          status: 'finished',
+          result: '1-0',
+          endReason: 'checkmate',
+          deadlineAt: null,
+          voided: true,
+          ply: 1,
+          plyCount: 40,
+          sans: ['e4'],
+          board: { fen: AFTER_E4, lastMove: 'e2e4', check: false, orientation: 'white' },
+        }),
+      ).toBe('Black to move');
+    });
+
     it('shows whose move it was for an earlier position of a finished game', () => {
       expect(
         status({

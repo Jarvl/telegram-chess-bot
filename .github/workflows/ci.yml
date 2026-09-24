@@ -43,7 +43,9 @@ jobs:
       - run: pnpm typecheck
       - uses: actions/cache@v4
         with:
-          path: apps/server/fonts
+          path: |
+            apps/server/fonts/*.ttf
+            apps/server/fonts/*.otf
           key: fonts-${{ hashFiles('scripts/fetch-fonts.mjs') }}
       - run: pnpm fonts
       - run: pnpm test
