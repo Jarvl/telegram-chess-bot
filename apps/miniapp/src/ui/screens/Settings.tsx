@@ -17,12 +17,9 @@ import { toast } from '../toast';
 
 const PrefsResponseSchema = z.object({ prefs: PrefsSchema, dmAllowed: z.boolean() });
 const TOGGLES: {
-  key: keyof Pick<Prefs, 'closeAfterMove' | 'notifications'>;
-  label: 'app.settings.close_after_move' | 'app.settings.notifications';
-}[] = [
-  { key: 'closeAfterMove', label: 'app.settings.close_after_move' },
-  { key: 'notifications', label: 'app.settings.notifications' },
-];
+  key: keyof Pick<Prefs, 'notifications'>;
+  label: 'app.settings.notifications';
+}[] = [{ key: 'notifications', label: 'app.settings.notifications' }];
 
 const CONFIRMATION_LABEL: Record<MoveConfirmations, MessageKey> = {
   always: 'app.settings.move_confirmations.always',

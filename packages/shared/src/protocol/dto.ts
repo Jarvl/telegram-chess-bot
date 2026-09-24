@@ -232,7 +232,6 @@ export const PlayerPageDtoSchema = z.object({
 export type PlayerPageDto = z.infer<typeof PlayerPageDtoSchema>;
 
 export const PrefsSchema = z.object({
-  closeAfterMove: z.boolean(),
   notifications: z.boolean(),
   moveConfirmations: MoveConfirmationsSchema,
   boardTheme: z.string().max(32).nullable(),
@@ -242,7 +241,6 @@ export const PrefsSchema = z.object({
 export type Prefs = z.infer<typeof PrefsSchema>;
 
 export const PREFS_DEFAULTS: Prefs = {
-  closeAfterMove: true,
   notifications: true,
   moveConfirmations: 'people',
   boardTheme: null,

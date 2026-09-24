@@ -81,9 +81,8 @@ This restores the pre-#12 behaviour for `g_` and extends it to `l_` and `s_`, wh
 previously showed no BackButton at all. A profile launch has no start param, so its root
 shows no BackButton and Telegram's close is the only exit — as before.
 
-The two paths that genuinely mean close (`closeAfterMove` and **Done** on a finished game)
-still call `tg.close()` directly, gated on `session.launchedFrom`, and never went through
-the router.
+The one path that genuinely means close (**Done** on a finished game) still calls
+`tg.close()` directly, gated on `session.launchedFrom`, and never went through the router.
 
 ### Tab bar visibility
 

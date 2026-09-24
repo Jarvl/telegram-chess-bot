@@ -63,8 +63,8 @@ describe('TelemetryRequestSchema', () => {
 
 describe('PrefsUpdateRequestSchema', () => {
   it('accepts a partial preferences update', () => {
-    expect(PrefsUpdateRequestSchema.parse({ prefs: { closeAfterMove: false } })).toEqual({
-      prefs: { closeAfterMove: false },
+    expect(PrefsUpdateRequestSchema.parse({ prefs: { notifications: false } })).toEqual({
+      prefs: { notifications: false },
     });
   });
 

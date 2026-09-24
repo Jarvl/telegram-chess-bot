@@ -4,9 +4,7 @@ import { harnessGame, openApp, seed, tapMove, tgState } from './support';
 test('a 6.0 client sends moves without haptics, a secondary button or the swipe lock', async ({
   page,
 }) => {
-  const world = await seed('fresh', {
-    alice: { closeAfterMove: false, moveConfirmations: 'never' },
-  });
+  const world = await seed('fresh', { alice: { moveConfirmations: 'never' } });
   await openApp(page, {
     user: world.users.alice.telegram,
     startParam: `g_${world.game!.publicId}`,

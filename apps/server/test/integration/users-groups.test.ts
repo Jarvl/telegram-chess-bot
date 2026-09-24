@@ -41,7 +41,6 @@ describe('users', () => {
     expect(second.firstName).toBe('Alicia');
     expect(second.username).toBeNull();
     expect(prefsOf(second)).toEqual({
-      closeAfterMove: true,
       notifications: true,
       moveConfirmations: 'people',
       boardTheme: null,
@@ -51,14 +50,17 @@ describe('users', () => {
 
   it('merges preference updates over the defaults', async () => {
     const user = await ensureUser(db, { telegramUserId: 42, firstName: 'Alice' });
-    await updatePrefs(db, user.id, { closeAfterMove: false });
+    await updatePrefs(db, user.id, { notifications: false });
     const prefs = await updatePrefs(db, user.id, { boardTheme: 'wood' });
-    expect(prefs).toMatchObject({ closeAfterMove: false, notifications: true, boardTheme: 'wood' });
+    expect(prefs).toMatchObject({ notifications: false, boardTheme: 'wood' });
   });
 
-  it('reads a pre-#16 confirmMoves: false as Never and leaves the retired key out', () => {
-    const prefs = prefsOf({ prefs: { confirmMoves: false, notifications: false } as never });
+  it('reads a pre-#16 confirmMoves: false as Never and leaves the retired keys out', () => {
+    const prefs = prefsOf({
+      prefs: { confirmMoves: false, closeAfterMove: false, notifications: false } as never,
+    });
     expect(prefs).not.toHaveProperty('confirmMoves');
+    expect(prefs).not.toHaveProperty('closeAfterMove');
     expect(prefs.moveConfirmations).toBe('never');
     expect(prefs.notifications).toBe(false);
   });
@@ -91,11 +93,11 @@ describe('users', () => {
     const prefs = await updatePrefs(db, user.id, { pieceSet: 'merida', nope: 1 } as never);
     expect(prefs).not.toHaveProperty('nope');
     expect(prefs.pieceSet).toBe('merida');
-    await expect(
-      updatePrefs(db, user.id, { closeAfterMove: 'yes' } as never),
-    ).rejects.toMatchObject({
-      code: 'validation',
-    });
+    await expect(updatePrefs(db, user.id, { notifications: 'yes' } as never)).rejects.toMatchObject(
+      {
+        code: 'validation',
+      },
+    );
   });
 
   it('records the write-access prompt result', async () => {

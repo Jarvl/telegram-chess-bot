@@ -8,7 +8,7 @@ import { clickMain, dragMove, openApp, seed, telegramCalls, tgState } from './su
  * played one (spec §11: liveness and legality, never choice).
  */
 test('creates a game against the bot and sees its reply arrive', async ({ page }) => {
-  const world = await seed('none', { alice: { closeAfterMove: false } });
+  const world = await seed('none');
   await openApp(page, {
     user: world.users.alice.telegram,
     startParam: `l_${world.group.publicId}`,

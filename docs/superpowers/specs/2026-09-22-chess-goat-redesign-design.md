@@ -245,7 +245,7 @@ while sending, close-after-move). The look:
 ### 3.6 Settings
 
 - "Settings" in the display face.
-- A `Card` of two `Switch` rows: "Return to the chat after moving" and "Receive turn
+- A `Card` with one `Switch` row: "Receive turn
   notifications" (the copy changes from "Turn notifications"). Turning notifications on while the server reports `dmAllowed: false` calls
   `requestWriteAccess()` and sends the answer to `PUT /api/me/prefs` (`writeAccess`), the same
   call boot makes.

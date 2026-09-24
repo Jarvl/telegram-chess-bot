@@ -188,7 +188,6 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
             applyState(next);
             dispatch({ type: 'sent' });
             tg.haptic('light');
-            afterSent();
           })
           .catch((error: unknown) => {
             if (error instanceof ApiError && error.isNetwork)
@@ -215,13 +214,6 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
   };
 
   runEffectRef.current = runEffect;
-
-  const afterSent = (): void => {
-    if (prefs.value.closeAfterMove && session.value?.launchedFrom?.kind === 'game') {
-      toast(t('app.game.sent'), 300);
-      setTimeout(() => tg.close(), 300);
-    }
-  };
 
   // Retry timer: wake the machine when the backoff elapses.
   useEffect(() => {
