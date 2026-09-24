@@ -4,6 +4,21 @@ import { AFTER_E4 } from './support/gameFixtures';
 import { renderApp } from './support/render';
 import { gameSummary, playerRef } from './support/summaryFixtures';
 
+// Counts every FEN chessground/fen's `read` is asked to parse, keyed by the fen string itself, so
+// a test can tell whether one particular card's board re-rendered without the other's ticking
+// re-renders (which are expected) muddying the count.
+const { readCalls } = vi.hoisted(() => ({ readCalls: [] as string[] }));
+vi.mock('chessground/fen', async () => {
+  const actual = await vi.importActual<typeof import('chessground/fen')>('chessground/fen');
+  return {
+    ...actual,
+    read: (fen: string) => {
+      readCalls.push(fen);
+      return actual.read(fen);
+    },
+  };
+});
+
 const mount = (game: ReturnType<typeof gameSummary>, context?: string) => {
   const opened: string[] = [];
   const r = renderApp(
@@ -98,6 +113,85 @@ describe('GameCard', () => {
       );
       await r.flush();
       expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not re-render a finished card’s board on the shared tick', async () => {
+    readCalls.length = 0;
+    vi.useFakeTimers({
+      toFake: ['setInterval', 'clearInterval', 'Date'],
+      now: new Date('2026-09-20T12:00:00.000Z'),
+    });
+    try {
+      const deadlineAt = new Date(Date.now() + 5 * 3_600_000).toISOString();
+      // Distinct fens so `readCalls` can tell the two boards apart.
+      const live = gameSummary({ id: 'GameAaaaaa', deadlineAt });
+      const finished = gameSummary({
+        id: 'GameBbbbbb',
+        status: 'finished',
+        result: '1-0',
+        endReason: 'checkmate',
+        fen: AFTER_E4,
+      });
+      const r = renderApp(
+        () => (
+          <>
+            <GameCard game={live} onOpen={() => {}} />
+            <GameCard game={finished} onOpen={() => {}} />
+          </>
+        ),
+        () => ({ status: 200, body: {} }),
+      );
+      await r.flush();
+      expect(readCalls.filter((fen) => fen === AFTER_E4)).toHaveLength(1);
+
+      vi.advanceTimersByTime(1_000);
+      await r.flush();
+
+      // The live card's pill ticked (proving the interval still ran), but the finished card
+      // never re-subscribed to it, so its board was never asked to re-parse its FEN.
+      expect(r.root.querySelector('.pill')!.textContent).not.toBe('Your move · 5:00:00');
+      expect(readCalls.filter((fen) => fen === AFTER_E4)).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('refreshes a stale shared `now` synchronously, so a remounted card’s first paint is current', async () => {
+    vi.useFakeTimers({
+      toFake: ['setInterval', 'clearInterval', 'Date'],
+      now: new Date('2026-09-20T12:00:00.000Z'),
+    });
+    try {
+      const deadlineAt = new Date(Date.now() + 5 * 3_600_000).toISOString();
+      const game = gameSummary({ deadlineAt });
+
+      // Mount once so the shared ticker starts, then unmount everything so it stops (0
+      // subscribers) and leaves the shared `now` signal stale at this moment.
+      const first = renderApp(
+        () => <GameCard game={game} onOpen={() => {}} />,
+        () => ({ status: 200, body: {} }),
+      );
+      await first.flush();
+      renderApp(
+        () => null,
+        () => ({ status: 200, body: {} }),
+      );
+      await first.flush();
+      expect(vi.getTimerCount()).toBe(0);
+
+      // Time passes with nobody subscribed.
+      vi.advanceTimersByTime(10_000);
+
+      // A fresh active card mounts: its very first paint (checked before any effect flushes)
+      // must already reflect the current time, not the stale cached one.
+      const r = renderApp(
+        () => <GameCard game={game} onOpen={() => {}} />,
+        () => ({ status: 200, body: {} }),
+      );
+      expect(r.root.querySelector('.pill')!.textContent).toBe('Your move · 4:59:50');
     } finally {
       vi.useRealTimers();
     }

@@ -3,7 +3,7 @@ import { session } from '../state/session';
 import { Avatar } from './Avatar';
 import { summaryTitle, termsLabel } from './format';
 import { MiniBoard } from './MiniBoard';
-import { pillFor } from './pill';
+import { pillFor, roleOf } from './pill';
 import { useNow } from './useNow';
 
 /** One game in a list: thumbnail, opponent, terms and status (redesign spec §3.1). */
@@ -15,7 +15,7 @@ export function GameCard(props: {
 }) {
   const { game } = props;
   const viewerId = session.value?.user.id ?? null;
-  const role = game.white.id === viewerId ? 'white' : game.black.id === viewerId ? 'black' : null;
+  const role = roleOf(game, viewerId);
   const now = useNow(game.status === 'active' && game.deadlineAt !== null);
   const pill = pillFor(game, viewerId, now);
   const opponent = role === null ? null : game[role === 'white' ? 'black' : 'white'];

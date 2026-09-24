@@ -12,7 +12,8 @@ import { isUrgent, remainingMs } from '../state/clock';
 
 export type Pill = { kind: 'yours' | 'urgent' | 'other'; text: string };
 
-function roleOf(game: GameSummary, viewerId: string | null): Colour | null {
+/** The viewer's side in this game, or null when they are watching. */
+export function roleOf(game: GameSummary, viewerId: string | null): Colour | null {
   if (viewerId === null) return null;
   if (game.white.id === viewerId) return 'white';
   if (game.black.id === viewerId) return 'black';

@@ -2,11 +2,17 @@ import type { Colour } from '@group-chess/shared';
 import { read } from 'chessground/fen';
 import type { Key } from 'chessground/types';
 import { h } from 'preact';
+import { memo } from 'preact/compat';
 
 const FILES = 'abcdefgh';
 
-/** A still thumbnail of a position: the squares, the pieces, the last move tinted. */
-export function MiniBoard(props: { fen: string; lastMove: string | null; orientation: Colour }) {
+/**
+ * A still thumbnail of a position: the squares, the pieces, the last move tinted. Memoised
+ * because a list row (`GameCard`) re-renders every second while its move clock ticks, and the
+ * board's own props (fen, lastMove, orientation) never change between those ticks — without this,
+ * every row re-parses its FEN and re-diffs 64 squares once a second for no visible change.
+ */
+function MiniBoardImpl(props: { fen: string; lastMove: string | null; orientation: Colour }) {
   const pieces = read(props.fen);
   const last = props.lastMove ? [props.lastMove.slice(0, 2), props.lastMove.slice(2, 4)] : [];
   const white = props.orientation === 'white';
@@ -36,3 +42,5 @@ export function MiniBoard(props: { fen: string; lastMove: string | null; orienta
     </span>
   );
 }
+
+export const MiniBoard = memo(MiniBoardImpl);

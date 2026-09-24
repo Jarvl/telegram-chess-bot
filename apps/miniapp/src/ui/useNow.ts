@@ -11,6 +11,10 @@ let timer: ReturnType<typeof setInterval> | null = null;
  * list shares one interval, and it stops when the last ticking row goes away.
  */
 export function useNow(active: boolean): Date {
+  // The shared ticker may have gone idle (its last subscriber unmounted) and left `now` stale.
+  // Refresh it synchronously, before this render reads it below, rather than showing a stale
+  // value for one frame until the effect further down (which only runs after paint) catches up.
+  if (active && subscribers === 0) now.value = serverNow();
   useEffect(() => {
     if (!active) return;
     subscribers += 1;
@@ -26,5 +30,7 @@ export function useNow(active: boolean): Date {
       }
     };
   }, [active]);
-  return now.value;
+  // Peek when inactive: reading `.value` would subscribe every caller (including finished games,
+  // which never show a clock) to each tick, re-rendering their whole row for no visible change.
+  return active ? now.value : now.peek();
 }
