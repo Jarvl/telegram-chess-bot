@@ -18,6 +18,7 @@ import { runMigrations } from './db/migrate';
 import type { Deps } from './domain/deps';
 import type { Engine } from './engine/engine';
 import { uciEngine } from './engine/uci';
+import { loadFonts } from './images/fonts';
 import {
   coreJobHandlers,
   engineJobHandlers,
@@ -132,13 +133,15 @@ export async function startServer(
   let worker: JobWorker | null = null;
   if (has('jobs')) {
     await ensurePruneScheduled(db);
+    // Snapshot spec §2.3: a missing font stops the boot here, not the first share.
+    const fonts = await loadFonts();
     worker = new JobWorker({
       db,
       log,
       handlers: {
         ...coreJobHandlers(deps),
         ...telegramJobHandlers({ deps, api, config }),
-        ...sharePhotoJobHandlers({ deps, api, config }),
+        ...sharePhotoJobHandlers({ deps, api, config }, fonts),
         ...lichessJobHandlers({ deps, config, metrics }),
         // Registered unconditionally: the handler owns the disabled case itself. An unhandled
         // kind is retried forever without counting an attempt (`jobs/worker.ts:117-123`), so a

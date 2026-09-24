@@ -1,12 +1,6 @@
 import { INITIAL_FEN } from '@group-chess/shared';
 import { describe, expect, it } from 'vitest';
-import {
-  isLightSquare,
-  parsePlacement,
-  renderBoardPng,
-  renderBoardSvg,
-} from '../../src/images/board';
-import { boardImageKey } from '../../src/images/cache';
+import { isLightSquare, parsePlacement, renderBoardSvg } from '../../src/images/board';
 
 const AFTER_E4 = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1';
 /** Fool's mate: the white king on e1 is in check from h4. */
@@ -57,27 +51,5 @@ describe('renderBoardSvg', () => {
     });
     expect(svg).toContain('class="piece wK" transform="translate(300 0)');
     expect(svg).toContain('<rect class="last-move" x="300" y="300"');
-  });
-});
-
-describe('renderBoardPng', () => {
-  it('rasterises to a 1024 × 1024 PNG', () => {
-    const png = renderBoardPng(renderBoardSvg({ fen: INITIAL_FEN, ...white }));
-    expect([...png.subarray(0, 8)]).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-    expect(png.readUInt32BE(16)).toBe(1024);
-    expect(png.readUInt32BE(20)).toBe(1024);
-  });
-});
-
-describe('boardImageKey', () => {
-  it('ignores the move counters and changes with orientation, highlight and check', () => {
-    const base = { fen: AFTER_E4, lastMove: 'e2e4', check: false, orientation: 'white' as const };
-    const sameBoard = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 5 9';
-    expect(boardImageKey(base)).toMatch(/^[0-9a-f]{64}$/);
-    expect(boardImageKey(base)).toBe(boardImageKey({ ...base, fen: sameBoard }));
-    expect(boardImageKey(base)).not.toBe(boardImageKey({ ...base, orientation: 'black' }));
-    expect(boardImageKey(base)).not.toBe(boardImageKey({ ...base, lastMove: null }));
-    expect(boardImageKey(base)).not.toBe(boardImageKey({ ...base, check: true }));
-    expect(boardImageKey(base)).not.toBe(boardImageKey(base, 'brown'));
   });
 });

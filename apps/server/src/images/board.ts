@@ -1,8 +1,6 @@
 import { sideToMove, type Colour } from '@group-chess/shared';
-import { Resvg } from '@resvg/resvg-js';
 import { PIECE_VIEWBOX, PIECES, type PieceCode } from './pieces';
 
-export const BOARD_THEME = 'green';
 export const IMAGE_SIZE = 1024;
 const SQUARE = 100;
 /** The Mini App's board (`--bl` / `--bd`) and the prototype's gold last-move tint. */
@@ -109,9 +107,4 @@ export function renderBoardSvg(input: BoardRenderInput): string {
   }
   parts.push('</svg>');
   return parts.join('');
-}
-
-/** 1024 × 1024 PNG (spec §7.7). */
-export function renderBoardPng(svg: string): Buffer {
-  return new Resvg(svg, { fitTo: { mode: 'width', value: IMAGE_SIZE } }).render().asPng();
 }

@@ -238,13 +238,6 @@ export function renderShareCaption(view: {
   moveNumber: number;
   white: string;
   black: string;
-  sideToMove: Colour;
 }): string {
-  return t('card.share.caption', {
-    sharer: view.sharer,
-    moveNumber: view.moveNumber,
-    white: view.white,
-    black: view.black,
-    sideToMove: t(`colour.${view.sideToMove}`),
-  });
+  return t('card.share.caption', view);
 }

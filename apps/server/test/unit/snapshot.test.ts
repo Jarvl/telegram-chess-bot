@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
+import { snapshotImageKey } from '../../src/images/cache';
 import { loadFonts, type SnapshotFonts } from '../../src/images/fonts';
 import { renderSnapshotPng, renderSnapshotSvg } from '../../src/images/snapshot';
 import { buildSnapshotModel, type SnapshotInput } from '../../src/images/snapshotModel';
@@ -62,5 +63,14 @@ describe('renderSnapshotSvg', () => {
       deadlineAt: null,
     });
     expect(() => renderSnapshotPng(svg)).not.toThrow();
+  });
+});
+
+describe('snapshotImageKey', () => {
+  it('is the sha256 of the card, so identical cards share a key', async () => {
+    const svg = await render();
+    expect(snapshotImageKey(svg)).toMatch(/^[0-9a-f]{64}$/);
+    expect(snapshotImageKey(svg)).toBe(snapshotImageKey(await render()));
+    expect(snapshotImageKey(svg)).not.toBe(snapshotImageKey(await render({ rated: false })));
   });
 });

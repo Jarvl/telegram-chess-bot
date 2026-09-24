@@ -225,8 +225,7 @@ describe('welcome and share', () => {
         moveNumber: 23,
         white: 'Alice',
         black: 'Bob',
-        sideToMove: 'black',
       }),
-    ).toBe('Carol shared move 23 · Alice vs Bob · Black to move');
+    ).toBe('Carol shared move 23 of Alice vs Bob');
   });
 });

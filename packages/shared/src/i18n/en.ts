@@ -55,8 +55,7 @@ export const en = {
   'card.aborted.by_player': 'aborted by {name}',
   'card.voided.title': '♟ {white} vs {black} · Voided by an admin',
   'card.voided.status': 'was {endReason} · {result}',
-  'card.share.caption':
-    '{sharer} shared move {moveNumber} · {white} vs {black} · {sideToMove} to move',
+  'card.share.caption': '{sharer} shared move {moveNumber} of {white} vs {black}',
   'image.share.snapshot': 'Snapshot · Move {moveNumber}',
   'image.share.to_move': '{side} to move',
   'image.share.time_left': '{time} left',
@@ -67,6 +66,7 @@ export const en = {
   'button.decline': 'Decline',
   'button.cancel': 'Cancel',
   'button.open_game': '♟ Open game',
+  'button.open_live_game': '♟ Open live game',
   'button.open_chess': '♟ Open Chess',
   'button.open_settings': 'Open settings',
   'button.open': '♟ Open',
