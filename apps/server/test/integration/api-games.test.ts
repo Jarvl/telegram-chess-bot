@@ -4,6 +4,7 @@ import {
   GameDtoSchema,
   LobbyDtoSchema,
   PlayerPageDtoSchema,
+  ShareDtoSchema,
 } from '@group-chess/shared';
 import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -218,14 +219,27 @@ describe('games', () => {
     const { group, alice, bob, tokens } = await world();
     const game = await insertGame(db, group.id, alice.id, bob.id, { fen: AFTER_E4, plyCount: 1 });
     await insertMove(db, game.id, 1, 'e2e4', 'e4', AFTER_E4);
-    expect(
-      (
-        await api.request('POST', `/api/games/${game.publicId}/share`, {
-          token: tokens.carol,
-          body: { ply: 1 },
-        })
-      ).status,
-    ).toBe(200);
+    const shared = await api.request('POST', `/api/games/${game.publicId}/share`, {
+      token: tokens.carol,
+      body: { ply: 1 },
+    });
+    expect(shared.status).toBe(200);
+    const { id: shareId } = ShareDtoSchema.parse(await shared.json());
+    const status = async (token: string, id: number | string = shareId) =>
+      api.request('GET', `/api/games/${game.publicId}/shares/${id}`, { token });
+    expect(await (await status(tokens.carol)).json()).toEqual({
+      id: shareId,
+      sent: false,
+      link: null,
+    });
+    await db.update(shares).set({ messageId: 77 }).where(eq(shares.id, shareId));
+    expect(await (await status(tokens.carol)).json()).toEqual({
+      id: shareId,
+      sent: true,
+      link: 'https://t.me/c/1000000003/77',
+    });
+    expect((await status(tokens.alice)).status).toBe(404);
+    expect((await status(tokens.carol, 'abc')).status).toBe(404);
     expect(
       (
         await api.request('POST', `/api/games/${game.publicId}/share`, {

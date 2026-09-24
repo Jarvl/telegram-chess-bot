@@ -320,6 +320,18 @@ export const PgnLinkDtoSchema = z.object({ url: z.string().min(1) });
 
 export type PgnLinkDto = z.infer<typeof PgnLinkDtoSchema>;
 
+/**
+ * A shared position. `sent` turns true once the photo is in the group; `link` then jumps to it, and
+ * stays null for basic groups, which have no message links (spec §5.7).
+ */
+export const ShareDtoSchema = z.object({
+  id: z.number().int(),
+  sent: z.boolean(),
+  link: z.string().nullable(),
+});
+
+export type ShareDto = z.infer<typeof ShareDtoSchema>;
+
 export const OkDtoSchema = z.object({ ok: z.literal(true) });
 
 export type OkDto = z.infer<typeof OkDtoSchema>;

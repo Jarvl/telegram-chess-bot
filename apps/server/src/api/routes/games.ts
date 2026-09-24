@@ -1,4 +1,9 @@
-import { MoveRequestSchema, ShareRequestSchema, type PgnLinkDto } from '@group-chess/shared';
+import {
+  MoveRequestSchema,
+  ShareRequestSchema,
+  type PgnLinkDto,
+  type ShareDto,
+} from '@group-chess/shared';
 import { eq } from 'drizzle-orm';
 import type { Context, Hono } from 'hono';
 import { challenges } from '../../db/schema';
@@ -12,11 +17,11 @@ import {
   resign,
 } from '../../domain/games';
 import { buildGamePgn } from '../../domain/pgn';
-import { sharePosition } from '../../domain/sharing';
+import { loadShare, sharePosition } from '../../domain/sharing';
 import { challengeDtoRows, challengeToDto } from '../../domain/summaries';
 import { requireGameAccess } from '../access';
 import type { ApiContext, ApiEnv } from '../context';
-import { publicIdParam } from '../middleware';
+import { publicIdParam, rowIdParam } from '../middleware';
 import { issueScopedToken } from '../session';
 import { validate } from '../validate';
 
@@ -72,12 +77,20 @@ export function gamesRoutes(api: Hono<ApiEnv>, ctx: ApiContext): void {
 
   api.post('/games/:id/share', validate('json', ShareRequestSchema), async (c) => {
     const game = await accessible(c);
-    await sharePosition(ctx.deps, {
+    const { shareId } = await sharePosition(ctx.deps, {
       gameId: game.publicId,
       userId: userId(c),
       ply: c.req.valid('json').ply,
     });
-    return c.json({ ok: true });
+    const dto: ShareDto = { id: shareId, sent: false, link: null };
+    return c.json(dto);
+  });
+
+  api.get('/games/:id/shares/:shareId', async (c) => {
+    const game = await accessible(c);
+    return c.json(
+      await loadShare(db, game, { shareId: rowIdParam(c, 'shareId'), userId: userId(c) }),
+    );
   });
 
   api.post('/games/:id/rematch', async (c) => {

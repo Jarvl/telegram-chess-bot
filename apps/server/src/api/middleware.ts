@@ -54,6 +54,15 @@ export function userIdParam(c: Context, name: string): number {
   return Number(parsed.data);
 }
 
+/** A row id path parameter (a bigserial within the safe integer range); malformed ones are unknown. */
+export function rowIdParam(c: Context, name: string): number {
+  const raw = c.req.param(name) ?? '';
+  const value = Number(raw);
+  if (!/^[1-9][0-9]{0,15}$/.test(raw) || !Number.isSafeInteger(value))
+    throw new DomainError('not_found', `unknown ${name}`);
+  return value;
+}
+
 export function publicIdParam(c: Context, name: string): string {
   const value = c.req.param(name);
   const parsed = PublicIdSchema.safeParse(value);

@@ -555,7 +555,8 @@ All routes are under `/api`, JSON in and out, validated with the zod schemas in 
 | `POST /games/:id/moves` | player | `{ uci, expectedPly, clientMoveId }` → game DTO |
 | `POST /games/:id/draw/offer`, `/accept`, `/decline`, `/claim` | player | |
 | `POST /games/:id/resign`, `/abort` | player | |
-| `POST /games/:id/share` | player or member | `{ ply }` → `{ ok }`; enqueues the photo job |
+| `POST /games/:id/share` | player or member | `{ ply }` → `ShareDto` (`{ id, sent: false, link: null }`); enqueues the photo job |
+| `GET /games/:id/shares/:shareId` | the sharer | `ShareDto`; `sent` once the photo is posted, `link` to it in supergroups. The app polls this, then opens the link and closes |
 | `POST /games/:id/rematch` | player | Creates the reversed-colour challenge |
 | `GET /games/:id/pgn` | player or member | `application/x-chess-pgn` |
 | `GET /groups/:g/settings`, `PUT /groups/:g/settings` | admin | |
