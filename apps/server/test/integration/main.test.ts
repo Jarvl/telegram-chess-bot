@@ -49,7 +49,7 @@ describe('startServer', () => {
     );
     expect(byScope).toEqual({
       all_group_chats: ['play', 'chess', 'settings'],
-      all_private_chats: ['start'],
+      all_private_chats: ['start', 'paysupport'],
     });
   });
 

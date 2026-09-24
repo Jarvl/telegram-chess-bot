@@ -41,14 +41,17 @@ export const ALLOWED_UPDATES = [
   'pre_checkout_query',
 ] as const;
 
-/** Spec §5.1 step 3: three group commands, one private command, nothing in the default scope. */
+/** Spec §5.1 step 3: three group commands, two private commands, nothing in the default scope. */
 export const BOT_COMMANDS = {
   group: [
     { command: 'play', description: t('command.play.description') },
     { command: 'chess', description: t('command.chess.description') },
     { command: 'settings', description: t('command.settings.description') },
   ],
-  private: [{ command: 'start', description: t('command.start.description') }],
+  private: [
+    { command: 'start', description: t('command.start.description') },
+    { command: 'paysupport', description: t('command.paysupport.description') },
+  ],
 } as const;
 
 export type RunningServer = {

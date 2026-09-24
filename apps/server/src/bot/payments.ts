@@ -53,4 +53,12 @@ export function registerPayments(bot: Bot, deps: Deps): void {
       .returning({ id: tips.id });
     if (updated.length === 0) deps.log.warn('a refund arrived for a tip that is not recorded');
   });
+
+  // Telegram expects every bot that takes payments to answer /paysupport (tip jar spec §2.3).
+  bot.chatType('private').command('paysupport', async (ctx) => {
+    await enqueue(deps.db, {
+      kind: 'send_message',
+      payload: { chatId: ctx.chat.id, threadId: null, text: t('dm.paysupport') },
+    });
+  });
 }

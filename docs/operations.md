@@ -4,10 +4,11 @@
 
 1. Create the bot; keep privacy mode on (the default). The bot only ever sees its commands, replies to its own messages, button taps and Mini App requests.
 2. `/newapp`: choose the bot, a title, a short description, an image, and the short name that becomes `MINI_APP_SHORT_NAME`. Web App URL: `<PUBLIC_URL>/app/`. In the bot's settings enable the same URL as the **Main Mini App**, so the profile button opens the lobby.
-3. Commands: the server registers them itself at every boot (`/play`, `/chess`, `/settings` for group chats; `/start` for private chats; nothing in the default scope). Do not add commands in BotFather.
-4. Webhook: the server calls `setWebhook` at boot with `WEBHOOK_SECRET` and `allowed_updates` `message, callback_query, my_chat_member, chat_member`. With `TELEGRAM_POLLING=true` it deletes the webhook and long-polls instead.
+3. Commands: the server registers them itself at every boot (`/play`, `/chess`, `/settings` for group chats; `/start` and `/paysupport` for private chats; nothing in the default scope). Do not add commands in BotFather.
+4. Webhook: the server calls `setWebhook` at boot with `WEBHOOK_SECRET` and `allowed_updates` `message, callback_query, my_chat_member, chat_member, pre_checkout_query`. With `TELEGRAM_POLLING=true` it deletes the webhook and long-polls instead.
 5. Leave the menu button on its default (opens the Main Mini App).
-6. Add the bot to a group. It posts a welcome card with an **♟ Open Chess** button; promote it to administrator so it can pin the card and see joins and leaves.
+6. Payments: nothing to set up. Tips are paid in Telegram Stars (`XTR`), which needs no payment provider in BotFather.
+7. Add the bot to a group. It posts a welcome card with an **♟ Open Chess** button; promote it to administrator so it can pin the card and see joins and leaves.
 
 ## Deploying the image
 
@@ -51,6 +52,14 @@ Logs are JSON (pino) with numeric and public ids only; bound query parameters ar
 - **A rated game must be voided**: an admin does it from the app's group settings; ratings are recomputed by the `rebuild_ratings` job and the affected cards are re-edited.
 - **Ratings look wrong without a void**: enqueue `rebuild_ratings` for the group by inserting a job row (`kind = 'rebuild_ratings'`, `payload = {"groupId": <internal id>}`, `dedup_key = 'ratings:<group public id>'`).
 - **A user asked for deletion**: they do it themselves in the app (Settings → Delete my data); it resigns their games, cancels their challenges and anonymises the row immediately.
+- **A tip must be refunded**: find the row in `tips` (by `telegram_user_id`, `stars` and `paid_at`), then call the Bot API with its charge id:
+
+  ```bash
+  curl -s "https://api.telegram.org/bot$BOT_TOKEN/refundStarPayment" \
+    -d user_id=<telegram_user_id> -d telegram_payment_charge_id=<telegram_payment_charge_id>
+  ```
+
+  Telegram then sends `refunded_payment` and the bot sets `refunded_at`. Tip rows survive "Delete my data" for exactly this reason.
 - **The engine binary is missing or broken**: `engine_available` reads 0. This degrades bot games only — the bot stops appearing as an opponent, and existing bot games queue and then abort — and never affects human games, which do not touch the engine.
 
 ## Known limits of the alpha

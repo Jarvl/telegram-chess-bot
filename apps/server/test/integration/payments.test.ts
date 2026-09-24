@@ -10,7 +10,14 @@ import { Metrics } from '../../src/metrics';
 import { testConfig } from '../helpers/config';
 import { openTestDb, testDeps, truncateAll } from '../helpers/db';
 import { FakeTelegram } from '../helpers/fakeTelegram';
-import { preCheckoutUpdate, privateChat, serviceUpdate, tgUser } from '../helpers/updates';
+import {
+  commandUpdate,
+  preCheckoutUpdate,
+  privateChat,
+  serviceUpdate,
+  supergroup,
+  tgUser,
+} from '../helpers/updates';
 
 const { db, close } = openTestDb();
 const deps = testDeps(db);
@@ -163,5 +170,25 @@ describe('refunded_payment', () => {
   it('does nothing for an unknown charge id', async () => {
     expect((await post(refunded('charge-unknown'))).status).toBe(200);
     expect(await db.select().from(tips)).toHaveLength(0);
+  });
+});
+
+describe('/paysupport', () => {
+  it('explains tips and refunds in a private chat', async () => {
+    await post(commandUpdate({ chat: privateChat(alice), from: alice, text: '/paysupport' }));
+    expect(await dms()).toEqual([
+      {
+        chatId: 11,
+        threadId: null,
+        text: 'Tips unlock nothing in Chess Goat; they only support its hosting and development. For a refund within 30 days of a tip, message @Jarvl.',
+      },
+    ]);
+  });
+
+  it('stays silent in a group', async () => {
+    await post(
+      commandUpdate({ chat: supergroup(-1001000000001), from: alice, text: '/paysupport' }),
+    );
+    expect(await dms()).toEqual([]);
   });
 });
