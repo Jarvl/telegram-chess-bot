@@ -88,7 +88,12 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
   const adapterRef = useRef<BoardAdapter | null>(null);
   const moveRef = useRef<MoveState>({ kind: 'idle' });
   const [moveState, setMoveState] = useState<MoveState>({ kind: 'idle' });
-  const [promotion, setPromotion] = useState<{ orig: string; dest: string } | null>(null);
+  const [promotion, setPromotion] = useState<{
+    orig: string;
+    dest: string;
+    premove: boolean;
+    ply: number;
+  } | null>(null);
   const [slowSend, setSlowSend] = useState(false);
   // True from a drop that waits for Confirm move until that move settles (sent, cancelled or
   // rejected): the bar stays up through the send, and the tab bar stays hidden (move confirmations spec).
@@ -165,6 +170,7 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
   const editPremoves = async (next: string[], step: number | null): Promise<void> => {
     const base = store.premoves.value;
     const expectedPly = store.dto.value.plyCount;
+    const previousStep = store.premoveStep.value;
     store.optimisticPremoves.value = next;
     store.premoveStep.value = step;
     store.premoveSending.value = true;
@@ -174,6 +180,7 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
       tg.haptic('light');
     } catch (error) {
       store.optimisticPremoves.value = null;
+      store.premoveStep.value = previousStep;
       restore();
       if (error instanceof ApiError && error.isNetwork) {
         toast(t('app.common.offline'));
@@ -346,9 +353,15 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
       return;
     }
     if (store.premoveMode.value) {
+      // A drop that arrives while an edit is still in flight would build on an optimistic base the
+      // server hasn't confirmed yet; drop it and put the piece back (fix round 1).
+      if (store.premoveSending.value) {
+        restore();
+        return;
+      }
       const board = imaginedBoard(store.dto.value.fen, store.premoves.value);
       if (isPremovePromotion(board, orig, dest)) {
-        setPromotion({ orig, dest });
+        setPromotion({ orig, dest, premove: true, ply: store.dto.value.plyCount });
         return;
       }
       void editPremoves([...store.premoves.value, `${orig}${dest}`], null);
@@ -356,7 +369,7 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
     }
     tg.haptic(meta.captured ? 'medium' : 'light');
     if (isPromotion(store.dto.value.fen, orig, dest)) {
-      setPromotion({ orig, dest });
+      setPromotion({ orig, dest, premove: false, ply: store.dto.value.plyCount });
       return;
     }
     dispatch({ type: 'drop', uci: `${orig}${dest}`, expectedPly: store.dto.value.plyCount });
@@ -369,7 +382,18 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
       restore();
       return;
     }
-    if (store.premoveMode.value) {
+    // The picker opened for the turn it was dropped on; a reply from the stream while it was open
+    // can flip premove mode or advance the ply before the piece is picked. Sending now would land a
+    // move the player never chose it for (fix round 1), so treat it like Cancel instead.
+    if (pending.premove !== store.premoveMode.value || pending.ply !== store.dto.value.plyCount) {
+      restore();
+      return;
+    }
+    if (pending.premove) {
+      if (store.premoveSending.value) {
+        restore();
+        return;
+      }
       void editPremoves([...store.premoves.value, `${pending.orig}${pending.dest}${piece}`], null);
       return;
     }

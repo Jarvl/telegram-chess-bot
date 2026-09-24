@@ -821,4 +821,53 @@ describe('Game premoves', () => {
     expect(document.querySelector('.toast')?.textContent).toContain('Premoves cancelled');
     expect(window.__tg!.haptics).toContain('notification:warning');
   });
+
+  it('discards a promotion pick if the turn changed while the picker was open', async () => {
+    const initial = gameDto({ fen: '4k3/4P3/8/8/8/8/8/K7 b - - 0 1', plyCount: 7, version: 7 });
+    const r = mount(initial, echoPut(initial));
+    await r.flush();
+    adapter.drop('e7', 'e8');
+    await r.flush();
+    expect(r.root.querySelector('.promotion')).not.toBeNull();
+    // The bot replies while the picker is still open: it is now the viewer's own turn.
+    FakeEventSource.instances[0]!.send(
+      'state',
+      gameDto({ fen: '4k3/4P3/8/8/8/8/8/1K6 w - - 1 8', plyCount: 8, version: 8 }),
+      '8',
+    );
+    await r.flush();
+    await r.click('[data-promote="n"]');
+    expect(r.calls.filter((c) => c.method === 'PUT')).toHaveLength(0);
+    expect(r.calls.filter((c) => c.method === 'POST' && c.path.endsWith('/moves'))).toHaveLength(0);
+  });
+
+  it('ignores a second drop while a premove edit is still sending', async () => {
+    let resolvePut: (response: FakeResponse) => void = () => undefined;
+    const r = mount(
+      waiting(),
+      echoPut(waiting(), () => new Promise<FakeResponse>((resolve) => (resolvePut = resolve))),
+    );
+    await r.flush();
+    adapter.drop('g1', 'h3');
+    await r.flush();
+    expect(r.calls.filter((c) => c.method === 'PUT')).toHaveLength(1);
+    adapter.drop('g1', 'f3');
+    await r.flush();
+    expect(r.calls.filter((c) => c.method === 'PUT')).toHaveLength(1);
+    resolvePut({ status: 200, body: { ...waiting(), premoves: ['g1h3'] } });
+    await r.flush();
+  });
+
+  it('rolls back the shown step along with the chain, and shows offline, when Remove fails on the network', async () => {
+    const r = mount(waiting(['g1h3', 'h3g5']), (call) => {
+      if (call.method === 'PUT') throw new TypeError('Failed to fetch');
+      return okRoute(waiting(['g1h3', 'h3g5']))(call);
+    });
+    await r.flush();
+    expect(r.root.querySelector('.premove-label')?.textContent).toBe('Premove 2 of 2');
+    await r.click('[data-action="premove-remove"]');
+    expect(document.querySelector('.toast')?.textContent).toContain("You're offline");
+    expect(r.root.querySelectorAll('.move-list [data-premove]')).toHaveLength(2);
+    expect(r.root.querySelector('.premove-label')?.textContent).toBe('Premove 2 of 2');
+  });
 });
