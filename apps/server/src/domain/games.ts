@@ -203,13 +203,9 @@ type CommitInput = {
   now: Date;
   history: MoveRow[];
   /**
-   * False only on the recursive call that plays a fired premove. That move's own reply is a real
-   * move that hasn't been queued yet in this same transaction — the row's `premoves` at that point
-   * still holds the *mover's own* leftover chain (for their next turn), not something to try firing
-   * immediately. Firing checks real legality, and a leftover entry belongs to the side that just
-   * moved, so it can never be legal for whoever is to move next; without this guard it would read as
-   * an illegal fire and wrongly cancel a chain that the "one premove per opponent move" tests (and
-   * the spec's "at most one level deep") expect to survive intact. Defaults to true.
+   * False only on the recursive call that plays a fired premove. Any leftover chain still belongs
+   * to the side that just moved (the premove's owner), for their next turn — not to whoever is to
+   * move now — so only the outer call may look at the queue and try to fire from it. Defaults to true.
    */
   firePremoves?: boolean;
 };

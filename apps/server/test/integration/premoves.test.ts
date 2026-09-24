@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { games, jobs, moves } from '../../src/db/schema';
+import { createEngineGame, getEngineUser } from '../../src/domain/engineGames';
 import { getGameDto, playMove, requireGameById, resign } from '../../src/domain/games';
 import { touchMember } from '../../src/domain/members';
 import { openTestDb, testDeps, truncateAll } from '../helpers/db';
@@ -65,7 +66,9 @@ describe('firing premoves', () => {
     const dto = await move(game.publicId, alice.id, 'e2e4', 0);
     expect(dto).toMatchObject({ plyCount: 2, version: 2 });
     expect(dto.moves.map((m) => m.san)).toEqual(['e4', 'e5']);
-    expect((await moveRows(game.id)).map((m) => m.clientMoveId)[1]).toBe(`premove:${game.publicId}:2`);
+    expect((await moveRows(game.id)).map((m) => m.clientMoveId)[1]).toBe(
+      `premove:${game.publicId}:2`,
+    );
     expect(await jobList()).toEqual([
       ['edit_card', `card:g:${game.publicId}`],
       ['send_dm', `dm:${alice.id}:g:${game.publicId}:turn:2`],
@@ -77,7 +80,9 @@ describe('firing premoves', () => {
     const { game, alice, bob } = await setup();
     await queue(game.id, ['e7e5', 'g8f6']);
     await move(game.publicId, alice.id, 'e2e4', 0);
-    expect((await getGameDto(deps, { gameId: game.publicId, viewerUserId: bob.id })).premoves).toEqual(['g8f6']);
+    expect(
+      (await getGameDto(deps, { gameId: game.publicId, viewerUserId: bob.id })).premoves,
+    ).toEqual(['g8f6']);
     const dto = await move(game.publicId, alice.id, 'g1f3', 2);
     expect(dto.moves.map((m) => m.san)).toEqual(['e4', 'e5', 'Nf3', 'Nf6']);
   });
@@ -90,12 +95,17 @@ describe('firing premoves', () => {
     expect((await requireGameById(db, game.id)).premoves).toEqual([]);
     const dm = (await db.select().from(jobs)).find((job) => job.kind === 'send_dm');
     expect(dm?.dedupKey).toBe(`dm:${bob.id}:g:${game.publicId}:turn:1`);
-    expect(dm?.payload).toEqual({ userId: bob.id, template: 'turn', gameId: game.id, premovesCancelled: true });
+    expect(dm?.payload).toEqual({
+      userId: bob.id,
+      template: 'turn',
+      gameId: game.id,
+      premovesCancelled: true,
+    });
   });
 
   it('cancels when the opponent captured the piece the premove would move', async () => {
     // 1.e4 d5, White to move; Black premoved d5d4, and White takes on d5.
-    const { game, alice } = await setup({
+    const { game, alice, bob } = await setup({
       fen: 'rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 2',
       plyCount: 2,
     });
@@ -103,6 +113,14 @@ describe('firing premoves', () => {
     const dto = await move(game.publicId, alice.id, 'e4d5', 2);
     expect(dto.plyCount).toBe(3);
     expect((await requireGameById(db, game.id)).premoves).toEqual([]);
+    const dm = (await db.select().from(jobs)).find((job) => job.kind === 'send_dm');
+    expect(dm?.dedupKey).toBe(`dm:${bob.id}:g:${game.publicId}:turn:3`);
+    expect(dm?.payload).toEqual({
+      userId: bob.id,
+      template: 'turn',
+      gameId: game.id,
+      premovesCancelled: true,
+    });
   });
 
   it('cancels when the opponent’s check makes the premove leave its own king in check', async () => {
@@ -151,10 +169,35 @@ describe('firing premoves', () => {
     expect((await requireGameById(db, game.id)).premoves).toEqual([]);
   });
 
+  it('cancels a bot game premove with no send_dm job, since bot games announce nothing', async () => {
+    const group = await insertGroup(db);
+    const alice = await insertUser(db, { firstName: 'Alice' });
+    await touchMember(db, group.id, alice.id);
+    const engine = await getEngineUser(db);
+    const game = await createEngineGame(deps, {
+      groupId: group.id,
+      userId: alice.id,
+      level: 'club',
+      colour: 'white',
+    });
+    await move(game.publicId, alice.id, 'e2e4', 0);
+    // Alice premoves e4e5 for her next turn; the engine's e7e5 reply blocks that pawn push.
+    await queue(game.id, ['e4e5']);
+    await move(game.publicId, engine.id, 'e7e5', 1);
+    expect((await requireGameById(db, game.id)).premoves).toEqual([]);
+    expect((await db.select().from(jobs)).filter((job) => job.kind === 'send_dm')).toEqual([]);
+  });
+
   it('returns the current state for a retried move after its premove reply was played', async () => {
     const { game, alice } = await setup();
     await queue(game.id, ['e7e5']);
-    const input = { gameId: game.publicId, userId: alice.id, uci: 'e2e4', expectedPly: 0, clientMoveId: 'retry-me' };
+    const input = {
+      gameId: game.publicId,
+      userId: alice.id,
+      uci: 'e2e4',
+      expectedPly: 0,
+      clientMoveId: 'retry-me',
+    };
     await playMove(deps, input);
     expect((await playMove(deps, input)).plyCount).toBe(2);
   });
