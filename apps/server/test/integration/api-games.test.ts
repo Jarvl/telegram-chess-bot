@@ -387,6 +387,65 @@ describe('GET /api/games/:id/events', () => {
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(api.ctx.streams.count(carol.id)).toBe(0);
   });
+
+  it('sends a snapshot on every connect, even when Last-Event-ID is already current', async () => {
+    const { group, alice, bob, tokens } = await world();
+    const game = await insertGame(db, group.id, alice.id, bob.id);
+    const controller = new AbortController();
+    const res = await api.request(
+      'GET',
+      `/api/games/${game.publicId}/events?token=${tokens.carol}`,
+      { signal: controller.signal, headers: { 'last-event-id': '0' } },
+    );
+    expect(await readChunk(res)).toContain('event: state');
+    controller.abort();
+  });
+
+  it('delivers an owner-only publish to that user’s streams and no one else’s', async () => {
+    const { group, alice, bob, tokens } = await world();
+    const game = await insertGame(db, group.id, alice.id, bob.id);
+    const open = async (token: string) => {
+      const controller = new AbortController();
+      const res = await api.request('GET', `/api/games/${game.publicId}/events?token=${token}`, {
+        signal: controller.signal,
+      });
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      const events: string[] = [];
+      let buffer = '';
+      void (async () => {
+        try {
+          for (;;) {
+            const { value, done } = await reader.read();
+            if (done) return;
+            buffer += decoder.decode(value);
+            let cut = buffer.indexOf('\n\n');
+            while (cut >= 0) {
+              events.push(buffer.slice(0, cut));
+              buffer = buffer.slice(cut + 2);
+              cut = buffer.indexOf('\n\n');
+            }
+          }
+        } catch {
+          // aborted
+        }
+      })();
+      return { events, close: () => controller.abort() };
+    };
+    const bobPhone = await open(tokens.bob);
+    const bobLaptop = await open(tokens.bob);
+    const aliceStream = await open(tokens.alice);
+    const carolStream = await open(tokens.carol);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    api.deps.bus.publish(game.publicId, { userId: bob.id });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const states = (s: { events: string[] }) => s.events.filter((e) => e.includes('event: state'));
+    expect(states(bobPhone)).toHaveLength(2);
+    expect(states(bobLaptop)).toHaveLength(2);
+    expect(states(aliceStream)).toHaveLength(1);
+    expect(states(carolStream)).toHaveLength(1);
+    for (const stream of [bobPhone, bobLaptop, aliceStream, carolStream]) stream.close();
+  });
 });
 
 describe('admin routes', () => {
