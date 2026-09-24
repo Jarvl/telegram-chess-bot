@@ -1,10 +1,17 @@
-import { PrefsSchema, t, type Prefs } from '@group-chess/shared';
+import {
+  MOVE_CONFIRMATIONS,
+  PrefsSchema,
+  t,
+  type MessageKey,
+  type MoveConfirmations,
+  type Prefs,
+} from '@group-chess/shared';
 import { z } from 'zod';
 import { AUTHOR_URL, BRAND, REPO_URL } from '../../brand';
 import { prefs } from '../../state/session';
 import { useApp } from '../context';
 import { Switch } from '../controls';
-import { confirmDialog, infoDialog } from '../dialog';
+import { choiceDialog, confirmDialog, infoDialog } from '../dialog';
 import { toast } from '../toast';
 
 const PrefsResponseSchema = z.object({ prefs: PrefsSchema, dmAllowed: z.boolean() });
@@ -15,6 +22,12 @@ const TOGGLES: {
   { key: 'closeAfterMove', label: 'app.settings.close_after_move' },
   { key: 'notifications', label: 'app.settings.notifications' },
 ];
+
+const CONFIRMATION_LABEL: Record<MoveConfirmations, MessageKey> = {
+  always: 'app.settings.move_confirmations.always',
+  people: 'app.settings.move_confirmations.people',
+  never: 'app.settings.move_confirmations.never',
+};
 
 export function Settings() {
   const { client, tg } = useApp();
@@ -37,6 +50,17 @@ export function Settings() {
       toast(t('app.common.error'));
     }
   };
+  const pickConfirmations = async () => {
+    const picked = await choiceDialog({
+      title: t('app.settings.move_confirmations'),
+      message: t('app.settings.move_confirmations_help'),
+      choices: MOVE_CONFIRMATIONS.map((value) => ({ value, label: t(CONFIRMATION_LABEL[value]) })),
+      current: prefs.value.moveConfirmations,
+    });
+    if (picked === null || picked === prefs.value.moveConfirmations) return;
+    tg.hapticSelection();
+    await update({ moveConfirmations: picked });
+  };
   const remove = async () => {
     if (
       !(await confirmDialog(t('app.settings.delete_confirm'), {
@@ -57,6 +81,17 @@ export function Settings() {
     <div class="screen">
       <h1 class="title">{t('app.settings.title')}</h1>
       <div class="card">
+        <button
+          class="field pick"
+          data-pref="moveConfirmations"
+          onClick={() => void pickConfirmations()}
+        >
+          <span class="grow">{t('app.settings.move_confirmations')}</span>
+          <span class="value">{t(CONFIRMATION_LABEL[current.moveConfirmations])}</span>
+          <span class="chevron" aria-hidden="true">
+            ›
+          </span>
+        </button>
         {TOGGLES.map(({ key, label }) => (
           <div class="field" key={key}>
             <span>{t(label)}</span>
