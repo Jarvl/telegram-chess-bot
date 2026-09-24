@@ -46,6 +46,7 @@ describe('Settings', () => {
         body: { prefs: { ...prefs.value, ...(body as { prefs: object }).prefs }, dmAllowed: false },
       }),
     );
+    // Lets <Dialogs /> register the native popup host in its effect before choiceDialog runs.
     await r.flush();
     await r.click('[data-pref="moveConfirmations"]');
     expect(window.__tg!.popups.at(-1)).toMatchObject({

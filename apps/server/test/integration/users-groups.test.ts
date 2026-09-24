@@ -73,7 +73,7 @@ describe('users', () => {
       prefsOf({ prefs: { confirmMoves: false, moveConfirmations: 'always' } as never })
         .moveConfirmations,
     ).toBe('always');
-    // Review Focus 1: turned confirmations off before #16, now picks Only against people.
+    // Turned confirmations off before #16, now picks Only against people.
     const user = await ensureUser(db, { telegramUserId: 42, firstName: 'Alice' });
     await db
       .update(users)

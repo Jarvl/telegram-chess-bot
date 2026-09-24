@@ -349,7 +349,7 @@ describe('Game with move confirmations', () => {
     expect(window.__tg!.mainButton).toMatchObject({ text: 'Confirm move', visible: true });
     expect(window.__tg!.secondaryButton).toMatchObject({ text: 'Cancel', visible: true });
     expect(r.root.querySelector('[data-action="resign"]')?.hasAttribute('disabled')).toBe(true);
-    // Review Focus 2: two taps before the screen re-renders still send one move.
+    // Two taps before the screen re-renders still send one move.
     window.__tg!.clickMain();
     window.__tg!.clickMain();
     await r.flush();
@@ -402,7 +402,7 @@ describe('Game with move confirmations', () => {
     adapter.drop('b1', 'c3');
     await r.flush();
     const before = adapter.positions.length;
-    // Review Focus 3: a draw offer bumps the version but is no new ply.
+    // A draw offer bumps the version but is no new ply.
     FakeEventSource.instances[0]!.send(
       'state',
       afterPlies(2, { version: 3, drawOffer: { by: 'black', atPly: 2 } }),
@@ -476,7 +476,7 @@ describe('Game with move confirmations', () => {
   });
 
   it('reads the setting at each drop, so a change mid-game applies to the next move', async () => {
-    // Review Focus 5.
+    // The preference changes to 'never' after mount, before this drop.
     const r = mount(gameDto());
     await r.flush();
     prefs.value = { ...prefs.value, moveConfirmations: 'never' };
@@ -597,7 +597,7 @@ describe('Game with move confirmations', () => {
   });
 
   it('lets a confirmed move land when the app is minimised while it sends', async () => {
-    // Review Focus 4.
+    // Minimising after Confirm must not cancel a send already in flight.
     let answer: (response: FakeResponse) => void = () => undefined;
     const r = mount(
       gameDto(),
@@ -617,7 +617,7 @@ describe('Game with move confirmations', () => {
   });
 
   it('keeps a waiting move through a draw offer, and drops it when the game ends under it', async () => {
-    // Review Focus 3: only a new ply or status cancels.
+    // Only a new ply or status cancels.
     const r = mount(gameDto());
     await r.flush();
     adapter.drop('e2', 'e4');

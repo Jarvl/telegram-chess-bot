@@ -98,7 +98,7 @@ describe('reduceMove', () => {
     const confirmed = run([{ type: 'confirm' }], pending.state);
     expect(confirmed.state).toEqual({ kind: 'sending', move, attempt: 1 });
     expect(confirmed.effects).toEqual(['send']);
-    // Review Focus 2: a second Confirm before the screen catches up sends nothing more.
+    // A second Confirm before the screen catches up sends nothing more.
     expect(run([{ type: 'confirm' }], confirmed.state).effects).toEqual([]);
   });
 

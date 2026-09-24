@@ -356,7 +356,7 @@ Considered and not used: inline keyboards for moves (clunky, the reason for the 
 
 ## 14. Open questions
 
-1. **Confirm moves default.** Proposed on, since moves are permanent. Confirm or default it off.
+1. **Confirm moves default.** Resolved: **Move confirmations** is a user setting (Always, Only against people, Never), default Only against people (§7.4).
 2. **Close after moving.** Proposed default: the app closes and returns to the chat after a move. Confirm.
 3. **Group mention fallback.** For users who decline DMs, allow admins to turn on a group mention after N hours without a move? Proposed: off, revisit after alpha.
 4. **Board library and licence.** Confirmed: `chessground`, Lichess's own board library, is GPL-3.0-or-later; `react-chessboard` is a maintained MIT alternative. Decide in the tech doc.
