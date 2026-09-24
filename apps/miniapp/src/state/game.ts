@@ -75,15 +75,22 @@ export function diffNotices(prev: GameDto, next: GameDto): Notice[] {
   ) {
     notices.push('opponent_moved');
   }
-  // Premoves spec, Notices: the viewer's chain either played its first move or was cancelled.
+  // Premoves spec, Notices: the viewer's chain either played moves or was cancelled. A resumed
+  // app can jump several plies at once (fix round 1), so count how many queued premoves fired in
+  // order — the queue's own side moves every other ply, starting two plies after `prev` — rather
+  // than assuming only the first one could have played.
   if (next.plyCount > prev.plyCount && next.status === 'active' && prev.premoves.length > 0) {
-    if (next.moves[prev.plyCount + 1]?.uci === prev.premoves[0]) {
-      notices.push('premove_played');
-      // Controller ruling: the server trims a fired premove's leftover chain at its first
-      // pattern-invalid entry, so a chain that lost more than the one fired move needs its own
-      // notice too.
-      if (next.premoves.length < prev.premoves.length - 1) notices.push('premoves_cancelled');
-    } else if (next.premoves.length === 0) notices.push('premoves_cancelled');
+    let fired = 0;
+    while (
+      fired < prev.premoves.length &&
+      next.moves[prev.plyCount + 1 + 2 * fired]?.uci === prev.premoves[fired]
+    ) {
+      fired += 1;
+    }
+    if (fired >= 1) notices.push('premove_played');
+    // Controller ruling: the server trims a fired premove's leftover chain at its first
+    // pattern-invalid entry, so a chain that lost more than the fired moves needs its own notice.
+    if (next.premoves.length < prev.premoves.length - fired) notices.push('premoves_cancelled');
   }
   return notices;
 }
@@ -197,7 +204,14 @@ export class GameStore {
     const viewing = this.viewingPly.value;
     this.dto.value = next;
     this.optimisticPremoves.value = null;
-    if (next.plyCount !== current.plyCount) this.premoveStep.value = null;
+    // The step clamps to the end when the game moves on, or when the chain shrinks to at or
+    // below it — otherwise a later append would jump the view back to a stale step (fix round 1).
+    if (
+      next.plyCount !== current.plyCount ||
+      next.premoves.length <= (this.premoveStep.value ?? Number.POSITIVE_INFINITY)
+    ) {
+      this.premoveStep.value = null;
+    }
     // A player reading an old position is brought back when the game moves on; spectators stay.
     if (viewing !== null && next.plyCount > current.plyCount && next.viewerRole !== 'spectator') {
       this.viewingPly.value = null;
