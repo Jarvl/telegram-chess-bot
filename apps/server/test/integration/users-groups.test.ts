@@ -79,9 +79,9 @@ describe('users', () => {
       .update(users)
       .set({ prefs: { confirmMoves: false } as never })
       .where(eq(users.id, user.id));
-    expect((await updatePrefs(db, user.id, { moveConfirmations: 'people' })).moveConfirmations).toBe(
-      'people',
-    );
+    expect(
+      (await updatePrefs(db, user.id, { moveConfirmations: 'people' })).moveConfirmations,
+    ).toBe('people');
     const [row] = await db.select().from(users).where(eq(users.id, user.id));
     expect(prefsOf(row!).moveConfirmations).toBe('people');
   });
