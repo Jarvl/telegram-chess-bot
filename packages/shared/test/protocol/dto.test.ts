@@ -9,6 +9,7 @@ import {
   PREFS_DEFAULTS,
   PlayerRefSchema,
   PrefsSchema,
+  TipInvoiceDtoSchema,
 } from '../../src/protocol/dto';
 
 const activeGame = {
@@ -216,5 +217,17 @@ describe('PrefsSchema', () => {
     expect(
       PrefsSchema.safeParse({ ...PREFS_DEFAULTS, moveConfirmations: 'sometimes' }).success,
     ).toBe(false);
+  });
+});
+
+describe('TipInvoiceDtoSchema', () => {
+  it('carries the invoice link', () => {
+    expect(TipInvoiceDtoSchema.parse({ url: 'https://t.me/$abc' })).toEqual({
+      url: 'https://t.me/$abc',
+    });
+  });
+
+  it('rejects an empty link', () => {
+    expect(TipInvoiceDtoSchema.safeParse({ url: '' }).success).toBe(false);
   });
 });

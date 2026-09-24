@@ -6,6 +6,9 @@ import {
   MoveRequestSchema,
   PrefsUpdateRequestSchema,
   TelemetryRequestSchema,
+  TipRequestSchema,
+  TIP_MIN_STARS,
+  TIP_MAX_STARS,
 } from '../../src/protocol/requests';
 
 describe('MoveRequestSchema', () => {
@@ -98,5 +101,22 @@ describe('GroupSettingsUpdateRequestSchema', () => {
 describe('LaunchRequestSchema', () => {
   it('rejects empty init data', () => {
     expect(LaunchRequestSchema.safeParse({ initData: '' }).success).toBe(false);
+  });
+});
+
+describe('TipRequestSchema', () => {
+  it.each([TIP_MIN_STARS, 250, TIP_MAX_STARS])('accepts %s stars', (stars) => {
+    expect(TipRequestSchema.parse({ stars })).toEqual({ stars });
+  });
+
+  it.each([
+    ['zero', 0],
+    ['a negative amount', -5],
+    ['too many', 10_001],
+    ['a fraction', 2.5],
+    ['a numeric string', '100'],
+    ['nothing', undefined],
+  ])('rejects %s', (_label, stars) => {
+    expect(TipRequestSchema.safeParse({ stars }).success).toBe(false);
   });
 });

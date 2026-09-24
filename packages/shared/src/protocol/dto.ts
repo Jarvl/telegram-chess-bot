@@ -326,3 +326,8 @@ export type PgnLinkDto = z.infer<typeof PgnLinkDtoSchema>;
 export const OkDtoSchema = z.object({ ok: z.literal(true) });
 
 export type OkDto = z.infer<typeof OkDtoSchema>;
+
+/** Tip jar spec §2.1: the invoice link the Mini App hands to `WebApp.openInvoice`. */
+export const TipInvoiceDtoSchema = z.object({ url: z.string().min(1) });
+
+export type TipInvoiceDto = z.infer<typeof TipInvoiceDtoSchema>;

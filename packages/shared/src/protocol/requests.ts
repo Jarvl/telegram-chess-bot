@@ -84,3 +84,13 @@ export const FinishedQuerySchema = z.object({
 });
 
 export type FinishedQuery = z.infer<typeof FinishedQuerySchema>;
+
+/** Tip jar spec §2.1: whole Stars, one invoice per tap. */
+export const TIP_MIN_STARS = 1;
+export const TIP_MAX_STARS = 10_000;
+
+export const TipRequestSchema = z.object({
+  stars: z.number().int().min(TIP_MIN_STARS).max(TIP_MAX_STARS),
+});
+
+export type TipRequest = z.infer<typeof TipRequestSchema>;
