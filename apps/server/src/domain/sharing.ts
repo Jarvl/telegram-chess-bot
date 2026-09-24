@@ -5,7 +5,13 @@ import { DomainError } from './errors';
 import { requireGameByPublicId } from './games';
 import { enqueue } from '../jobs/queue';
 
-/** PRD §7.6 / spec §7.8: one shared position per user per minute; the photo itself is a job. */
+/**
+ * Spec §7.8: enough for a user to share a run of positions at once, while one user still cannot
+ * post more than a minute's worth of the group's ~20 messages per minute.
+ */
+export const MAX_SHARES_PER_MINUTE = 20;
+
+/** PRD §7.6 / spec §7.8: shared positions are limited per user per minute; the photo itself is a job. */
 export async function sharePosition(
   deps: Deps,
   input: { gameId: string; userId: number; ply: number },
@@ -23,8 +29,10 @@ export async function sharePosition(
           sql`${shares.createdAt} > now() - interval '1 minute'`,
         ),
       );
-    if ((recent?.n ?? 0) > 0)
-      throw new DomainError('rate_limited', 'one shared position per minute', { reason: 'share' });
+    if ((recent?.n ?? 0) >= MAX_SHARES_PER_MINUTE)
+      throw new DomainError('rate_limited', 'too many shared positions this minute', {
+        reason: 'share',
+      });
     const [share] = await tx
       .insert(shares)
       .values({ gameId: game.id, userId: input.userId, ply: input.ply })

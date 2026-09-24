@@ -192,7 +192,7 @@ export const en = {
   'app.game.latest': 'Latest',
   'app.game.share': 'Share position',
   'app.game.shared': 'Shared to the group',
-  'app.game.share_limit': 'One share per minute',
+  'app.game.share_limit': 'Too many shares. Try again in a minute',
   'app.game.offer_draw': 'Offer draw',
   'app.game.draw_offered': 'Draw offered',
   'app.game.draw_offer_from': '{name} offers a draw',

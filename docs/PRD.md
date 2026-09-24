@@ -323,7 +323,7 @@ Considered and not used: inline keyboards for moves (clunky, the reason for the 
 | No member list; unknown usernames can't be resolved | In-app opponent picker shows known players; reply-to-message `/play` covers everyone else. |
 | Bots can't DM without permission | Ask in the app on first launch; the app and the challenge mention cover users who decline. |
 | Edits don't notify | Turn notifications are DMs and in-app, never group messages. |
-| About 20 messages per minute per group | Irrelevant at this footprint; position shares are user-initiated and rate-limited per user (one per minute). |
+| About 20 messages per minute per group | Irrelevant at this footprint; position shares are user-initiated and rate-limited per user (20 per minute, so several positions can be shared at once). |
 | Privacy mode | The bot never sees ordinary chat; discussion of shared positions is just normal chat. |
 
 ## 11. Non-functional requirements
