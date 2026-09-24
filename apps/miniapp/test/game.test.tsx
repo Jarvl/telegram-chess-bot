@@ -688,3 +688,137 @@ describe('Game with move confirmations', () => {
     expect(adapter.positions.length).toBeGreaterThan(before);
   });
 });
+
+describe('Game premoves', () => {
+  // After 1. f3 it is Black's move; the viewer is White.
+  const waiting = (premoves: string[] = []) => afterPlies(1, { viewerRole: 'white', premoves });
+  const echoPut =
+    (initial: ReturnType<typeof gameDto>, onPut?: FakeRoute): FakeRoute =>
+    (call) => {
+      if (call.method === 'PUT' && call.path === `/api/games/${GAME}/premoves`) {
+        if (onPut) return onPut(call);
+        return {
+          status: 200,
+          body: { ...initial, premoves: (call.body as { premoves: string[] }).premoves },
+        };
+      }
+      return okRoute(initial)(call);
+    };
+
+  it('queues a premove on the opponent’s turn without asking, even with confirmations on Always', async () => {
+    wantPrefs.moveConfirmations = 'always';
+    const r = mount(waiting(), echoPut(waiting()));
+    await r.flush();
+    expect(adapter.movables.at(-1)?.colour).toBe('white');
+    expect(adapter.movables.at(-1)?.dests.get('g1')).toEqual(
+      expect.arrayContaining(['e2', 'f3', 'h3']),
+    );
+    adapter.drop('g1', 'h3');
+    await r.flush();
+    expect(r.calls.find((c) => c.method === 'PUT')?.body).toEqual({
+      base: [],
+      premoves: ['g1h3'],
+      expectedPly: 1,
+    });
+    expect(window.__tg!.calls).not.toContain('MainButton.show');
+    expect(r.root.querySelector('.move-list [data-premove="1"]')?.textContent).toBe('Nh3');
+    expect(r.root.querySelector('.premove-label')?.textContent).toBe('Premove 1 of 1');
+    expect(adapter.highlights.at(-1)).toEqual(['g1', 'h3']);
+    expect(r.root.querySelector('.board-wrap')?.classList.contains('premove')).toBe(true);
+  });
+
+  it('asks for the promotion piece and queues it with the premove', async () => {
+    const initial = gameDto({ fen: '4k3/4P3/8/8/8/8/8/K7 b - - 0 1', plyCount: 7, version: 7 });
+    const r = mount(initial, echoPut(initial));
+    await r.flush();
+    adapter.drop('e7', 'e8');
+    await r.flush();
+    expect(r.root.querySelector('.promotion')).not.toBeNull();
+    await r.click('[data-promote="n"]');
+    expect(r.calls.find((c) => c.method === 'PUT')?.body).toMatchObject({ premoves: ['e7e8n'] });
+  });
+
+  it('steps back through the chain, returns to the end on a board tap, and removes', async () => {
+    const r = mount(waiting(['g1h3', 'h3g5']), echoPut(waiting(['g1h3', 'h3g5'])));
+    await r.flush();
+    await r.click('[data-action="premove-prev"]');
+    expect(r.root.querySelector('.premove-label')?.textContent).toBe('Premove 1 of 2');
+    expect(adapter.positions.at(-1)?.fen.split(' ')[0]).toBe(
+      'rnbqkbnr/pppppppp/8/8/8/5P1N/PPPPP1PP/RNBQKB1R',
+    );
+    expect(adapter.movables.at(-1)?.colour).toBe('none');
+    adapter.select('a4');
+    await r.flush();
+    expect(r.root.querySelector('.premove-label')?.textContent).toBe('Premove 2 of 2');
+    await r.click('[data-action="premove-remove"]');
+    expect(r.calls.find((c) => c.method === 'PUT')?.body).toEqual({
+      base: ['g1h3', 'h3g5'],
+      premoves: ['g1h3'],
+      expectedPly: 1,
+    });
+    expect(r.root.querySelectorAll('.move-list [data-premove]')).toHaveLength(1);
+    expect(r.root.querySelector('.premove-label')?.textContent).toBe('Premove 1 of 1');
+  });
+
+  it('shows the chain from another device when it arrives over the stream', async () => {
+    const r = mount(waiting());
+    await r.flush();
+    FakeEventSource.instances[0]!.send('state', waiting(['b1c3']), '1');
+    await r.flush();
+    expect(r.root.querySelector('.move-list [data-premove="1"]')?.textContent).toBe('Nc3');
+  });
+
+  it('refuses a stale edit, shows the chain the other device made and says so', async () => {
+    const r = mount(waiting(), (call) => {
+      if (call.method === 'PUT')
+        return {
+          status: 409,
+          body: { error: { code: 'stale_state', message: 'the premoves have changed' } },
+        };
+      if (call.method === 'GET') return { status: 200, body: waiting(['b1c3']) };
+      return okRoute(waiting())(call);
+    });
+    await r.flush();
+    adapter.drop('g1', 'h3');
+    await r.flush();
+    expect(document.querySelector('.toast')?.textContent).toContain(
+      'Premoves changed on another device',
+    );
+    expect(r.root.querySelector('.move-list [data-premove="1"]')?.textContent).toBe('Nc3');
+  });
+
+  it('does not blame another device when the opponent moved first', async () => {
+    const r = mount(waiting(), (call) => {
+      if (call.method === 'PUT')
+        return {
+          status: 409,
+          body: { error: { code: 'stale_state', message: 'the position has changed' } },
+        };
+      if (call.method === 'GET')
+        return { status: 200, body: afterPlies(2, { viewerRole: 'white' }) };
+      return okRoute(waiting())(call);
+    });
+    await r.flush();
+    adapter.drop('g1', 'h3');
+    await r.flush();
+    expect(document.querySelector('.toast')).toBeNull();
+    expect(r.root.querySelectorAll('.move-list [data-premove]')).toHaveLength(0);
+    expect(r.root.querySelectorAll('.move-list [data-ply]')).toHaveLength(2);
+  });
+
+  it('toasts and buzzes when the chain was cancelled, and buzzes lightly when a premove played', async () => {
+    const r = mount(waiting(['g2g4']));
+    await r.flush();
+    FakeEventSource.instances[0]!.send('state', afterPlies(3, { viewerRole: 'white' }), '3');
+    await r.flush();
+    expect(window.__tg!.haptics).toContain('impact:light');
+    expect(document.querySelector('.toast')).toBeNull();
+
+    const again = mount(waiting(['e2e4']));
+    await again.flush();
+    FakeEventSource.instances.at(-1)!.send('state', afterPlies(2, { viewerRole: 'white' }), '2');
+    await again.flush();
+    expect(document.querySelector('.toast')?.textContent).toContain('Premoves cancelled');
+    expect(window.__tg!.haptics).toContain('notification:warning');
+  });
+});

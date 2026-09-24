@@ -5,7 +5,7 @@ import { prefs, session } from '../../src/state/session';
 import { createTg, type Tg } from '../../src/tg/webapp';
 import { AppProvider, type AppContextValue } from '../../src/ui/context';
 import { Dialogs } from '../../src/ui/dialog';
-import { Toasts } from '../../src/ui/toast';
+import { resetToasts, Toasts } from '../../src/ui/toast';
 import { fakeFetch, type FakeRoute } from './fakeFetch';
 import { installFakeWebApp } from './fakeWebApp';
 
@@ -61,6 +61,7 @@ export function renderApp(
   const app: AppContextValue = { tg, client, router, prefetched: {} };
   if (lastRoot) render(null, lastRoot); // unmount the previous tree: its streams and timers stop
   document.body.innerHTML = '';
+  resetToasts(); // a toast from a previous test's fixture must not bleed into this fresh mount
   const root = document.createElement('div');
   lastRoot = root;
   document.body.appendChild(root);

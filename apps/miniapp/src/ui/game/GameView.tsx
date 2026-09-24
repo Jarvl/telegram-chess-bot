@@ -1,6 +1,8 @@
 import {
   applyMove,
   GameDtoSchema,
+  imaginedBoard,
+  isPremovePromotion,
   PgnLinkDtoSchema,
   sideToMove,
   t,
@@ -35,6 +37,7 @@ import { toast } from '../toast';
 import { Board } from './Board';
 import { MoveList } from './MoveList';
 import { PlayerBar } from './PlayerBar';
+import { PremoveBar } from './PremoveBar';
 import { resultDetail, resultForViewer } from './result';
 import { useClock } from './useClock';
 
@@ -102,6 +105,11 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
       if (notice === 'opponent_moved' || notice === 'draw_offered') tg.haptic('light');
       if (notice === 'draw_declined') toast(t('app.game.draw_declined'));
       if (notice === 'finished') tg.hapticNotify('success');
+      if (notice === 'premove_played') tg.haptic('light');
+      if (notice === 'premoves_cancelled') {
+        toast(t('app.game.premoves_cancelled'));
+        tg.hapticNotify('warning');
+      }
     },
     [tg],
   );
@@ -146,13 +154,49 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
 
   const restore = useCallback(() => {
     adapterRef.current?.cancelMove();
-    const position = store.position.value;
     adapterRef.current?.setPosition({
-      ...position,
+      ...store.boardView.value,
       orientation: store.orientation.value,
-      turnColour: store.sideToMove.value,
+      turnColour: store.boardTurn.value,
     });
   }, [store]);
+
+  // Premoves spec, Queuing: an optimistic compare-and-set; the server's list always wins.
+  const editPremoves = async (next: string[], step: number | null): Promise<void> => {
+    const base = store.premoves.value;
+    const expectedPly = store.dto.value.plyCount;
+    store.optimisticPremoves.value = next;
+    store.premoveStep.value = step;
+    store.premoveSending.value = true;
+    try {
+      const body = { base, premoves: next, expectedPly };
+      applyState(await client.put(`/api/games/${gameId}/premoves`, body, GameDtoSchema));
+      tg.haptic('light');
+    } catch (error) {
+      store.optimisticPremoves.value = null;
+      restore();
+      if (error instanceof ApiError && error.isNetwork) {
+        toast(t('app.common.offline'));
+        return;
+      }
+      try {
+        const fresh = await props.onReload();
+        applyState(fresh);
+        // The server keeps why it refused to itself; an unchanged ply means the chain changed under us.
+        if (
+          error instanceof ApiError &&
+          error.code === 'stale_state' &&
+          fresh.status === 'active' &&
+          fresh.plyCount === expectedPly
+        )
+          toast(t('app.game.premoves_changed'));
+      } catch {
+        // The stream brings the state back when the connection does.
+      }
+    } finally {
+      store.premoveSending.value = false;
+    }
+  };
 
   // The effect runner closes over this render's props and callbacks; `dispatch` stays stable and
   // always calls the latest one.
@@ -301,6 +345,15 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
       restore();
       return;
     }
+    if (store.premoveMode.value) {
+      const board = imaginedBoard(store.dto.value.fen, store.premoves.value);
+      if (isPremovePromotion(board, orig, dest)) {
+        setPromotion({ orig, dest });
+        return;
+      }
+      void editPremoves([...store.premoves.value, `${orig}${dest}`], null);
+      return;
+    }
     tg.haptic(meta.captured ? 'medium' : 'light');
     if (isPromotion(store.dto.value.fen, orig, dest)) {
       setPromotion({ orig, dest });
@@ -314,6 +367,10 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
     if (!pending) return;
     if (!piece) {
       restore();
+      return;
+    }
+    if (store.premoveMode.value) {
+      void editPremoves([...store.premoves.value, `${pending.orig}${pending.dest}${piece}`], null);
       return;
     }
     dispatch({
@@ -456,6 +513,11 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
       </Board>
       <PlayerBar dto={dto} colour={orientation} now={now} />
       <MoveList store={store} locked={moveState.kind === 'pendingConfirm'} />
+      <PremoveBar
+        store={store}
+        busy={store.premoveSending.value}
+        onRemove={(step) => void editPremoves(store.premoves.value.slice(0, step - 1), step - 1)}
+      />
       {dto.status === 'finished' ? (
         <div class="replay-controls">
           <button
