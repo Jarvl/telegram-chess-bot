@@ -35,11 +35,23 @@ describe('avatar helpers', () => {
     expect(personInitial('')).toBe('?');
   });
 
+  it('keeps a flag emoji (a regional-indicator pair) whole, not split in two', () => {
+    expect(personInitial('🇺🇦 Oleh')).toBe('🇺🇦');
+  });
+
+  it('keeps a ZWJ family emoji whole, not split into its parts', () => {
+    expect(personInitial('👨‍👩‍👧‍👦 The Smiths')).toBe('👨‍👩‍👧‍👦');
+  });
+
   it('takes up to two initials from a group title', () => {
     expect(groupInitials('Friday Chess Club')).toBe('FC');
     expect(groupInitials('Family')).toBe('F');
     expect(groupInitials('office blitz')).toBe('OB');
     expect(groupInitials('   ')).toBe('?');
+  });
+
+  it('keeps a leading flag emoji whole in group initials too', () => {
+    expect(groupInitials('🇺🇦 Kyiv Chess')).toBe('🇺🇦K');
   });
 });
 
