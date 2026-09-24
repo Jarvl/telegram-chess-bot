@@ -52,7 +52,9 @@ for (const colorScheme of ['light', 'dark'] as const) {
 
     await page.locator('[data-nav="games"]').click();
     await page.locator('[data-game]').click();
-    await expect(page.locator('.cg-wrap')).toBeVisible();
+    // Not `.cg-wrap`: the games list's own MiniBoard thumbnails carry that class too, so the
+    // locator would still be ambiguous for an instant while the list screen unmounts.
+    await expect(page.locator('cg-board')).toBeVisible();
     await fits(page);
     await shot(page, `${colorScheme}-game`);
 
