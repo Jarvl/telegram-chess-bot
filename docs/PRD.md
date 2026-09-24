@@ -166,7 +166,7 @@ The bot posts nothing to the group except the following:
 |---|---|---|
 | Welcome card | Bot added | One line plus **♟ Open Chess** |
 | Game card | Challenge created; edited on accept, and again at game end | Players (with colours once assigned), time per move, rated/casual; status line ("Move 12 · Bob to move") updated silently as the game goes; **Accept**/**Decline** while pending; **♟ Open game** while running; result, **Analyse on Lichess** and **Rematch** when finished |
-| Shared position | A player or spectator taps Share position in the app | Board image of that position, caption "Alice shared move 23 · Alice vs Bob", **♟ Open game** button. Group members reply in the chat as usual |
+| Shared position | A player or spectator taps Share position in the app | Snapshot card of that position (board, players, recent moves, where the game stood), caption "Alice shared move 23 of Alice vs Bob", **♟ Open live game** button. Group members reply in the chat as usual |
 | Reply to `/play` | Only when the command cannot be fulfilled | One short line (for example, the opponent already has 2 games with you) |
 
 Edits to the game card are silent (no notification). There are no per-move messages, no nudges in the group, no bump or re-post behaviour. Status-line edits are throttled to at most one per move.
@@ -259,9 +259,9 @@ Checkmate · 1-0 · 34 moves · 1 day per move
 Shared position:
 
 ```
-[ board image ]
-Carol shared move 23 · Alice vs Bob · Black to move
-[ ♟ Open game ]
+[ snapshot card ]
+Carol shared move 23 of Alice vs Bob
+[ ♟ Open live game ]
 ```
 
 ### 8.2 Mini App screens
@@ -305,7 +305,7 @@ Bot API version tags below were verified against core.telegram.org/bots/api-chan
 | Identity in the app | Signed launch data (`initData`) | Server-side validation; the source of truth for who is moving. |
 | Game card and silent status edits | `editMessageText` / `editMessageReplyMarkup` | Bot messages can be edited indefinitely; edits don't notify. |
 | Challenge notification without DMs | Text mention in the challenge card | One mention per challenge, nothing else. |
-| Shared position image | `sendPhoto` to the group, with the game's topic id in forum groups | Static image, no keyboard except Open game. |
+| Shared position image | `sendPhoto` to the group, with the game's topic id in forum groups | Static image, no keyboard except Open live game. |
 | Share to any chat (P1) | `shareMessage()` with `savePreparedInlineMessage` (Bot API 8.0) | User picks the chat in Telegram's share sheet. |
 | Forum groups | `message_thread_id` (Bot API 6.3) | Cards go in the challenge's topic or a fixed topic. |
 | Admin check for settings | `getChatMember` | Verified on every settings request. |

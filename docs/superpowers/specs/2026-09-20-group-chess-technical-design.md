@@ -501,9 +501,18 @@ Lichess import runs as a `lichess_import` job when a game with at least one move
 
 ### 7.7 Position images
 
-`renderBoardSvg({ fen, lastMove, check, orientation, theme })` assembles an SVG from square rectangles, coordinate labels drawn as paths (no font dependency in the rasteriser), two highlighted squares for the last move, a radial highlight for check, and piece glyphs from the cburnett set (CC BY-SA 3.0, credited on the app's About screen). `@resvg/resvg-js` rasterises it to a 1024 × 1024 PNG.
+Superseded in detail by the [share-position snapshot design](./2026-09-24-share-position-snapshot-design.md).
+A shared position is a 1664 × 1024 card: the board (`renderBoardSvg`, green squares, last-move and
+check highlights, cburnett glyphs under CC BY-SA 3.0) on the left, and a panel with a
+`Snapshot · Move n` label, the players and ratings, the last eight move rows, the status at the
+moment of sharing, the group and its terms. Satori lays the card out with bundled Noto fonts (SIL
+OFL 1.1, fetched at build time by `scripts/fetch-fonts.mjs` with pinned checksums) and converts the
+text to paths; `@resvg/resvg-js` rasterises it.
 
-Cache: `board_images(key, telegram_file_id)` with `key = sha256(piece placement | side to move | lastMove | check | orientation | theme)`. On a hit the share job calls `sendPhoto` with the `file_id` and no upload; on a miss it uploads and stores the returned `file_id`. The image has White at the bottom when a spectator shares and the sharer's own colour at the bottom when a player shares.
+Cache: `board_images(key, telegram_file_id)` with `key = sha256(card SVG)`. On a hit the share job
+calls `sendPhoto` with the `file_id` and no upload; on a miss it uploads and stores the returned
+`file_id`. The image has White at the bottom when a spectator shares and the sharer's own colour at
+the bottom when a player shares.
 
 ### 7.8 Limits
 
