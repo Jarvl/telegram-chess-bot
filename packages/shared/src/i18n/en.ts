@@ -57,6 +57,10 @@ export const en = {
   'card.voided.status': 'was {endReason} · {result}',
   'card.share.caption':
     '{sharer} shared move {moveNumber} · {white} vs {black} · {sideToMove} to move',
+  'image.share.snapshot': 'Snapshot · Move {moveNumber}',
+  'image.share.to_move': '{side} to move',
+  'image.share.time_left': '{time} left',
+  'image.share.won': '{player} won',
   'card.welcome':
     'Play chess with this group on a real board inside Telegram. The chat only sees results and shared positions.',
   'button.accept': 'Accept',
