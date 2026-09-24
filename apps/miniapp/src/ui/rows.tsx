@@ -75,9 +75,9 @@ export function PlayerRow(props: {
       <span class={props.rank === 1 ? 'rank first' : 'rank'}>{props.rank}</span>
       <Avatar player={entry} size={40} />
       <span class="grow">
-        <span class="primary">
-          {entry.name}
-          {props.you ? ` ${t('app.leaderboard.you')}` : ''}{' '}
+        <span class="name-row">
+          <span class="name">{entry.name}</span>
+          {props.you ? <span class="you">{t('app.leaderboard.you')}</span> : null}
           <span class="rating">{ratingLabel(entry.rating, entry.provisional)}</span>
         </span>
         <span class="secondary">{t('app.player.record', entry.record)}</span>

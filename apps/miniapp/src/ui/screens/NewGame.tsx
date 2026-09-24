@@ -41,6 +41,8 @@ function OpponentRow(props: {
   on: boolean;
   avatar: preact.ComponentChildren;
   title: preact.ComponentChildren;
+  /** A rating or level badge, kept fully visible while `title` alone ellipsises. */
+  trailing?: preact.ComponentChildren;
   sub?: string;
   onPick: () => void;
   data: DataAttributes;
@@ -59,7 +61,10 @@ function OpponentRow(props: {
     >
       {props.avatar}
       <span class="grow">
-        <span class="primary">{props.title}</span>
+        <span class="name-row">
+          <span class="name">{props.title}</span>
+          {props.trailing ? <span class="rating">{props.trailing}</span> : null}
+        </span>
         {props.sub ? <span class="secondary">{props.sub}</span> : null}
       </span>
       <span class={props.on ? 'radio on' : 'radio'} aria-hidden="true">
@@ -156,12 +161,8 @@ export function NewGame(props: { groupId: string; defaults?: LobbyDto['settings'
             key={player.id}
             on={selection.kind === 'human' && selection.id === player.id}
             avatar={<Avatar player={player} size={38} />}
-            title={
-              <>
-                {player.name}{' '}
-                <span class="rating">{ratingLabel(player.rating, player.provisional)}</span>
-              </>
-            }
+            title={player.name}
+            trailing={ratingLabel(player.rating, player.provisional)}
             onPick={() => setSelection({ kind: 'human', id: player.id })}
             data={{ 'data-opponent': player.id }}
           />
