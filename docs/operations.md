@@ -55,7 +55,7 @@ Logs are JSON (pino) with numeric and public ids only; bound query parameters ar
 - **A tip must be refunded**: ask the payer for the transaction id on their Telegram receipt (it is the tip's `telegram_payment_charge_id`), open a terminal in the app container and run, from `/app/apps/server`:
 
   ```bash
-  node --import tsx src/cli/refundTip.ts <transaction id>
+  pnpm run refund-tip <transaction id>
   ```
 
   It finds the tip, refuses an unknown or already-refunded one, shows the transaction (amount, when it was paid, the payer) and asks `[y/N]`; only `y` or `yes` goes ahead. It then refunds the payer using the container's own `BOT_TOKEN`, so the token is never typed or pasted. Telegram then sends `refunded_payment` and the bot sets `refunded_at`. Tip rows survive "Delete my data" for exactly this reason. If the app container is down, the same refund is `refundStarPayment` with `user_id=<telegram_user_id>` and `telegram_payment_charge_id=<transaction id>`, sent with `curl -d`; keep the token out of shell history (a leading space, or `read -s BOT_TOKEN` first).

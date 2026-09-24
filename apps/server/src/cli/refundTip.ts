@@ -8,7 +8,7 @@ import { createTelegramApi } from '../telegram/client';
 /**
  * Refunds a Stars tip (tip jar spec §2.4). Run it inside the app container, from apps/server:
  *
- *   node --import tsx src/cli/refundTip.ts <transaction id>
+ *   pnpm run refund-tip <transaction id>
  *
  * The transaction id is the one on the payer's Telegram receipt. It shows the tip and asks for a
  * y/N confirmation before anything reaches Telegram. The bot token and the database come from the
@@ -46,7 +46,7 @@ async function confirmRefund({ tip, payer }: RefundableTip): Promise<boolean> {
 
 const transactionId = process.argv[2]?.trim();
 if (!transactionId) {
-  console.error('usage: node --import tsx src/cli/refundTip.ts <transaction id>');
+  console.error('usage: pnpm run refund-tip <transaction id>');
   process.exit(2);
 }
 

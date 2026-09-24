@@ -97,7 +97,7 @@ Operator-run, by the tip's transaction id (its `telegram_payment_charge_id`, whi
 their Telegram receipt). Inside the app container, from `apps/server`:
 
 ```bash
-node --import tsx src/cli/refundTip.ts <transaction id>
+pnpm run refund-tip <transaction id>
 ```
 
 `refundTip` (`domain/tipRefunds.ts`) looks the tip up by that id, refuses an unknown or
