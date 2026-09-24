@@ -191,4 +191,27 @@ describe('Settings', () => {
     await r.click('[data-dialog="confirm"]');
     expect(r.calls[0]).toMatchObject({ method: 'DELETE', path: '/api/me' });
   });
+
+  it('shows the Support card between the preferences and the links', () => {
+    const r = renderApp(
+      () => <Settings />,
+      () => ({ status: 200, body: { ok: true } }),
+    );
+    const cards = [...r.root.querySelectorAll('.card')];
+    const support = cards.findIndex((card) => card.matches('[data-card="support"]'));
+    expect(support).toBe(1);
+    expect(cards[2]?.querySelector('img.banner-img')).not.toBeNull();
+  });
+
+  it('says tip records are kept when asking to delete', async () => {
+    const r = renderApp(
+      () => <Settings />,
+      () => ({ status: 200, body: { ok: true } }),
+    );
+    // Lets the Dialogs' mount effect register its native-popup host before the click,
+    // same as the "links to the author..." test above (a happy-dom/preact effect-timing quirk).
+    await r.flush();
+    await r.click('[data-action="delete"]');
+    expect(window.__tg!.popups.at(-1)?.message).toContain('kept as payment records');
+  });
 });

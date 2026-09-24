@@ -12,6 +12,7 @@ import { prefs } from '../../state/session';
 import { useApp } from '../context';
 import { Switch } from '../controls';
 import { choiceDialog, confirmDialog, infoDialog } from '../dialog';
+import { SupportCard } from '../SupportCard';
 import { toast } from '../toast';
 
 const PrefsResponseSchema = z.object({ prefs: PrefsSchema, dmAllowed: z.boolean() });
@@ -104,6 +105,7 @@ export function Settings() {
           </div>
         ))}
       </div>
+      <SupportCard />
       <div class="card">
         <img class="banner-img" src={BRAND.bannerUrl} alt="" loading="lazy" />
         <button
