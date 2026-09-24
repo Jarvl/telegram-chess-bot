@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { clickMain, dragMove, openApp, seed, telegramCalls } from './support';
+import { clickMain, dragMove, openApp, seed, telegramCalls, tgState } from './support';
 
 /**
  * Spec §11's end-to-end row: one engine game created from the picker and played through the whole
@@ -28,6 +28,8 @@ test('creates a game against the bot and sees its reply arrive', async ({ page }
   await expect(page.locator('.player-bar[data-colour="black"]')).toContainText('Stockfish');
   await dragMove(page, 'e2', 'e4');
   await expect(page.locator('.move-list [data-ply="1"]')).not.toBeEmpty();
+  // Move confirmations default, Only against people: a bot game sends on drop, with no Cancel.
+  expect((await tgState(page)).secondaryButton?.visible ?? false).toBe(false);
   // The bot's answer appears on its own, over the live stream, with no reload: the job the human's
   // move enqueued reached the worker and the handler played through `playMove` like any player.
   await expect(page.locator('.move-list [data-ply="2"]')).not.toBeEmpty({ timeout: 20_000 });

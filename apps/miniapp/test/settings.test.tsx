@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { t } from '@group-chess/shared';
 import { prefs } from '../src/state/session';
 import { Settings } from '../src/ui/screens/Settings';
 import { renderApp } from './support/render';
@@ -25,13 +26,94 @@ describe('Settings', () => {
     );
   });
 
-  it('has no move confirmation toggle', () => {
+  it('shows Move confirmations first in the card, with the current choice', () => {
     const r = renderApp(
       () => <Settings />,
       () => ({ status: 200, body: { ok: true } }),
     );
-    expect(r.root.querySelector('[data-pref]')).not.toBeNull();
+    const row = r.root.querySelector('.card [data-pref="moveConfirmations"]');
+    expect(row?.textContent).toContain('Move confirmations');
+    expect(row?.textContent).toContain('Only against people');
+    expect(r.root.querySelector('.card')?.firstElementChild).toBe(row);
     expect(r.root.querySelector('[data-pref="confirmMoves"]')).toBeNull();
+  });
+
+  it("saves a choice picked in Telegram's popup", async () => {
+    const r = renderApp(
+      () => <Settings />,
+      ({ body }) => ({
+        status: 200,
+        body: { prefs: { ...prefs.value, ...(body as { prefs: object }).prefs }, dmAllowed: false },
+      }),
+    );
+    // Lets <Dialogs /> register the native popup host in its effect before choiceDialog runs.
+    await r.flush();
+    await r.click('[data-pref="moveConfirmations"]');
+    expect(window.__tg!.popups.at(-1)).toMatchObject({
+      title: 'Move confirmations',
+      message:
+        'Ask before a move is sent. With "Only against people", moves against the bot send on drop.',
+      buttons: [
+        { id: 'always', text: 'Always' },
+        { id: 'people', text: '✓ Only against people' },
+        { id: 'never', text: 'Never' },
+      ],
+    });
+    window.__tg!.answerPopup('never');
+    await r.flush();
+    expect(r.calls[0]).toMatchObject({
+      method: 'PUT',
+      path: '/api/me/prefs',
+      body: { prefs: { moveConfirmations: 'never' } },
+    });
+    expect(window.__tg!.haptics).toContain('selection');
+    expect(prefs.value.moveConfirmations).toBe('never');
+    expect(r.root.querySelector('[data-pref="moveConfirmations"]')?.textContent).toContain('Never');
+  });
+
+  it('changes nothing when the popup is dismissed or the current choice is picked', async () => {
+    const r = renderApp(
+      () => <Settings />,
+      () => ({ status: 200, body: { ok: true } }),
+    );
+    await r.flush();
+    await r.click('[data-pref="moveConfirmations"]');
+    window.__tg!.answerPopup('');
+    await r.flush();
+    await r.click('[data-pref="moveConfirmations"]');
+    window.__tg!.answerPopup('people');
+    await r.flush();
+    expect(r.calls).toHaveLength(0);
+    expect(window.__tg!.haptics).not.toContain('selection');
+    expect(prefs.value.moveConfirmations).toBe('people');
+  });
+
+  it('reverts the choice and says so when the save fails', async () => {
+    const r = renderApp(
+      () => <Settings />,
+      () => ({ status: 500, body: { error: { code: 'internal', message: 'boom' } } }),
+    );
+    await r.flush();
+    await r.click('[data-pref="moveConfirmations"]');
+    window.__tg!.answerPopup('always');
+    await r.flush();
+    expect(prefs.value.moveConfirmations).toBe('people');
+    expect(document.querySelector('.toast')?.textContent).toBe(t('app.common.error'));
+  });
+
+  it('offers the choices in the page on clients without popups', async () => {
+    const r = renderApp(
+      () => <Settings />,
+      ({ body }) => ({
+        status: 200,
+        body: { prefs: { ...prefs.value, ...(body as { prefs: object }).prefs }, dmAllowed: false },
+      }),
+      { version: '6.1' },
+    );
+    await r.flush();
+    await r.click('[data-pref="moveConfirmations"]');
+    await r.click('[data-choice="always"]');
+    expect(r.calls[0]).toMatchObject({ body: { prefs: { moveConfirmations: 'always' } } });
   });
 
   it('deletes my data after confirmation and closes the app', async () => {

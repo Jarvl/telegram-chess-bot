@@ -1,12 +1,18 @@
+import type { EngineLevel, MoveConfirmations } from '@group-chess/shared';
+
 export type PendingMove = { uci: string; expectedPly: number; clientMoveId: string };
 
 export type MoveState =
   | { kind: 'idle' }
+  /** Dropped and shown on the board, waiting for Confirm move or Cancel (move confirmations spec). */
+  | { kind: 'pendingConfirm'; move: PendingMove }
   | { kind: 'sending'; move: PendingMove; attempt: number }
   | { kind: 'retry'; move: PendingMove; attempt: number; nextAt: number };
 
 export type MoveEvent =
   | { type: 'drop'; uci: string; expectedPly: number; clientMoveId?: string }
+  | { type: 'confirm' }
+  | { type: 'cancel' }
   | { type: 'sent' }
   /** 409 or 422: reload the state and snap back without a message (spec §6.3). */
   | { type: 'rejected' }
@@ -37,10 +43,26 @@ export function newClientMoveId(random: () => number = Math.random): string {
   return id;
 }
 
+/** Whether a dropped move waits for Confirm move: the player's setting against this kind of game. */
+export function needsConfirmation(
+  setting: MoveConfirmations,
+  game: { engineLevel: EngineLevel | null },
+): boolean {
+  switch (setting) {
+    case 'always':
+      return true;
+    case 'people':
+      return game.engineLevel === null;
+    case 'never':
+      return false;
+  }
+}
+
 /** The move state machine of spec §6.3 as a pure reducer; the screen runs the effects. */
 export function reduceMove(
   state: MoveState,
   event: MoveEvent,
+  options: { confirm: boolean } = { confirm: false },
 ): { state: MoveState; effects: MoveEffect[] } {
   const same = { state, effects: [] as MoveEffect[] };
   switch (state.kind) {
@@ -51,7 +73,19 @@ export function reduceMove(
         expectedPly: event.expectedPly,
         clientMoveId: event.clientMoveId ?? newClientMoveId(),
       };
+      if (options.confirm) return { state: { kind: 'pendingConfirm', move }, effects: [] };
       return { state: { kind: 'sending', move, attempt: 1 }, effects: [{ type: 'send', move }] };
+    }
+    case 'pendingConfirm': {
+      if (event.type === 'confirm') {
+        return {
+          state: { kind: 'sending', move: state.move, attempt: 1 },
+          effects: [{ type: 'send', move: state.move }],
+        };
+      }
+      if (event.type === 'cancel')
+        return { state: { kind: 'idle' }, effects: [{ type: 'restore' }] };
+      return same;
     }
     case 'sending': {
       if (event.type === 'sent') return { state: { kind: 'idle' }, effects: [] };

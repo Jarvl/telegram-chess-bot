@@ -310,7 +310,7 @@ The known-players list for the opponent picker is `group_members` with `status =
 | Game end (same route, `status = finished`) | same | Rematch, Analyse on Lichess (`openLink`), Share final position, Done (`close()`) |
 | Replay (finished game) | `GET /api/games/:id` | Slider and arrows, move list, Share position, Analyse on Lichess, Download PGN (`downloadFile` on 8.0+, else `openLink`) |
 | Player page | `GET /api/groups/:g/players/:u` | Record, head-to-head, recent games |
-| Settings (user), a tab of its own | prefs from launch | Return to chat after moving, notifications, board theme and piece set (P1) |
+| Settings (user), a tab of its own | prefs from launch | Move confirmations, return to chat after moving, notifications, board theme and piece set (P1) |
 | Group settings `s_<groupId>` | `GET /api/groups/:g/settings` | Defaults, limits, topic mode, Void game, Block or unblock user |
 
 ### 6.3 Board adapter and the move flow
@@ -325,6 +325,11 @@ Move state machine for the player to move:
 idle ──pick up──▶ dragging ──drop on legal square──▶ [promotion? chooser over target square]
    ▲                  │ drop elsewhere: snap back, no message
    │                  ▼
+   │               [needs confirmation?] pendingConfirm: the board holds the move, the tab bar hides,
+   │                  │ MainButton "Confirm move", SecondaryButton "Cancel" (in-page below 7.10).
+   │                  │ Cancel, leaving the screen, Telegram's deactivated (8.0) or a new ply or status
+   │                  │ → snap back, send nothing
+   │                  ▼ Confirm move (or no confirmation needed)
    │               sending: POST /api/games/:id/moves { uci, expectedPly, clientMoveId }
    │                  │ 200 → sent: haptic; close_after_move ? show "Sent" 300 ms then close() : stay
    │                  │ 409 stale_state / not_your_turn / expired → reload state, snap back, no message
@@ -333,6 +338,8 @@ idle ──pick up──▶ dragging ──drop on legal square──▶ [promot
                         MainButton shows "Retry". This is the one visible non-error state; the PRD's "no error messages"
                         covers illegal and out-of-turn input, not a dead network
 ```
+
+Whether a move needs confirmation is the `moveConfirmations` preference against the game: `always`, `people` (the default: games with no `engineLevel`) or `never`, read at the drop. See the [move confirmations spec](./2026-09-24-move-confirmations-design.md).
 
 Viewing earlier positions: tapping a move or moving the slider sets `viewingPly`; the board shows that position view-only with a "Latest" affordance. Picking up a piece is impossible there because `movable.color` is `'none'`; the player returns to the latest position first, as the PRD requires.
 
@@ -518,7 +525,7 @@ Primary keys are `bigint` identities; `public_id` columns are the 10-character i
 
 | Table | Columns | Notes |
 |---|---|---|
-| `users` | `id`, `telegram_user_id` unique nullable, `first_name`, `username`, `language_code`, `dm_allowed`, `write_access_asked_at`, `prefs jsonb` (`close_after_move` default true, `notifications` default true, `board_theme`, `piece_set`), `created_at`, `last_seen_at`, `deleted_at` | Anonymisation nulls `telegram_user_id` and `username`, sets `first_name = 'Deleted player'`, clears `prefs` |
+| `users` | `id`, `telegram_user_id` unique nullable, `first_name`, `username`, `language_code`, `dm_allowed`, `write_access_asked_at`, `prefs jsonb` (`close_after_move` default true, `notifications` default true, `move_confirmations` default `people`, `board_theme`, `piece_set`), `created_at`, `last_seen_at`, `deleted_at` | Anonymisation nulls `telegram_user_id` and `username`, sets `first_name = 'Deleted player'`, clears `prefs` |
 | `groups` | `id`, `public_id`, `telegram_chat_id` unique, `title`, `type`, `is_forum`, `bot_status`, `bot_is_admin`, `bot_can_pin`, `welcome_message_id`, `settings jsonb` (`default_time_per_move` 86400, `rated_default` true, `allow_open_challenges` true, `max_active_games_per_user` 5, `leaderboard_min_games` 5, `card_topic_mode` `origin`, `fixed_topic_id`), `created_at`, `updated_at` | `telegram_chat_id` changes on migration |
 | `group_members` | `group_id`, `user_id`, `status` (`member`, `left`, `blocked`), `first_seen_at`, `last_seen_at`, `verified_at`, `blocked_by`, primary key (`group_id`, `user_id`) | Feeds the opponent picker and the membership ladder |
 | `challenges` | `id`, `public_id`, `group_id`, `challenger_id`, `opponent_id` nullable, `time_per_move` nullable, `challenger_colour` (`white`, `black`, `random`), `rated`, `status`, `message_id`, `thread_id`, `game_id`, `created_at`, `expires_at`, `resolved_at` | Index on (`status`, `expires_at`) |

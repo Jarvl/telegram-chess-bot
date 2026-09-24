@@ -359,6 +359,19 @@ button {
   border-top: 1px solid var(--sep);
 }
 
+.field.pick {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.field.pick .value {
+  color: var(--hint);
+}
+
 .field select,
 .field input[type='number'] {
   font: inherit;
@@ -513,6 +526,37 @@ button {
   display: block;
   font-size: 17px;
   margin-bottom: 4px;
+}
+
+.dialog .choices {
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--page);
+}
+
+.dialog .choice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 13px 14px;
+  border: 0;
+  border-top: 1px solid var(--sep);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.dialog .choice:first-child {
+  border-top: 0;
+}
+
+.dialog .choice .check {
+  color: var(--acc);
+  font-weight: 700;
 }
 
 .centered {

@@ -10,6 +10,7 @@ const response = {
   prefs: {
     closeAfterMove: false,
     notifications: true,
+    moveConfirmations: 'people',
     boardTheme: null,
     pieceSet: null,
   },

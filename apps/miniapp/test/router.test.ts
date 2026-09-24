@@ -111,4 +111,14 @@ describe('Router', () => {
     router.back();
     expect(router.showTabs.value).toBe(true);
   });
+
+  it('hides the tab bar while a screen suppresses it', () => {
+    const { router } = setup();
+    router.land('games', { name: 'game', gameId: 'AbCdEfGhIj' });
+    expect(router.showTabs.value).toBe(true);
+    router.suppressTabs.value = true;
+    expect(router.showTabs.value).toBe(false);
+    router.suppressTabs.value = false;
+    expect(router.showTabs.value).toBe(true);
+  });
 });

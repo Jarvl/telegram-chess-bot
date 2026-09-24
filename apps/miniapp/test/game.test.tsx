@@ -1,5 +1,8 @@
+import type { MoveConfirmations } from '@group-chess/shared';
+import { render } from 'preact';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { prefs, session } from '../src/state/session';
+import { createTg } from '../src/tg/webapp';
 import { Game } from '../src/ui/screens/Game';
 import { FakeEventSource } from './support/fakeEventSource';
 import type { FakeResponse, FakeRoute } from './support/fakeFetch';
@@ -31,7 +34,11 @@ const okRoute =
     return { status: 200, body: { ok: true } };
   };
 
-const wantPrefs = { closeAfterMove: false };
+const wantPrefs: { closeAfterMove: boolean; moveConfirmations: MoveConfirmations } = {
+  closeAfterMove: false,
+  // The flows below predate move confirmations; the describe block for them sets its own.
+  moveConfirmations: 'never',
+};
 
 function mount(
   initial: ReturnType<typeof gameDto>,
@@ -56,6 +63,7 @@ beforeEach(() => {
   FakeEventSource.reset();
   vi.stubGlobal('EventSource', FakeEventSource);
   wantPrefs.closeAfterMove = false;
+  wantPrefs.moveConfirmations = 'never';
 });
 afterEach(async () => {
   // Preact flushes effects on animation frames; run the faked ones before real timers return,
@@ -322,5 +330,368 @@ describe('Game', () => {
     const bar = r.root.querySelector('.player-bar[data-colour="black"]')!;
     expect(bar.querySelector('img.avatar.bot')).not.toBeNull();
     expect(bar.querySelector('.rating')?.textContent).toBe('Club');
+  });
+});
+
+describe('Game with move confirmations', () => {
+  beforeEach(() => {
+    wantPrefs.moveConfirmations = 'people';
+  });
+  const posts = (r: ReturnType<typeof mount>) =>
+    r.calls.filter((c) => c.method === 'POST' && c.path === `/api/games/${GAME}/moves`);
+
+  it('holds a move against a person for Confirm move, then sends it once', async () => {
+    const r = mount(gameDto());
+    await r.flush();
+    adapter.drop('e2', 'e4');
+    await r.flush();
+    expect(posts(r)).toHaveLength(0);
+    expect(window.__tg!.mainButton).toMatchObject({ text: 'Confirm move', visible: true });
+    expect(window.__tg!.secondaryButton).toMatchObject({ text: 'Cancel', visible: true });
+    expect(r.root.querySelector('[data-action="resign"]')?.hasAttribute('disabled')).toBe(true);
+    // Two taps before the screen re-renders still send one move.
+    window.__tg!.clickMain();
+    window.__tg!.clickMain();
+    await r.flush();
+    expect(posts(r)).toHaveLength(1);
+    expect(posts(r)[0]?.body).toMatchObject({ uci: 'e2e4', expectedPly: 0 });
+    expect(window.__tg!.mainButton.visible).toBe(false);
+    expect(window.__tg!.secondaryButton!.visible).toBe(false);
+  });
+
+  it('keeps the bar up with a spinner while a confirmed move sends', async () => {
+    let answer: (response: FakeResponse) => void = () => undefined;
+    const r = mount(
+      gameDto(),
+      okRoute(gameDto(), () => new Promise<FakeResponse>((resolve) => (answer = resolve))),
+    );
+    await r.flush();
+    adapter.drop('e2', 'e4');
+    await r.flush();
+    window.__tg!.clickMain();
+    await r.flush();
+    expect(window.__tg!.mainButton).toMatchObject({
+      text: 'Sending…',
+      visible: true,
+      progress: true,
+    });
+    expect(window.__tg!.secondaryButton!.visible).toBe(false);
+    answer({ status: 200, body: afterPlies(1) });
+    await r.flush();
+    expect(window.__tg!.mainButton.visible).toBe(false);
+  });
+
+  it('puts the piece back on Cancel and sends nothing', async () => {
+    const r = mount(gameDto());
+    await r.flush();
+    adapter.drop('e2', 'e4');
+    await r.flush();
+    const restored = adapter.restored;
+    window.__tg!.clickSecondary();
+    await r.flush();
+    expect(adapter.restored).toBe(restored + 1);
+    expect(adapter.positions.at(-1)?.fen).toBe(gameDto().fen);
+    expect(posts(r)).toHaveLength(0);
+    expect(window.__tg!.mainButton.visible).toBe(false);
+    expect(window.__tg!.secondaryButton!.visible).toBe(false);
+  });
+
+  it('holds the waiting move on the board through a snapshot, and locks the move strip', async () => {
+    const r = mount(afterPlies(2));
+    await r.flush();
+    adapter.drop('b1', 'c3');
+    await r.flush();
+    const before = adapter.positions.length;
+    // A draw offer bumps the version but is no new ply.
+    FakeEventSource.instances[0]!.send(
+      'state',
+      afterPlies(2, { version: 3, drawOffer: { by: 'black', atPly: 2 } }),
+      '3',
+    );
+    await r.flush();
+    expect(adapter.positions).toHaveLength(before);
+    expect(r.text()).toContain('Bob offers a draw');
+    expect(window.__tg!.mainButton).toMatchObject({ text: 'Confirm move', visible: true });
+    expect(r.root.querySelector<HTMLButtonElement>('.move-list [data-ply="1"]')?.disabled).toBe(
+      true,
+    );
+  });
+
+  it('holds a promotion for Confirm move once the piece is picked', async () => {
+    const initial = gameDto({ fen: '8/4P3/8/8/8/8/k7/4K3 w - - 0 1', plyCount: 6, version: 6 });
+    const r = mount(initial);
+    await r.flush();
+    adapter.drop('e7', 'e8');
+    await r.flush();
+    await r.click('[data-promote="q"]');
+    expect(posts(r)).toHaveLength(0);
+    expect(window.__tg!.mainButton).toMatchObject({ text: 'Confirm move', visible: true });
+    window.__tg!.clickMain();
+    await r.flush();
+    expect(posts(r)[0]?.body).toMatchObject({ uci: 'e7e8q', expectedPly: 6 });
+  });
+
+  it('shows the promoted piece, not chessground’s own pawn, while the promotion waits for Confirm', async () => {
+    const initial = gameDto({ fen: '8/4P3/8/8/8/8/k7/4K3 w - - 0 1', plyCount: 6, version: 6 });
+    const r = mount(initial);
+    await r.flush();
+    adapter.drop('e7', 'e8');
+    await r.flush();
+    await r.click('[data-promote="q"]');
+    expect(posts(r)).toHaveLength(0);
+    const shown = adapter.positions.at(-1);
+    expect(shown?.fen).toMatch(/^4Q3\//);
+    expect(shown).toMatchObject({ lastMove: ['e7', 'e8'], turnColour: 'black' });
+    window.__tg!.clickSecondary();
+    await r.flush();
+    expect(adapter.positions.at(-1)?.fen).toBe(initial.fen);
+  });
+
+  it('shows check on the board while a checking move waits for Confirm', async () => {
+    const r = mount(gameDto({ fen: '4k3/8/8/8/8/8/8/R3K3 w - - 0 1', plyCount: 6, version: 6 }));
+    await r.flush();
+    adapter.drop('a1', 'a8');
+    await r.flush();
+    expect(posts(r)).toHaveLength(0);
+    expect(adapter.positions.at(-1)).toMatchObject({ check: true, lastMove: ['a1', 'a8'] });
+  });
+
+  it('sends on drop against the bot under the default', async () => {
+    const r = mount(gameDto({ engineLevel: 'casual' }));
+    await r.flush();
+    adapter.drop('e2', 'e4');
+    await r.flush();
+    expect(posts(r)).toHaveLength(1);
+    expect(window.__tg!.calls).not.toContain('MainButton.show');
+  });
+
+  it('holds a move against the bot when the setting is Always', async () => {
+    wantPrefs.moveConfirmations = 'always';
+    const r = mount(gameDto({ engineLevel: 'casual' }));
+    await r.flush();
+    adapter.drop('e2', 'e4');
+    await r.flush();
+    expect(posts(r)).toHaveLength(0);
+    expect(window.__tg!.mainButton).toMatchObject({ text: 'Confirm move', visible: true });
+  });
+
+  it('reads the setting at each drop, so a change mid-game applies to the next move', async () => {
+    // The preference changes to 'never' after mount, before this drop.
+    const r = mount(gameDto());
+    await r.flush();
+    prefs.value = { ...prefs.value, moveConfirmations: 'never' };
+    adapter.drop('e2', 'e4');
+    await r.flush();
+    expect(posts(r)).toHaveLength(1);
+  });
+
+  it('puts Cancel in the action row below 7.10', async () => {
+    const r = mount(gameDto(), okRoute(gameDto()), '7.0');
+    await r.flush();
+    adapter.drop('e2', 'e4');
+    await r.flush();
+    expect(window.__tg!.mainButton).toMatchObject({ text: 'Confirm move', visible: true });
+    expect(r.root.querySelector('[data-action="confirm-move"]')).toBeNull();
+    await r.click('.toolbar [data-action="cancel-move"]');
+    expect(posts(r)).toHaveLength(0);
+    expect(r.root.querySelector('[data-action="cancel-move"]')).toBeNull();
+  });
+
+  it('puts both Confirm move and Cancel first in the action row without Telegram buttons', async () => {
+    const initial = gameDto();
+    const r = renderApp(
+      (app) => {
+        app.prefetched.game = initial;
+        return <Game gameId={GAME} />;
+      },
+      okRoute(initial),
+      { tg: createTg(null) },
+    );
+    prefs.value = { ...prefs.value, ...wantPrefs };
+    await r.flush();
+    adapter.drop('e2', 'e4');
+    await r.flush();
+    const toolbar = r.root.querySelector('.toolbar')!;
+    expect(toolbar.children[0]?.getAttribute('data-action')).toBe('confirm-move');
+    expect(toolbar.children[1]?.getAttribute('data-action')).toBe('cancel-move');
+    await r.click('[data-action="confirm-move"]');
+    expect(
+      r.calls.filter((c) => c.method === 'POST' && c.path === `/api/games/${GAME}/moves`),
+    ).toHaveLength(1);
+  });
+
+  it('hides the tab bar while a move waits and brings it back once the move is sent', async () => {
+    const r = mount(gameDto());
+    await r.flush();
+    expect(r.app.router.suppressTabs.value).toBe(false);
+    adapter.drop('e2', 'e4');
+    await r.flush();
+    expect(r.app.router.suppressTabs.value).toBe(true);
+    window.__tg!.clickMain();
+    await r.flush();
+    expect(r.app.router.suppressTabs.value).toBe(false);
+  });
+
+  it('brings the tab bar back on Cancel', async () => {
+    const r = mount(gameDto());
+    await r.flush();
+    adapter.drop('e2', 'e4');
+    await r.flush();
+    window.__tg!.clickSecondary();
+    await r.flush();
+    expect(r.app.router.suppressTabs.value).toBe(false);
+  });
+
+  it('keeps the tab bar hidden through a network retry of a confirmed move', async () => {
+    vi.useFakeTimers();
+    let failures = 0;
+    const r = mount(
+      gameDto(),
+      okRoute(gameDto(), () => {
+        failures += 1;
+        if (failures === 1) throw new TypeError('Failed to fetch');
+        return { status: 200, body: afterPlies(1) };
+      }),
+    );
+    await vi.advanceTimersByTimeAsync(100); // effects run on the next (faked) frame
+    adapter.drop('e2', 'e4');
+    await vi.advanceTimersByTimeAsync(100);
+    window.__tg!.clickMain();
+    await vi.advanceTimersByTimeAsync(100);
+    expect(window.__tg!.mainButton).toMatchObject({ text: 'Retry', visible: true });
+    expect(r.app.router.suppressTabs.value).toBe(true);
+    await vi.advanceTimersByTimeAsync(1_000);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(r.app.router.suppressTabs.value).toBe(false);
+  });
+
+  it('drops a waiting move when the screen goes away, without asking and without sending', async () => {
+    const r = mount(gameDto());
+    await r.flush();
+    adapter.drop('e2', 'e4');
+    await r.flush();
+    expect(window.__tg!.closingConfirmation).toBe(false);
+    render(null, r.root);
+    await r.flush();
+    expect(window.__tg!.mainButton.visible).toBe(false);
+    expect(window.__tg!.secondaryButton!.visible).toBe(false);
+    expect(r.app.router.suppressTabs.value).toBe(false);
+    window.__tg!.clickMain(); // the handler is gone with the screen
+    await r.flush();
+    expect(r.calls.filter((c) => c.method === 'POST')).toHaveLength(0);
+    expect(window.__tg!.calls).not.toContain('enableClosingConfirmation');
+  });
+
+  it('drops a waiting move when Telegram minimises the app', async () => {
+    const r = mount(gameDto());
+    await r.flush();
+    adapter.drop('e2', 'e4');
+    await r.flush();
+    const restored = adapter.restored;
+    window.__tg!.emit('deactivated');
+    await r.flush();
+    expect(adapter.restored).toBe(restored + 1);
+    expect(window.__tg!.mainButton.visible).toBe(false);
+    expect(r.app.router.suppressTabs.value).toBe(false);
+    expect(r.calls.filter((c) => c.method === 'POST')).toHaveLength(0);
+  });
+
+  it('lets a confirmed move land when the app is minimised while it sends', async () => {
+    // Minimising after Confirm must not cancel a send already in flight.
+    let answer: (response: FakeResponse) => void = () => undefined;
+    const r = mount(
+      gameDto(),
+      okRoute(gameDto(), () => new Promise<FakeResponse>((resolve) => (answer = resolve))),
+    );
+    await r.flush();
+    adapter.drop('e2', 'e4');
+    await r.flush();
+    window.__tg!.clickMain();
+    await r.flush();
+    const restored = adapter.restored;
+    window.__tg!.emit('deactivated');
+    answer({ status: 200, body: afterPlies(1) });
+    await r.flush();
+    expect(adapter.restored).toBe(restored);
+    expect(r.root.querySelectorAll('.move-list [data-ply]')).toHaveLength(1);
+  });
+
+  it('keeps a waiting move through a draw offer, and drops it when the game ends under it', async () => {
+    // Only a new ply or status cancels.
+    const r = mount(gameDto());
+    await r.flush();
+    adapter.drop('e2', 'e4');
+    await r.flush();
+    const before = adapter.positions.length;
+    FakeEventSource.instances[0]!.send(
+      'state',
+      gameDto({ version: 1, drawOffer: { by: 'black', atPly: 0 } }),
+      '1',
+    );
+    await r.flush();
+    expect(window.__tg!.mainButton).toMatchObject({ text: 'Confirm move', visible: true });
+    FakeEventSource.instances[0]!.send(
+      'state',
+      gameDto({ version: 2, status: 'finished', result: '*', endReason: 'abort' }),
+      '2',
+    );
+    await r.flush();
+    expect(adapter.positions.length).toBeGreaterThan(before);
+    expect(window.__tg!.mainButton.visible).toBe(false);
+    expect(r.app.router.suppressTabs.value).toBe(false);
+    expect(r.calls.filter((c) => c.method === 'POST')).toHaveLength(0);
+  });
+
+  it('closes after a confirmed move when launched from a game card and the setting is on', async () => {
+    vi.useFakeTimers();
+    wantPrefs.closeAfterMove = true;
+    const r = mount(gameDto());
+    session.value = { ...session.value!, launchedFrom: { kind: 'game', gameId: GAME } };
+    await vi.advanceTimersByTimeAsync(100); // effects run on the next (faked) frame
+    adapter.drop('e2', 'e4');
+    await vi.advanceTimersByTimeAsync(100);
+    window.__tg!.clickMain();
+    await vi.advanceTimersByTimeAsync(100);
+    expect(window.__tg!.closed).toBe(false);
+    await vi.advanceTimersByTimeAsync(300);
+    expect(window.__tg!.closed).toBe(true);
+    void r;
+  });
+
+  it('restores the board and reloads the state when a confirmed move is answered 409', async () => {
+    const r = mount(
+      gameDto(),
+      okRoute(gameDto(), () => ({
+        status: 409,
+        body: { error: { code: 'stale_state', message: 'the position has changed' } },
+      })),
+    );
+    await r.flush();
+    adapter.drop('e2', 'e4');
+    await r.flush();
+    const restored = adapter.restored;
+    window.__tg!.clickMain();
+    await r.flush();
+    expect(window.__tg!.mainButton.visible).toBe(false);
+    expect(r.app.router.suppressTabs.value).toBe(false);
+    expect(adapter.restored).toBe(restored + 1);
+    expect(r.calls.map((c) => [c.method, c.path])).toEqual([
+      ['POST', `/api/games/${GAME}/moves`],
+      ['GET', `/api/games/${GAME}`],
+    ]);
+  });
+
+  it('cancels a waiting move when a new ply arrives from another device', async () => {
+    const r = mount(gameDto());
+    await r.flush();
+    adapter.drop('e2', 'e4');
+    await r.flush();
+    const before = adapter.positions.length;
+    // Same player moved from another device: plyCount changes, status stays active.
+    FakeEventSource.instances[0]!.send('state', afterPlies(1, { viewerRole: 'white' }), '1');
+    await r.flush();
+    expect(window.__tg!.mainButton.visible).toBe(false);
+    expect(posts(r)).toHaveLength(0);
+    expect(adapter.positions.length).toBeGreaterThan(before);
   });
 });

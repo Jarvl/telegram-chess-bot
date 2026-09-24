@@ -1,6 +1,8 @@
 import {
+  applyMove,
   GameDtoSchema,
   PgnLinkDtoSchema,
+  sideToMove,
   t,
   type Colour,
   type EngineGameRequest,
@@ -20,6 +22,7 @@ import {
 import { diffNotices, GameStore, positionAt, type Notice } from '../../state/game';
 import { noteTurnChange } from '../../state/yourMove';
 import {
+  needsConfirmation,
   reduceMove,
   type MoveEffect,
   type MoveEvent,
@@ -37,6 +40,8 @@ import { useClock } from './useClock';
 
 /** A send answered within this shows nothing; a slower one greys the board under a spinner. */
 const SLOW_SEND_MS = 1_000;
+/** Telegram shows Confirm move and Cancel itself; the page draws neither. */
+const NO_IN_PAGE = { confirm: false, cancel: false };
 
 const PIECE_CLASS: Record<PromotionPiece, string> = {
   q: 'queen',
@@ -51,6 +56,29 @@ const PIECE_LABEL = {
   n: 'app.game.piece.n',
 } as const;
 
+/**
+ * Pushes the position after a move that just went to `pendingConfirm`, so the frozen board shows
+ * what is being confirmed instead of chessground's own drop display: the picked promotion piece,
+ * an en passant capture with the pawn removed, a check highlight. Pushes nothing when `uci` turns
+ * out illegal (e.g. a malformed test fixture); the board stays as chessground left it.
+ */
+function pushPendingPosition(
+  adapter: BoardAdapter | null,
+  fen: string,
+  uci: string,
+  orientation: Colour,
+): void {
+  const result = applyMove(fen, [], uci);
+  if (!result.legal) return;
+  adapter?.setPosition({
+    fen: result.fenAfter,
+    lastMove: [uci.slice(0, 2), uci.slice(2, 4)],
+    check: result.check,
+    orientation,
+    turnColour: sideToMove(result.fenAfter),
+  });
+}
+
 export function GameView(props: { initial: GameDto; onReload: () => Promise<GameDto> }) {
   const { client, tg, router } = useApp();
   const store = useMemo(() => new GameStore(props.initial), [props.initial.id]);
@@ -59,6 +87,11 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
   const [moveState, setMoveState] = useState<MoveState>({ kind: 'idle' });
   const [promotion, setPromotion] = useState<{ orig: string; dest: string } | null>(null);
   const [slowSend, setSlowSend] = useState(false);
+  // True from a drop that waits for Confirm move until that move settles (sent, cancelled or
+  // rejected): the bar stays up through the send, and the tab bar stays hidden (move confirmations spec).
+  const [confirming, setConfirming] = useState(false);
+  // Which of Confirm move and Cancel this client has no Telegram button for, so the page draws them.
+  const [inPage, setInPage] = useState(NO_IN_PAGE);
   const now = useClock(store);
   const dto = store.dto.value;
   const gameId = dto.id;
@@ -72,6 +105,8 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
     },
     [tg],
   );
+  // applyState is defined before dispatch; it reaches the machine through this ref.
+  const dispatchRef = useRef<(event: MoveEvent) => void>(() => undefined);
   const applyState = useCallback(
     (next: GameDto) => {
       const previous = store.dto.value;
@@ -82,6 +117,13 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
       // Spec §6.3: a check buzzes, whichever side gave it.
       if (next.plyCount > previous.plyCount && positionAt(next, next.plyCount).check)
         tg.hapticNotify('warning');
+      // A move waiting for Confirm move is void once the game has moved on (the server would
+      // reject its expectedPly anyway): take it off the board and the buttons.
+      if (
+        moveRef.current.kind === 'pendingConfirm' &&
+        (next.plyCount !== previous.plyCount || next.status !== previous.status)
+      )
+        dispatchRef.current({ type: 'cancel' });
     },
     [store, notify, tg],
   );
@@ -115,12 +157,27 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
   // The effect runner closes over this render's props and callbacks; `dispatch` stays stable and
   // always calls the latest one.
   const runEffectRef = useRef<(effect: MoveEffect) => void>(() => undefined);
-  const dispatch = useCallback((event: MoveEvent) => {
-    const { state, effects } = reduceMove(moveRef.current, event);
-    moveRef.current = state;
-    setMoveState(state);
-    for (const effect of effects) runEffectRef.current(effect);
-  }, []);
+  const dispatch = useCallback(
+    (event: MoveEvent) => {
+      // Read at each drop, so a setting changed mid-game applies from the next move.
+      const confirm = needsConfirmation(prefs.value.moveConfirmations, store.dto.value);
+      const { state, effects } = reduceMove(moveRef.current, event, { confirm });
+      moveRef.current = state;
+      setMoveState(state);
+      if (state.kind === 'pendingConfirm') {
+        setConfirming(true);
+        pushPendingPosition(
+          adapterRef.current,
+          store.dto.value.fen,
+          state.move.uci,
+          store.orientation.value,
+        );
+      } else if (state.kind === 'idle') setConfirming(false);
+      for (const effect of effects) runEffectRef.current(effect);
+    },
+    [store],
+  );
+  dispatchRef.current = dispatch;
 
   const runEffect = (effect: MoveEffect): void => {
     switch (effect.type) {
@@ -187,29 +244,64 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
     return () => clearTimeout(timer);
   }, [moveState.kind, slowSend]);
 
-  // Telegram buttons per machine state (spec §6.3). Sending shows none: the main button resizes
-  // the viewport, and the board with it, so flashing it on every move makes the page jump.
+  // Telegram buttons per machine state (spec §6.3, move confirmations spec). A send that needed
+  // no confirmation shows none: the main button resizes the viewport, and the board with it, so
+  // flashing it on every move makes the page jump. After Confirm move the bar is already up, so
+  // it stays, with a spinner, until the move settles.
   useEffect(() => {
     switch (moveState.kind) {
+      case 'pendingConfirm': {
+        const main = tg.setMainButton({
+          text: t('app.game.confirm_move'),
+          onClick: () => dispatch({ type: 'confirm' }),
+        });
+        const secondary = tg.setSecondaryButton({
+          text: t('app.game.cancel'),
+          onClick: () => dispatch({ type: 'cancel' }),
+        });
+        setInPage({ confirm: !main, cancel: !secondary });
+        return;
+      }
       case 'sending':
-        tg.setMainButton(null);
+        tg.setSecondaryButton(null);
+        tg.setMainButton(
+          confirming
+            ? { text: t('app.game.sending'), onClick: () => undefined, progress: true }
+            : null,
+        );
+        setInPage(NO_IN_PAGE);
         return;
       case 'retry':
+        tg.setSecondaryButton(null);
         tg.setMainButton({
           text: t('app.game.retry'),
           onClick: () => dispatch({ type: 'retryNow' }),
         });
+        setInPage(NO_IN_PAGE);
         return;
       case 'idle':
         tg.setMainButton(null);
+        tg.setSecondaryButton(null);
+        setInPage(NO_IN_PAGE);
         return;
     }
-  }, [moveState.kind, tg, dispatch]);
+  }, [moveState.kind, confirming, tg, dispatch]);
+  // Telegram's bar takes about the space the tab bar frees, so the board keeps its size while a
+  // move waits; and no tab tap can leave the move unsent (move confirmations spec).
+  useEffect(() => {
+    router.suppressTabs.value = confirming;
+  }, [router, confirming]);
+  // Minimising (Telegram 8.0) is leaving too: a waiting move is dropped. Once sent, cancel is a no-op.
+  useEffect(() => tg.onDeactivated(() => dispatch({ type: 'cancel' })), [tg, dispatch]);
+  // Leaving the screen (a tab, Back, Telegram's Settings item, another game) discards a waiting
+  // move with the component; this puts Telegram's buttons and the tab bar back.
   useEffect(
     () => () => {
       tg.setMainButton(null);
+      tg.setSecondaryButton(null);
+      router.suppressTabs.value = false;
     },
-    [tg],
+    [tg, router],
   );
 
   const onDrop = (orig: string, dest: string, meta: { captured: boolean }): void => {
@@ -329,7 +421,12 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
   return (
     <div class="game">
       <PlayerBar dto={dto} colour={top} now={now} />
-      <Board store={store} onMove={onDrop} onReady={(adapter) => (adapterRef.current = adapter)}>
+      <Board
+        store={store}
+        onMove={onDrop}
+        onReady={(adapter) => (adapterRef.current = adapter)}
+        frozen={moveState.kind === 'pendingConfirm'}
+      >
         {slowSend || moveState.kind === 'retry' ? (
           <div class="board-veil" role="status" aria-label={t('app.game.sending')}>
             <span class="spinner" />
@@ -366,7 +463,7 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
         ) : null}
       </Board>
       <PlayerBar dto={dto} colour={orientation} now={now} />
-      <MoveList store={store} />
+      <MoveList store={store} locked={moveState.kind === 'pendingConfirm'} />
       {dto.status === 'finished' ? (
         <div class="replay-controls">
           <button
@@ -423,6 +520,24 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
         <div class="banner soft">{t('app.game.draw_offered')}</div>
       ) : null}
       <div class="toolbar">
+        {moveState.kind === 'pendingConfirm' && inPage.confirm ? (
+          <button
+            class="pill-btn primary"
+            data-action="confirm-move"
+            onClick={() => dispatch({ type: 'confirm' })}
+          >
+            {t('app.game.confirm_move')}
+          </button>
+        ) : null}
+        {moveState.kind === 'pendingConfirm' && inPage.cancel ? (
+          <button
+            class="pill-btn"
+            data-action="cancel-move"
+            onClick={() => dispatch({ type: 'cancel' })}
+          >
+            {t('app.game.cancel')}
+          </button>
+        ) : null}
         {dto.status === 'finished' && isPlayer && !dto.voided ? (
           <button class="pill-btn primary" data-action="rematch" onClick={() => void rematch()}>
             {t('app.game.rematch')}

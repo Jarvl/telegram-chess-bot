@@ -6,7 +6,9 @@ import {
   GroupSettingsSchema,
   LaunchRouteSchema,
   LeaderboardEntrySchema,
+  PREFS_DEFAULTS,
   PlayerRefSchema,
+  PrefsSchema,
 } from '../../src/protocol/dto';
 
 const activeGame = {
@@ -196,5 +198,23 @@ describe('PlayerRefSchema', () => {
     const withoutFlag: Record<string, unknown> = { ...summary.white };
     delete withoutFlag.isBot;
     expect(PlayerRefSchema.safeParse(withoutFlag).success).toBe(false);
+  });
+});
+
+describe('PrefsSchema', () => {
+  it('defaults move confirmations to games against people', () => {
+    expect(PREFS_DEFAULTS.moveConfirmations).toBe('people');
+    expect(PrefsSchema.parse(PREFS_DEFAULTS)).toEqual(PREFS_DEFAULTS);
+  });
+
+  it('accepts the three move confirmation settings and nothing else', () => {
+    for (const value of ['always', 'people', 'never']) {
+      expect(PrefsSchema.safeParse({ ...PREFS_DEFAULTS, moveConfirmations: value }).success).toBe(
+        true,
+      );
+    }
+    expect(
+      PrefsSchema.safeParse({ ...PREFS_DEFAULTS, moveConfirmations: 'sometimes' }).success,
+    ).toBe(false);
   });
 });

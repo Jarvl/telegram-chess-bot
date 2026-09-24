@@ -99,7 +99,7 @@ Acceptance: the challenged player is mentioned on the card (so they are notified
 
 1. Bob receives "your move" (DM, or the badge in the lobby) or sees the game card in the group.
 2. Bob taps **♟ Open game**. The Mini App opens over the chat, showing the board from his side with the last move highlighted.
-3. Bob drags a piece (or taps piece then square). Legal targets are shown while he holds the piece. An illegal drop snaps back silently. If "confirm moves" is on, a **Confirm** button appears; otherwise the move is sent on drop.
+3. Bob drags a piece (or taps piece then square). Legal targets are shown while he holds the piece. An illegal drop snaps back silently. If **Move confirmations** applies to this game (by default, any game against a person), **Confirm move** and **Cancel** appear in Telegram's bottom bar; otherwise the move is sent on drop.
 4. The app shows "Sent" and closes, returning Bob to the chat (setting: stay in the app instead).
 
 Acceptance: from tapping the card to being back in the chat, no more than three taps for a normal move.
@@ -150,7 +150,7 @@ Priorities: **P0** = launch, **P1** = fast follow. Almost everything is P0 becau
 
 - **Moving**: hold-and-drag and tap-tap, both always available. On pick-up, the piece's legal destinations are marked. Drop on a legal square plays the move; drop anywhere else snaps back silently. Promotion opens a four-piece chooser over the target square.
 - **Who can move**: only the player whose turn it is. For the other player and for spectators the pieces are simply not draggable. No toast, no message.
-- **Confirm moves**: user setting, default on (because moves are permanent and mobile drops are easy to fumble). With it on, the move is shown on the board with a **Confirm** / **Cancel** pair before it is sent.
+- **Move confirmations**: user setting, one of Always, Only against people (default) and Never. Moves are permanent and mobile drops are easy to fumble, which matters most against a person; a bot game is many quick moves where the extra tap costs more than a slip. When a move needs confirming it is shown on the board with **Confirm move** / **Cancel** before it is sent, and leaving the game cancels it.
 - **Orientation**: the viewer's own colour at the bottom; spectators see White at the bottom with a flip control.
 - **Board UI**: last move highlight, check highlight, coordinates, move list (SAN) with tap-to-view of earlier positions (view only; making a move from a past position first returns to the current one), both clocks with time remaining, player names and ratings, draw offer and resign controls.
 - **Live updates**: opponent moves, draw offers and game end appear without refresh, for players and spectators.
@@ -271,7 +271,7 @@ Carol shared move 23 · Alice vs Bob · Black to move
 - **Game end**: result banner, rating change, **Analyse on Lichess**, **Rematch**, **Share final position**, **Done** (closes the app).
 - **Replay**: board, slider and arrow controls, move list, Share position, Analyse on Lichess, PGN.
 - **New game**: opponent (list of group players, or Open challenge), time per move, colour, rated toggle, **Send challenge**.
-- **Settings**: confirm moves, return to chat after moving, notifications, board theme and piece set (P1). Group settings for admins.
+- **Settings**: move confirmations, return to chat after moving, notifications, board theme and piece set (P1). Group settings for admins.
 
 ### 8.3 Commands
 
@@ -356,7 +356,7 @@ Considered and not used: inline keyboards for moves (clunky, the reason for the 
 
 ## 14. Open questions
 
-1. **Confirm moves default.** Proposed on, since moves are permanent. Confirm or default it off.
+1. **Confirm moves default.** Resolved: **Move confirmations** is a user setting (Always, Only against people, Never), default Only against people (§7.4).
 2. **Close after moving.** Proposed default: the app closes and returns to the chat after a move. Confirm.
 3. **Group mention fallback.** For users who decline DMs, allow admins to turn on a group mention after N hours without a move? Proposed: off, revisit after alpha.
 4. **Board library and licence.** Confirmed: `chessground`, Lichess's own board library, is GPL-3.0-or-later; `react-chessboard` is a maintained MIT alternative. Decide in the tech doc.

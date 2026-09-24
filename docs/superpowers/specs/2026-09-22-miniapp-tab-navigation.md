@@ -90,8 +90,10 @@ the router.
 The bar renders on every screen except `loading`, `error`, `reopen` and `locked` — the four
 that exist before or instead of a session, where no tab means anything.
 
-It shows on the Game screen. Telegram draws MainButton and SecondaryButton natively, below
-the WebView, so the confirm/cancel flow does not compete with it. The board is
+It shows on the Game screen, except while a move waits for Confirm move. Then Telegram's
+MainButton and SecondaryButton carry Confirm move and Cancel below the WebView, and the tab bar
+hides so that Telegram's bar takes about the space it frees and the board keeps its size (see
+[move confirmations](./2026-09-24-move-confirmations-design.md)). The board is
 `min(100vw, stable-height − 200px)` (styles.css); the bar adds itself to that subtraction,
 so it costs board area only on screens tall enough that height, not width, was the binding
 constraint.

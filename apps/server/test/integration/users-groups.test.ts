@@ -1,5 +1,6 @@
+import { eq } from 'drizzle-orm';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { ratings } from '../../src/db/schema';
+import { ratings, users } from '../../src/db/schema';
 import {
   ensureGroup,
   getGroupByChatId,
@@ -42,6 +43,7 @@ describe('users', () => {
     expect(prefsOf(second)).toEqual({
       closeAfterMove: true,
       notifications: true,
+      moveConfirmations: 'people',
       boardTheme: null,
       pieceSet: null,
     });
@@ -54,10 +56,34 @@ describe('users', () => {
     expect(prefs).toMatchObject({ closeAfterMove: false, notifications: true, boardTheme: 'wood' });
   });
 
-  it('leaves retired preference keys out of the stored preferences', () => {
+  it('reads a pre-#16 confirmMoves: false as Never and leaves the retired key out', () => {
     const prefs = prefsOf({ prefs: { confirmMoves: false, notifications: false } as never });
     expect(prefs).not.toHaveProperty('confirmMoves');
+    expect(prefs.moveConfirmations).toBe('never');
     expect(prefs.notifications).toBe(false);
+  });
+
+  it('reads confirmMoves: true, or no stored choice, as the default', () => {
+    expect(prefsOf({ prefs: { confirmMoves: true } as never }).moveConfirmations).toBe('people');
+    expect(prefsOf({ prefs: {} }).moveConfirmations).toBe('people');
+  });
+
+  it('lets a stored move confirmations choice win over the retired key', async () => {
+    expect(
+      prefsOf({ prefs: { confirmMoves: false, moveConfirmations: 'always' } as never })
+        .moveConfirmations,
+    ).toBe('always');
+    // Turned confirmations off before #16, now picks Only against people.
+    const user = await ensureUser(db, { telegramUserId: 42, firstName: 'Alice' });
+    await db
+      .update(users)
+      .set({ prefs: { confirmMoves: false } as never })
+      .where(eq(users.id, user.id));
+    expect(
+      (await updatePrefs(db, user.id, { moveConfirmations: 'people' })).moveConfirmations,
+    ).toBe('people');
+    const [row] = await db.select().from(users).where(eq(users.id, user.id));
+    expect(prefsOf(row!).moveConfirmations).toBe('people');
   });
 
   it('validates preference updates and drops unknown keys', async () => {

@@ -19,6 +19,27 @@ const pending = signal<Pending | null>(null);
 /** The client of the mounted <Dialogs />: questions go to its native popup when it has one. */
 let host: Tg | null = null;
 
+export type Choice<V extends string> = { value: V; label: string };
+
+type ChoiceRequest = {
+  title: string;
+  message: string;
+  choices: Choice<string>[];
+  current: string;
+};
+
+const pendingChoice = signal<(ChoiceRequest & { resolve: (value: string | null) => void }) | null>(
+  null,
+);
+
+/** The in-page list: Telegram below 6.2, or a client that refused the popup. */
+function chooseInPage(request: ChoiceRequest): Promise<string | null> {
+  pendingChoice.value?.resolve(null);
+  return new Promise((resolve) => {
+    pendingChoice.value = { ...request, resolve };
+  });
+}
+
 /** The in-page bottom sheet: Telegram below 6.2, or a client that has no answer for us. */
 function askInPage(request: Request): Promise<boolean> {
   pending.value?.resolve(false);
@@ -73,6 +94,33 @@ export async function infoDialog(message: string, title?: string): Promise<void>
   });
 }
 
+/**
+ * One of up to three choices (Telegram's popup takes at most three buttons): the native popup
+ * from 6.2, with the current choice's text prefixed "✓ " because a popup button has no selected
+ * state; the in-page list below. Resolves the picked value, or null when dismissed.
+ */
+export async function choiceDialog<V extends string>(request: {
+  title: string;
+  message: string;
+  choices: Choice<V>[];
+  current: V;
+}): Promise<V | null> {
+  const native = host?.showPopup({
+    title: request.title,
+    message: request.message,
+    buttons: request.choices.map((choice) => ({
+      id: choice.value,
+      type: 'default',
+      text: choice.value === request.current ? `✓ ${choice.label}` : choice.label,
+    })),
+  });
+  // As in `ask`: a rejection is the client refusing the call, not the user dismissing it.
+  const picked = native
+    ? await native.catch(() => chooseInPage(request))
+    : await chooseInPage(request);
+  return request.choices.find((choice) => choice.value === picked)?.value ?? null;
+}
+
 export function Dialogs() {
   const { tg } = useApp();
   useEffect(() => {
@@ -81,6 +129,45 @@ export function Dialogs() {
       if (host === tg) host = null;
     };
   }, [tg]);
+  const choice = pendingChoice.value;
+  if (choice) {
+    const pick = (value: string | null) => {
+      pendingChoice.value = null;
+      choice.resolve(value);
+    };
+    return (
+      <div class="dialog-backdrop" onClick={() => pick(null)}>
+        <div class="dialog" role="dialog" onClick={(event) => event.stopPropagation()}>
+          <strong>{choice.title}</strong>
+          <p>{choice.message}</p>
+          <div class="choices" role="radiogroup">
+            {choice.choices.map((option) => (
+              <button
+                key={option.value}
+                class="choice"
+                role="radio"
+                aria-checked={option.value === choice.current}
+                data-choice={option.value}
+                onClick={() => pick(option.value)}
+              >
+                <span class="grow">{option.label}</span>
+                {option.value === choice.current ? (
+                  <span class="check" aria-hidden="true">
+                    ✓
+                  </span>
+                ) : null}
+              </button>
+            ))}
+          </div>
+          <div class="actions">
+            <button class="btn secondary" data-dialog="cancel" onClick={() => pick(null)}>
+              {t('app.game.cancel')}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
   const current = pending.value;
   if (!current) return null;
   const answer = (value: boolean) => {

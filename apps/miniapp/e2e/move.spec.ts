@@ -4,7 +4,9 @@ import { boardBox, dragMove, harnessGame, openApp, seed, squareCentre, tgState }
 test('drags a move as White, the server records it and the app returns to the chat', async ({
   page,
 }) => {
-  const world = await seed('fresh', { alice: { closeAfterMove: true } });
+  const world = await seed('fresh', {
+    alice: { closeAfterMove: true, moveConfirmations: 'never' },
+  });
   await openApp(page, {
     user: world.users.alice.telegram,
     startParam: `g_${world.game!.publicId}`,
@@ -23,7 +25,9 @@ test('drags a move as White, the server records it and the app returns to the ch
 test('taps a move: the piece shows its destinations and the move is sent on the second tap', async ({
   page,
 }) => {
-  const world = await seed('fresh', { alice: { closeAfterMove: false } });
+  const world = await seed('fresh', {
+    alice: { closeAfterMove: false, moveConfirmations: 'never' },
+  });
   await openApp(page, {
     user: world.users.alice.telegram,
     startParam: `g_${world.game!.publicId}`,

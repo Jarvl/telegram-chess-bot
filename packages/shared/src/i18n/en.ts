@@ -195,6 +195,7 @@ export const en = {
   'app.game.abort_confirm': 'Abort this game?',
   'app.game.flip': 'Flip',
   'app.game.confirm': 'Confirm',
+  'app.game.confirm_move': 'Confirm move',
   'app.game.cancel': 'Cancel',
   'app.game.sending': 'Sending…',
   'app.game.retry': 'Retry',
@@ -227,6 +228,12 @@ export const en = {
   'app.settings.title': 'Settings',
   'app.settings.close_after_move': 'Return to the chat after moving',
   'app.settings.notifications': 'Receive turn notifications',
+  'app.settings.move_confirmations': 'Move confirmations',
+  'app.settings.move_confirmations.always': 'Always',
+  'app.settings.move_confirmations.people': 'Only against people',
+  'app.settings.move_confirmations.never': 'Never',
+  'app.settings.move_confirmations_help':
+    'Ask before a move is sent. With "Only against people", moves against the bot send on drop.',
   'app.settings.delete': 'Delete my data',
   'app.settings.delete_confirm':
     'Delete your data? Running games are resigned and your name is removed from past games. This cannot be undone.',

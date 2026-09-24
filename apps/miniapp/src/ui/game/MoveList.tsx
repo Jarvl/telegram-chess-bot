@@ -2,7 +2,8 @@ import { t } from '@group-chess/shared';
 import { useEffect, useRef } from 'preact/hooks';
 import type { GameStore } from '../../state/game';
 
-export function MoveList(props: { store: GameStore }) {
+/** `locked` while a move waits for Confirm move: the board holds that move, so the strip can't switch position. */
+export function MoveList(props: { store: GameStore; locked?: boolean }) {
   const { store } = props;
   const moves = store.dto.value.moves;
   const viewing = store.position.value.ply;
@@ -22,6 +23,7 @@ export function MoveList(props: { store: GameStore }) {
             key={move.ply}
             data-ply={move.ply}
             aria-current={viewing === move.ply ? 'true' : 'false'}
+            disabled={props.locked}
             onClick={() => store.viewPly(move.ply)}
           >
             {move.san}
@@ -29,7 +31,12 @@ export function MoveList(props: { store: GameStore }) {
         </>
       ))}
       {!store.isLatest.value ? (
-        <button class="badge" data-action="latest" onClick={() => store.viewPly(null)}>
+        <button
+          class="badge"
+          data-action="latest"
+          disabled={props.locked}
+          onClick={() => store.viewPly(null)}
+        >
           {t('app.game.latest')}
         </button>
       ) : null}

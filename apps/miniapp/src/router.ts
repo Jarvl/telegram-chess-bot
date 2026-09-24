@@ -50,6 +50,8 @@ type Stacks = Record<TabName, Route[]>;
 export class Router {
   readonly tab: Signal<TabName> = signal('games');
   readonly stacks: Signal<Stacks> = signal({ games: [], groups: [], settings: [] });
+  /** Set by a screen that needs the bottom edge to itself for a while (a move waiting for Confirm move). */
+  readonly suppressTabs: Signal<boolean> = signal(false);
   readonly stack: ReadonlySignal<Route[]>;
   readonly current: ReadonlySignal<Route>;
   readonly showTabs: ReadonlySignal<boolean>;
@@ -60,7 +62,9 @@ export class Router {
   ) {
     this.stack = computed(() => this.stacks.value[this.tab.value]);
     this.current = computed(() => this.stack.value.at(-1) ?? { name: 'loading' });
-    this.showTabs = computed(() => !TABLESS.has(this.current.value.name));
+    this.showTabs = computed(
+      () => !TABLESS.has(this.current.value.name) && !this.suppressTabs.value,
+    );
     this.sync();
   }
 

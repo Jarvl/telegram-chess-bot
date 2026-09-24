@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  needsConfirmation,
   newClientMoveId,
   reduceMove,
   retryDelayMs,
@@ -8,11 +9,11 @@ import {
 } from '../src/state/moveMachine';
 
 const drop: MoveEvent = { type: 'drop', uci: 'e2e4', expectedPly: 0, clientMoveId: 'm-0000000001' };
-const run = (events: MoveEvent[], from: MoveState = { kind: 'idle' }) => {
+const run = (events: MoveEvent[], from: MoveState = { kind: 'idle' }, confirm = false) => {
   let state = from;
   const effects: string[] = [];
   for (const event of events) {
-    const out = reduceMove(state, event);
+    const out = reduceMove(state, event, { confirm });
     state = out.state;
     effects.push(...out.effects.map((effect) => effect.type));
   }
@@ -87,5 +88,60 @@ describe('reduceMove', () => {
     expect(newClientMoveId()).not.toBe(id);
     expect(newClientMoveId(() => 0)).toMatch(/^[A-Za-z0-9_-]{16}$/);
     expect(newClientMoveId(() => 1)).toMatch(/^[A-Za-z0-9_-]{16}$/);
+  });
+
+  it('holds a dropped move for confirmation, then sends it exactly once', () => {
+    const move = { uci: 'e2e4', expectedPly: 0, clientMoveId: 'm-0000000001' };
+    const pending = run([drop], { kind: 'idle' }, true);
+    expect(pending.state).toEqual({ kind: 'pendingConfirm', move });
+    expect(pending.effects).toEqual([]);
+    const confirmed = run([{ type: 'confirm' }], pending.state);
+    expect(confirmed.state).toEqual({ kind: 'sending', move, attempt: 1 });
+    expect(confirmed.effects).toEqual(['send']);
+    // A second Confirm before the screen catches up sends nothing more.
+    expect(run([{ type: 'confirm' }], confirmed.state).effects).toEqual([]);
+  });
+
+  it('puts the piece back on cancel and sends nothing', () => {
+    const pending = run([drop], { kind: 'idle' }, true).state;
+    const { state, effects } = run([{ type: 'cancel' }], pending);
+    expect(state).toEqual({ kind: 'idle' });
+    expect(effects).toEqual(['restore']);
+  });
+
+  it('ignores another drop, network answers and ticks while a move waits', () => {
+    const pending = run([drop], { kind: 'idle' }, true).state;
+    const stray: MoveEvent[] = [
+      { ...drop, uci: 'd2d4' },
+      { type: 'sent' },
+      { type: 'networkError', now: 1 },
+      { type: 'tick', now: 99_999 },
+      { type: 'retryNow' },
+    ];
+    for (const event of stray) {
+      const out = run([event], pending);
+      expect(out.state).toBe(pending);
+      expect(out.effects).toEqual([]);
+    }
+  });
+
+  it('ignores a cancel once the move is on its way', () => {
+    const sending = run([drop]).state;
+    const out = run([{ type: 'cancel' }], sending);
+    expect(out.state).toBe(sending);
+    expect(out.effects).toEqual([]);
+  });
+});
+
+describe('needsConfirmation', () => {
+  it.each([
+    ['always', null, true],
+    ['always', 'casual', true],
+    ['people', null, true],
+    ['people', 'casual', false],
+    ['never', null, false],
+    ['never', 'casual', false],
+  ] as const)('%s against engine level %s → %s', (setting, engineLevel, expected) => {
+    expect(needsConfirmation(setting, { engineLevel })).toBe(expected);
   });
 });

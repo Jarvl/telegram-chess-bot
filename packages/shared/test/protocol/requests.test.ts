@@ -70,6 +70,15 @@ describe('PrefsUpdateRequestSchema', () => {
       writeAccess: { allowed: true },
     });
   });
+
+  it('accepts a move confirmations change and refuses an unknown one', () => {
+    expect(PrefsUpdateRequestSchema.parse({ prefs: { moveConfirmations: 'never' } })).toEqual({
+      prefs: { moveConfirmations: 'never' },
+    });
+    expect(
+      PrefsUpdateRequestSchema.safeParse({ prefs: { moveConfirmations: 'sometimes' } }).success,
+    ).toBe(false);
+  });
 });
 
 describe('GroupSettingsUpdateRequestSchema', () => {
