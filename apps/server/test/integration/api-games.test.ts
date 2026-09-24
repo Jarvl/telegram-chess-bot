@@ -9,6 +9,7 @@ import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { adminActions, groupMembers, jobs, shares } from '../../src/db/schema';
 import { touchMember } from '../../src/domain/members';
+import { MAX_SHARES_PER_MINUTE } from '../../src/domain/sharing';
 import { startTestApi, type TestApi } from '../helpers/api';
 import { openTestDb, truncateAll } from '../helpers/db';
 import { insertGame, insertGroup, insertMove, insertUser } from '../helpers/fixtures';
@@ -214,18 +215,19 @@ describe('games', () => {
     expect(resigned.analysisUrl).toBeUndefined();
   });
 
-  it('shares a position once a minute and serves the PGN', async () => {
+  it('shares up to twenty positions a minute and serves the PGN', async () => {
     const { group, alice, bob, tokens } = await world();
     const game = await insertGame(db, group.id, alice.id, bob.id, { fen: AFTER_E4, plyCount: 1 });
     await insertMove(db, game.id, 1, 'e2e4', 'e4', AFTER_E4);
-    expect(
-      (
-        await api.request('POST', `/api/games/${game.publicId}/share`, {
-          token: tokens.carol,
-          body: { ply: 1 },
-        })
-      ).status,
-    ).toBe(200);
+    for (let i = 0; i < MAX_SHARES_PER_MINUTE; i++)
+      expect(
+        (
+          await api.request('POST', `/api/games/${game.publicId}/share`, {
+            token: tokens.carol,
+            body: { ply: i % 2 },
+          })
+        ).status,
+      ).toBe(200);
     expect(
       (
         await api.request('POST', `/api/games/${game.publicId}/share`, {
@@ -250,8 +252,10 @@ describe('games', () => {
         })
       ).status,
     ).toBe(403);
-    expect(await db.select().from(shares)).toHaveLength(1);
-    expect((await db.select().from(jobs)).map((job) => job.kind)).toEqual(['send_share_photo']);
+    expect(await db.select().from(shares)).toHaveLength(MAX_SHARES_PER_MINUTE);
+    expect((await db.select().from(jobs)).map((job) => job.kind)).toEqual(
+      Array(MAX_SHARES_PER_MINUTE).fill('send_share_photo'),
+    );
     const pgn = await api.request('GET', `/api/games/${game.publicId}/pgn`, {
       token: tokens.carol,
     });

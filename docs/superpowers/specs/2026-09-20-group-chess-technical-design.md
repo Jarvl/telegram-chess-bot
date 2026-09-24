@@ -285,7 +285,7 @@ The known-players list for the opponent picker is `group_members` with `status =
 - `my_chat_member`: bot added as member or administrator → upsert the group, post the welcome card, pin if allowed. Bot removed or kicked → `bot_status = 'left'`, pending challenges cancelled, no more group posts; active games continue in the app (players reach them from DMs or the profile launch) and cards are simply not edited. Re-adding the bot posts a fresh welcome card.
 - Group to supergroup migration: the `migrate_to_chat_id` service message updates `groups.telegram_chat_id`; the internal id and all games are unchanged.
 - Forum groups: `is_forum` is read from the chat object. Cards and shared positions carry `message_thread_id` of the topic where the challenge was made (`origin`, default) or of the configured fixed topic. Messages in the General topic omit `message_thread_id` (*verify in spike S4*). The game stores its thread id so later edits and shares land in the same topic.
-- Outbound pacing in the job worker: at most 25 messages per second overall, 1 per second per chat, 18 per minute per group, and `retry_after` from 429 responses is honoured before any further call to that chat. Shared positions are additionally limited to one per user per minute by the domain layer.
+- Outbound pacing in the job worker: at most 25 messages per second overall, 1 per second per chat, 18 per minute per group, and `retry_after` from 429 responses is honoured before any further call to that chat. Shared positions are additionally limited to 20 per user per minute by the domain layer, so a user can share several positions at once.
 
 ## 6. Mini App
 
@@ -513,7 +513,7 @@ Cache: `board_images(key, telegram_file_id)` with `key = sha256(piece placement 
 | Active games per user per group | 5, admin-configurable 1–20 | `challenges.create` and `accept` |
 | Concurrent games between the same pair | 2 | same |
 | Challenge lifetime | 24 h | expiry scanner |
-| Position shares | 1 per user per minute | `sharing.share` |
+| Position shares | 20 per user per minute | `sharing.share` |
 | `/chess`, `/settings` | 1 per group per minute | `bot` |
 | API requests | 120 per user per minute | `api` middleware |
 | Open SSE streams | 4 per user | `api` |
