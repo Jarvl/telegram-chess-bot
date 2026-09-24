@@ -1,22 +1,14 @@
-import {
-  INITIAL_FEN,
-  sideToMove,
-  t,
-  type Colour,
-  type PreparedShareDto,
-} from '@group-chess/shared';
+import { INITIAL_FEN, sideToMove, t, type Colour } from '@group-chess/shared';
 import { Chess } from 'chess.js';
-import type { InlineKeyboardMarkup } from 'grammy/types';
+import type { InlineKeyboardMarkup, InlineQueryResultPhoto } from 'grammy/types';
 import type { Config } from '../config';
 import type { DbOrTx } from '../db/client';
-import type { GameRow, MoveRow, UserRow } from '../db/schema';
-import { DomainError } from '../domain/errors';
+import type { GameRow, MoveRow } from '../db/schema';
 import { listMoves } from '../domain/games';
 import { displayName, requireUser } from '../domain/users';
 import { IMAGE_SIZE, type BoardRenderInput } from '../images/board';
 import { boardImagePath } from '../images/signedUrl';
 import { renderShareCaption } from './cards';
-import type { TelegramApi } from './client';
 import { miniAppLink } from './links';
 
 /** The position after `ply` (0 = the initial position) and the move that produced it. */
@@ -75,40 +67,28 @@ export async function loadShareView(
 }
 
 /**
- * Bot API 8.0: stores the shared position as a message the sharer sends from Telegram's share
- * sheet (`WebApp.shareMessage`), to any chat they pick. Nothing is posted until they do.
+ * The shared position as an inline result: offered above the keyboard in the chat the user picked
+ * after the app's `switchInlineQuery`, and sent as a photo when they tap it. Telegram takes such
+ * photos only by URL and as JPEG, so both URLs point at the signed board-image route.
  */
-export async function prepareShare(
-  ctx: {
-    db: DbOrTx;
-    config: Pick<Config, 'BOT_USERNAME' | 'MINI_APP_SHORT_NAME' | 'PUBLIC_URL' | 'SESSION_SECRET'>;
-    telegram: TelegramApi;
-  },
+export function inlineShareResult(
+  config: Pick<Config, 'PUBLIC_URL' | 'SESSION_SECRET'>,
   game: GameRow,
-  user: UserRow,
   ply: number,
-): Promise<PreparedShareDto> {
-  if (ply > game.plyCount)
-    throw new DomainError('validation', 'ply is beyond the game', { plyCount: game.plyCount });
-  if (user.telegramUserId === null) throw new DomainError('forbidden', 'not a Telegram user');
-  const view = await loadShareView(ctx.db, ctx.config, game, user.id, ply);
-  const image = `${ctx.config.PUBLIC_URL.replace(/\/$/, '')}${boardImagePath(
-    ctx.config.SESSION_SECRET,
+  view: ShareView,
+): InlineQueryResultPhoto {
+  const image = `${config.PUBLIC_URL.replace(/\/$/, '')}${boardImagePath(
+    config.SESSION_SECRET,
     view.board,
   )}`;
-  const prepared = await ctx.telegram.savePreparedInlineMessage(
-    user.telegramUserId,
-    {
-      type: 'photo',
-      id: `${game.publicId}-${ply}`,
-      photo_url: `${image}/board.jpg`,
-      thumbnail_url: `${image}/thumb.jpg`,
-      photo_width: IMAGE_SIZE,
-      photo_height: IMAGE_SIZE,
-      caption: view.caption,
-      reply_markup: view.replyMarkup,
-    },
-    { allow_user_chats: true, allow_group_chats: true, allow_channel_chats: true },
-  );
-  return { preparedMessageId: prepared.id };
+  return {
+    type: 'photo',
+    id: `${game.publicId}-${ply}`,
+    photo_url: `${image}/board.jpg`,
+    thumbnail_url: `${image}/thumb.jpg`,
+    photo_width: IMAGE_SIZE,
+    photo_height: IMAGE_SIZE,
+    caption: view.caption,
+    reply_markup: view.replyMarkup,
+  };
 }

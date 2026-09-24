@@ -15,6 +15,8 @@ export type FakeWebAppOptions = {
   /** Makes `showPopup` throw this message instead of opening a popup, e.g. a client-side param
    * rejection (`WebAppPopupParamInvalid`) rather than the "already open" case. */
   popupError?: string;
+  /** False makes `switchInlineQuery` throw as it does when BotFather's inline mode is off. */
+  inlineMode?: boolean;
 };
 
 export type FakeButton = {
@@ -42,10 +44,8 @@ export type FakeWebAppRecord = {
     buttons: { id?: string; type?: string; text?: string }[];
   }[];
   answerPopup(id: string): void;
-  /** Prepared message ids passed to `shareMessage`, in order. */
-  shares: string[];
-  /** Closes the open share sheet: true when the user sent the message. */
-  answerShare(sent: boolean): void;
+  /** `switchInlineQuery` calls, in order. */
+  inlineSwitches: { query: string; chatTypes: string[] }[];
   closingConfirmation: boolean;
   settingsButton: { visible: boolean } | null;
   clickSettings(): void;
@@ -74,7 +74,6 @@ export function installFakeWebApp(options: FakeWebAppOptions): void {
     return true;
   };
   let pendingPopup: ((id: string) => void) | null = null;
-  let pendingShare: ((sent: boolean) => void) | null = null;
   const record: FakeWebAppRecord = {
     calls: [],
     mainButton: { text: '', visible: false, progress: false, enabled: true },
@@ -90,12 +89,7 @@ export function installFakeWebApp(options: FakeWebAppOptions): void {
     popups: [],
     closingConfirmation: false,
     settingsButton: atLeast(options.version, '7.0') ? { visible: false } : null,
-    shares: [],
-    answerShare: (sent) => {
-      const answer = pendingShare;
-      pendingShare = null;
-      answer?.(sent);
-    },
+    inlineSwitches: [],
     answerPopup: (id) => {
       const answer = pendingPopup;
       pendingPopup = null;
@@ -307,15 +301,17 @@ export function installFakeWebApp(options: FakeWebAppOptions): void {
       cb?.(options.writeAccess === true);
     };
   }
+  if (atLeast(options.version, '6.7')) {
+    webApp.switchInlineQuery = (query: string, chatTypes: string[] = []) => {
+      if (options.inlineMode === false) throw new Error('WebAppInlineModeDisabled');
+      record.inlineSwitches.push({ query, chatTypes });
+    };
+  }
   if (atLeast(options.version, '7.7')) {
     webApp.disableVerticalSwipes = () => record.calls.push('disableVerticalSwipes');
     webApp.enableVerticalSwipes = () => record.calls.push('enableVerticalSwipes');
   }
   if (atLeast(options.version, '8.0')) {
-    webApp.shareMessage = (msgId: string, cb?: (sent: boolean) => void) => {
-      record.shares.push(msgId);
-      pendingShare = cb ?? null;
-    };
     webApp.downloadFile = (
       request: { url: string; file_name: string },
       cb?: (accepted: boolean) => void,

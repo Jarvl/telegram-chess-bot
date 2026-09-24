@@ -1,4 +1,4 @@
-import type { TelegramButton, TelegramWebApp, ThemeParams } from './types';
+import type { InlineChatType, TelegramButton, TelegramWebApp, ThemeParams } from './types';
 
 export type Feature =
   | 'haptics'
@@ -6,7 +6,7 @@ export type Feature =
   | 'verticalSwipes'
   | 'secondaryButton'
   | 'downloadFile'
-  | 'shareMessage'
+  | 'switchInlineQuery'
   | 'headerColor'
   | 'bottomBarColor'
   | 'popup'
@@ -20,7 +20,7 @@ export const FEATURE_MIN_VERSION: Record<Feature, string> = {
   verticalSwipes: '7.7',
   secondaryButton: '7.10',
   downloadFile: '8.0',
-  shareMessage: '8.0',
+  switchInlineQuery: '6.7',
   headerColor: '6.1',
   bottomBarColor: '7.10',
   popup: '6.2',
@@ -86,10 +86,10 @@ export interface Tg {
   /** False when the client cannot download (below 8.0); the caller opens the link instead. */
   downloadFile(url: string, fileName: string): boolean;
   /**
-   * Telegram's share sheet for a prepared message (8.0+): resolves whether the user sent it.
-   * Returns null instead of a promise when the client has none.
+   * Telegram's chat picker, then the picked chat with the bot's username and `query` in the input
+   * field (6.7+). False when the client has none or the bot's inline mode is off.
    */
-  shareMessage(preparedMessageId: string): Promise<boolean> | null;
+  switchInlineQuery(query: string, chatTypes: InlineChatType[]): boolean;
   onViewportChanged(callback: (stableHeight: number) => void): () => void;
   onThemeChanged(callback: () => void): () => void;
   /** Header and background (6.1) and bottom bar (7.10) take this theme colour; a no-op below. */
@@ -164,7 +164,7 @@ function nullTg(): Tg {
       window.open(url, '_blank', 'noopener');
     },
     downloadFile: () => false,
-    shareMessage: () => null,
+    switchInlineQuery: () => false,
     onViewportChanged: () => () => undefined,
     onThemeChanged: () => () => undefined,
     setChromeColor: () => undefined,
@@ -250,11 +250,15 @@ export function createTg(
       raw.downloadFile({ url, file_name: fileName });
       return true;
     },
-    shareMessage(preparedMessageId) {
-      if (!supports('shareMessage') || !raw.shareMessage) return null;
-      return new Promise((resolve) => {
-        raw.shareMessage!(preparedMessageId, (sent) => resolve(sent));
-      });
+    switchInlineQuery(query, chatTypes) {
+      if (!supports('switchInlineQuery') || !raw.switchInlineQuery) return false;
+      try {
+        raw.switchInlineQuery(query, chatTypes);
+        return true;
+      } catch {
+        // telegram-web-app.js throws WebAppInlineModeDisabled when BotFather's inline mode is off.
+        return false;
+      }
     },
     onViewportChanged(callback) {
       const handler = (): void => callback(raw.viewportStableHeight || window.innerHeight);

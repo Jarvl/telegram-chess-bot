@@ -39,6 +39,9 @@ export type TelegramUser = {
   language_code?: string;
 };
 
+/** The chats `switchInlineQuery` lets the user pick from. */
+export type InlineChatType = 'users' | 'bots' | 'groups' | 'channels';
+
 export type TelegramWebApp = {
   initData: string;
   initDataUnsafe: { start_param?: string; user?: TelegramUser };
@@ -78,7 +81,7 @@ export type TelegramWebApp = {
     request: { url: string; file_name: string },
     callback?: (accepted: boolean) => void,
   ): void;
-  shareMessage?(msgId: string, callback?: (sent: boolean) => void): void;
+  switchInlineQuery?(query: string, chooseChatTypes?: InlineChatType[]): void;
   setHeaderColor?(color: string): void;
   setBackgroundColor?(color: string): void;
   setBottomBarColor?(color: string): void;

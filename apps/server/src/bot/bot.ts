@@ -19,7 +19,7 @@ import {
 } from '../domain/challenges';
 import type { Deps } from '../domain/deps';
 import { DomainError } from '../domain/errors';
-import { requireGameByPublicId } from '../domain/games';
+import { requireGameById, requireGameByPublicId } from '../domain/games';
 import { cancelPendingChallengesForGroup } from '../domain/groupLifecycle';
 import {
   ensureGroup,
@@ -30,9 +30,11 @@ import {
   type TelegramChatInfo,
 } from '../domain/groups';
 import { markLeft, touchMember } from '../domain/members';
+import { getPendingShare } from '../domain/sharing';
 import { ensureUser, setDmAllowed, type TelegramUserInfo } from '../domain/users';
 import { enqueue } from '../jobs/queue';
 import { miniAppLink } from '../telegram/links';
+import { inlineShareResult, loadShareView } from '../telegram/share';
 import { RateLimiter } from './rateLimit';
 import { alertFor, replyFor } from './replies';
 
@@ -161,6 +163,20 @@ export async function createBot(deps: Deps, config: Config): Promise<Bot> {
         buttons: [{ text: t('button.open_chess'), url: miniAppLink(config) }],
       },
     );
+  });
+
+  // Spec §7.7: the chat picker the app opened lands here with the bot's username in the input
+  // field; offer the position the user staged, whatever they typed after it.
+  bot.on('inline_query', async (ctx) => {
+    const user = await ensureUser(deps.db, userInfo(ctx.from));
+    const pending = await getPendingShare(deps.db, user.id);
+    if (!pending) return ctx.answerInlineQuery([], { cache_time: 0, is_personal: true });
+    const game = await requireGameById(deps.db, pending.gameId);
+    const view = await loadShareView(deps.db, config, game, user.id, pending.ply);
+    await ctx.answerInlineQuery([inlineShareResult(config, game, pending.ply, view)], {
+      cache_time: 0,
+      is_personal: true,
+    });
   });
 
   bot.on('callback_query:data', async (ctx) => {

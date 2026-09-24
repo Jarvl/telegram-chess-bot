@@ -320,11 +320,6 @@ export const PgnLinkDtoSchema = z.object({ url: z.string().min(1) });
 
 export type PgnLinkDto = z.infer<typeof PgnLinkDtoSchema>;
 
-/** A shared position ready for Telegram's share sheet: the id `WebApp.shareMessage` takes. */
-export const PreparedShareDtoSchema = z.object({ preparedMessageId: z.string().min(1) });
-
-export type PreparedShareDto = z.infer<typeof PreparedShareDtoSchema>;
-
 export const OkDtoSchema = z.object({ ok: z.literal(true) });
 
 export type OkDto = z.infer<typeof OkDtoSchema>;

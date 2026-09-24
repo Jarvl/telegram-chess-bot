@@ -305,8 +305,8 @@ Bot API version tags below were verified against core.telegram.org/bots/api-chan
 | Identity in the app | Signed launch data (`initData`) | Server-side validation; the source of truth for who is moving. |
 | Game card and silent status edits | `editMessageText` / `editMessageReplyMarkup` | Bot messages can be edited indefinitely; edits don't notify. |
 | Challenge notification without DMs | Text mention in the challenge card | One mention per challenge, nothing else. |
-| Shared position image | `shareMessage()` with `savePreparedInlineMessage` (Bot API 8.0) | User picks the chat in Telegram's share sheet and sends it; static image, no keyboard except Open game. |
-| Shared position on older clients | `sendPhoto` to the group, with the game's topic id in forum groups | Below Bot API 8.0 the bot posts it instead. |
+| Shared position image | `switchInlineQuery()` with the chat picker (Bot API 6.7) and an inline photo result | User picks any chat; it opens with the position offered above the keyboard, and one tap sends it. Static image, no keyboard except Open game. Needs inline mode on. |
+| Shared position on older clients | `sendPhoto` to the group, with the game's topic id in forum groups | Below Bot API 6.7, or with inline mode off, the bot posts it instead. |
 | Forum groups | `message_thread_id` (Bot API 6.3) | Cards go in the challenge's topic or a fixed topic. |
 | Admin check for settings | `getChatMember` | Verified on every settings request. |
 | Command menu | `setMyCommands` with group scope | Keeps the group menu to three commands. |

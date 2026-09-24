@@ -4,11 +4,11 @@ import {
   GameDtoSchema,
   LobbyDtoSchema,
   PlayerPageDtoSchema,
-  PreparedShareDtoSchema,
 } from '@group-chess/shared';
 import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { adminActions, groupMembers, jobs, shares } from '../../src/db/schema';
+import { adminActions, groupMembers, jobs, pendingShares, shares } from '../../src/db/schema';
+import { boardImagePath } from '../../src/images/signedUrl';
 import { touchMember } from '../../src/domain/members';
 import { startTestApi, type TestApi } from '../helpers/api';
 import { openTestDb, truncateAll } from '../helpers/db';
@@ -215,58 +215,42 @@ describe('games', () => {
     expect(resigned.analysisUrl).toBeUndefined();
   });
 
-  it('prepares a share-sheet message whose photo URL serves the board as a JPEG', async () => {
+  it('stages a position for inline sharing and serves signed board images', async () => {
     const { group, alice, bob, tokens } = await world();
     const game = await insertGame(db, group.id, alice.id, bob.id, { fen: AFTER_E4, plyCount: 1 });
     await insertMove(db, game.id, 1, 'e2e4', 'e4', AFTER_E4);
-    const prepare = (token: string, ply: number) =>
-      api.request('POST', `/api/games/${game.publicId}/share/prepare`, { token, body: { ply } });
+    const stage = (token: string, ply: number) =>
+      api.request('POST', `/api/games/${game.publicId}/share/inline`, { token, body: { ply } });
 
-    const res = await prepare(tokens.bob, 1);
-    expect(res.status).toBe(200);
-    expect(PreparedShareDtoSchema.parse(await res.json()).preparedMessageId).toMatch(/^prepared-/);
-    const [call] = api.fake.callsTo('savePreparedInlineMessage');
-    expect(call?.body).toMatchObject({
-      user_id: 22,
-      allow_user_chats: true,
-      allow_group_chats: true,
-      allow_channel_chats: true,
-      result: {
-        type: 'photo',
-        id: `${game.publicId}-1`,
-        photo_width: 1024,
-        photo_height: 1024,
-        caption: expect.stringContaining('Bob'),
-      },
-    });
-    const result = call!.body.result as {
-      photo_url: string;
-      thumbnail_url: string;
-      reply_markup: { inline_keyboard: { url: string }[][] };
-    };
-    expect(result.reply_markup.inline_keyboard[0]![0]!.url).toContain('startapp=');
-    // Nothing is posted until the sharer sends it, and there is no share row or job.
-    expect(api.fake.callsTo('sendPhoto')).toHaveLength(0);
+    expect((await stage(tokens.bob, 1)).status).toBe(200);
+    expect((await stage(tokens.bob, 0)).status).toBe(200);
+    expect(await db.select().from(pendingShares)).toMatchObject([
+      { userId: bob.id, gameId: game.id, ply: 0 },
+    ]);
+    // Staging posts nothing and is not a bot share: no share row, job or Telegram call.
     expect(await db.select().from(shares)).toHaveLength(0);
     expect(await db.select().from(jobs)).toHaveLength(0);
+    expect(api.fake.calls).toHaveLength(0);
+    expect((await stage(tokens.bob, 5)).status).toBe(400);
+    expect((await stage(tokens.dave, 1)).status).toBe(403);
 
     // Telegram fetches the photo without a session.
-    expect(result.photo_url).toMatch(/^https:\/\/chess\.test\/api\/board-images\/.+\/board\.jpg$/);
-    const photoPath = result.photo_url.replace('https://chess.test', '');
-    for (const path of [photoPath, result.thumbnail_url.replace('https://chess.test', '')]) {
-      const image = await api.request('GET', path);
+    const path = boardImagePath(api.config.SESSION_SECRET, {
+      fen: AFTER_E4,
+      lastMove: 'e2e4',
+      orientation: 'black',
+    });
+    for (const file of ['board.jpg', 'thumb.jpg']) {
+      const image = await api.request('GET', `${path}/${file}`);
       expect(image.status).toBe(200);
       expect(image.headers.get('content-type')).toBe('image/jpeg');
       expect(image.headers.get('cache-control')).toContain('immutable');
       const bytes = new Uint8Array(await image.arrayBuffer());
       expect([bytes[0], bytes[1]]).toEqual([0xff, 0xd8]);
     }
-    const tampered = photoPath.replace(/\/([\w-]+)\/board\.jpg$/, '/AAAA$1/board.jpg');
-    expect((await api.request('GET', tampered)).status).toBe(404);
-    expect((await api.request('GET', photoPath.replace('board.jpg', 'big.jpg'))).status).toBe(404);
-
-    expect((await prepare(tokens.bob, 5)).status).toBe(400);
-    expect((await prepare(tokens.dave, 1)).status).toBe(403);
+    const tampered = path.replace(/\/([\w-]+)$/, '/AAAA$1');
+    expect((await api.request('GET', `${tampered}/board.jpg`)).status).toBe(404);
+    expect((await api.request('GET', `${path}/big.jpg`)).status).toBe(404);
   });
 
   it('shares a position once a minute and serves the PGN', async () => {

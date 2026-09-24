@@ -10,20 +10,29 @@ import {
   groupMembers,
   groups,
   jobs,
+  pendingShares,
   telegramUpdates,
   users,
 } from '../../src/db/schema';
 import { updateGroupSettings } from '../../src/domain/groups';
 import { touchMember } from '../../src/domain/members';
+import { stagePendingShare } from '../../src/domain/sharing';
 import { Metrics } from '../../src/metrics';
 import { testConfig } from '../helpers/config';
 import { openTestDb, testDeps, truncateAll } from '../helpers/db';
 import { FakeTelegram } from '../helpers/fakeTelegram';
-import { insertChallenge, insertGame, insertGroup, insertUser } from '../helpers/fixtures';
+import {
+  insertChallenge,
+  insertGame,
+  insertGroup,
+  insertMove,
+  insertUser,
+} from '../helpers/fixtures';
 import {
   callbackUpdate,
   chatMemberUpdate,
   commandUpdate,
+  inlineQueryUpdate,
   myChatMemberUpdate,
   privateChat,
   serviceUpdate,
@@ -380,5 +389,59 @@ describe('membership events', () => {
     );
     const [user] = await db.select().from(users).where(eq(users.telegramUserId, bob.id));
     expect(user?.dmAllowed).toBe(true);
+  });
+});
+
+describe('inline queries', () => {
+  const AFTER_E4 = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1';
+  const answers = () =>
+    fake.callsTo('answerInlineQuery').map((call) => call.body) as {
+      results: Record<string, unknown>[];
+      cache_time: number;
+      is_personal: boolean;
+    }[];
+
+  async function staged() {
+    const group = await insertGroup(db, { telegramChatId: chat.id });
+    const a = await insertUser(db, { telegramUserId: alice.id, firstName: 'Alice' });
+    const b = await insertUser(db, { telegramUserId: bob.id, firstName: 'Bob' });
+    const game = await insertGame(db, group.id, a.id, b.id, { fen: AFTER_E4, plyCount: 1 });
+    await insertMove(db, game.id, 1, 'e2e4', 'e4', AFTER_E4);
+    await stagePendingShare(db, { game, userId: b.id, ply: 1 });
+    return { game, b };
+  }
+
+  it('offers the position the user staged, as a photo with the Open game button', async () => {
+    const { game } = await staged();
+    expect((await post(inlineQueryUpdate(bob, 'anything typed'))).status).toBe(200);
+    const [answer] = answers();
+    expect(answer).toMatchObject({ cache_time: 0, is_personal: true });
+    expect(answer!.results).toHaveLength(1);
+    const result = answer!.results[0] as {
+      photo_url: string;
+      thumbnail_url: string;
+      reply_markup: { inline_keyboard: { url: string }[][] };
+    };
+    expect(result).toMatchObject({
+      type: 'photo',
+      id: `${game.publicId}-1`,
+      photo_width: 1024,
+      photo_height: 1024,
+      caption: expect.stringContaining('Bob shared move 1'),
+    });
+    expect(result.photo_url).toMatch(/^https:\/\/chess\.test\/api\/board-images\/.+\/board\.jpg$/);
+    expect(result.thumbnail_url).toMatch(/\/thumb\.jpg$/);
+    expect(result.reply_markup.inline_keyboard[0]![0]!.url).toContain('startapp=');
+  });
+
+  it('offers nothing to another user, or once the staged share is ten minutes old', async () => {
+    const { b } = await staged();
+    await post(inlineQueryUpdate(carol));
+    await db
+      .update(pendingShares)
+      .set({ createdAt: sql`now() - interval '11 minutes'` })
+      .where(eq(pendingShares.userId, b.id));
+    await post(inlineQueryUpdate(bob));
+    expect(answers().map((answer) => answer.results)).toEqual([[], []]);
   });
 });

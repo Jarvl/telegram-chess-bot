@@ -38,6 +38,7 @@ export const ALLOWED_UPDATES = [
   'callback_query',
   'my_chat_member',
   'chat_member',
+  'inline_query',
 ] as const;
 
 /** Spec §5.1 step 3: three group commands, one private command, nothing in the default scope. */
@@ -89,8 +90,7 @@ export async function startServer(
   const bot: Bot | null = has('bot') ? await createBot(deps, config) : null;
   const api = bot ? bot.api : createTelegramApi(config, { apiRoot: config.TELEGRAM_API_ROOT });
   instrumentTelegramApi(api, metrics);
-  // Membership lookups get their own client without the message throttler (spec §4.3, §5.8), and
-  // so does preparing a share: neither posts to a chat, and the user is waiting on both.
+  // Membership lookups get their own client without the message throttler (spec §4.3, §5.8).
   const lookupApi = createTelegramApi(config, {
     apiRoot: config.TELEGRAM_API_ROOT,
     throttle: false,
@@ -101,7 +101,6 @@ export async function startServer(
     deps,
     config,
     membership,
-    telegram: lookupApi,
     metrics,
     streams: new StreamGate(),
     rateLimiter: new RateLimiter(120, 60_000),

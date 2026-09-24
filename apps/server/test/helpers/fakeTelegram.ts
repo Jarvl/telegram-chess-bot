@@ -111,8 +111,6 @@ export class FakeTelegram {
           chat: { id: Number(body.chat_id), type: 'supergroup', title: 'G' },
           photo: [{ file_id: 'AgACAgIAAxkFake', file_unique_id: 'u1', width: 1024, height: 1024 }],
         });
-      case 'savePreparedInlineMessage':
-        return ok({ id: `prepared-${(this.nextMessageId += 1)}`, expiration_date: 2_000_000_000 });
       case 'getChatMember': {
         if (this.memberError)
           return { status: this.memberError.error_code, json: { ok: false, ...this.memberError } };

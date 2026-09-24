@@ -1,7 +1,6 @@
 import {
   GameDtoSchema,
   PgnLinkDtoSchema,
-  PreparedShareDtoSchema,
   t,
   type Colour,
   type EngineGameRequest,
@@ -252,20 +251,15 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
           .catch(() => undefined);
     }
   };
-  // Bot API 8.0+: Telegram's share sheet, where the sharer picks the chat and sends it themselves;
-  // once sent, closing returns them to the chat they opened the app from. Older clients have the
-  // bot post the photo to the group instead.
+  // Bot API 6.7+: stage the position, then Telegram's chat picker opens the chosen chat with the
+  // position offered above the keyboard (inline mode). Older clients, or a bot whose inline mode is
+  // off, have the bot post the photo to the group instead.
   const share = async (): Promise<void> => {
     const body = { ply: store.position.value.ply };
     try {
-      if (tg.supports('shareMessage')) {
-        const prepared = await client.post(
-          `/api/games/${gameId}/share/prepare`,
-          body,
-          PreparedShareDtoSchema,
-        );
-        if (await tg.shareMessage(prepared.preparedMessageId)) tg.close();
-        return;
+      if (tg.supports('switchInlineQuery')) {
+        await client.post(`/api/games/${gameId}/share/inline`, body);
+        if (tg.switchInlineQuery('', ['users', 'groups', 'channels'])) return;
       }
       await client.post(`/api/games/${gameId}/share`, body);
       toast(t('app.game.shared'));

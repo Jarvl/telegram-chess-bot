@@ -12,9 +12,8 @@ import {
   resign,
 } from '../../domain/games';
 import { buildGamePgn } from '../../domain/pgn';
-import { sharePosition } from '../../domain/sharing';
+import { sharePosition, stagePendingShare } from '../../domain/sharing';
 import { challengeDtoRows, challengeToDto } from '../../domain/summaries';
-import { prepareShare } from '../../telegram/share';
 import { requireGameAccess } from '../access';
 import type { ApiContext, ApiEnv } from '../context';
 import { publicIdParam } from '../middleware';
@@ -81,17 +80,11 @@ export function gamesRoutes(api: Hono<ApiEnv>, ctx: ApiContext): void {
     return c.json({ ok: true });
   });
 
-  // Bot API 8.0 clients share through Telegram's share sheet instead of the bot posting.
-  api.post('/games/:id/share/prepare', validate('json', ShareRequestSchema), async (c) => {
+  // Bot API 6.7+: stage the position, then the app opens Telegram's chat picker (inline mode).
+  api.post('/games/:id/share/inline', validate('json', ShareRequestSchema), async (c) => {
     const game = await accessible(c);
-    return c.json(
-      await prepareShare(
-        { db, config: ctx.config, telegram: ctx.telegram },
-        game,
-        c.get('user'),
-        c.req.valid('json').ply,
-      ),
-    );
+    await stagePendingShare(db, { game, userId: userId(c), ply: c.req.valid('json').ply });
+    return c.json({ ok: true });
   });
 
   api.post('/games/:id/rematch', async (c) => {

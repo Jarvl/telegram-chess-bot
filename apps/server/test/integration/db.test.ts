@@ -26,6 +26,7 @@ describe('database', () => {
       'groups',
       'jobs',
       'moves',
+      'pending_shares',
       'ratings',
       'shares',
       'telegram_updates',

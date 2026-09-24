@@ -28,8 +28,6 @@ const okRoute =
       return { status: 200, body: initial };
     if (call.method === 'POST' && call.path === `/api/games/${GAME}/pgn-link`)
       return { status: 200, body: { url: `/api/games/${GAME}/pgn?token=scoped-link` } };
-    if (call.method === 'POST' && call.path === `/api/games/${GAME}/share/prepare`)
-      return { status: 200, body: { preparedMessageId: 'prepared-1' } };
     return { status: 200, body: { ok: true } };
   };
 
@@ -286,7 +284,7 @@ describe('Game', () => {
     expect(r.app.router.current.value).toEqual({ name: 'game', gameId: 'NextGameA1' });
   });
 
-  it('lets spectators flip and share the viewed position through the share sheet', async () => {
+  it('lets spectators flip and share the viewed position through the chat picker', async () => {
     const r = mount(afterPlies(3, { viewerRole: 'spectator' }));
     await r.flush();
     expect(adapter.viewOnly).toBe(true);
@@ -296,37 +294,43 @@ describe('Game', () => {
     await r.click('[data-action="share"]');
     expect(r.calls.at(-1)).toMatchObject({
       method: 'POST',
-      path: `/api/games/${GAME}/share/prepare`,
+      path: `/api/games/${GAME}/share/inline`,
       body: { ply: 1 },
     });
-    expect(window.__tg!.shares).toEqual(['prepared-1']);
-    expect(window.__tg!.closed).toBe(false);
-    window.__tg!.answerShare(true);
-    await r.flush();
-    expect(window.__tg!.closed).toBe(true);
+    expect(window.__tg!.inlineSwitches).toEqual([
+      { query: '', chatTypes: ['users', 'groups', 'channels'] },
+    ]);
+    expect(r.calls.some((c) => c.path === `/api/games/${GAME}/share`)).toBe(false);
   });
 
-  it('stays in the app when the share sheet is dismissed', async () => {
-    const r = mount(afterPlies(3, { viewerRole: 'white' }));
+  it('has the bot post the position when the bot has inline mode off', async () => {
+    const initial = afterPlies(3, { viewerRole: 'white' });
+    const r = renderApp(
+      (app) => {
+        app.prefetched.game = initial;
+        return <Game gameId={GAME} />;
+      },
+      okRoute(initial),
+      { inlineMode: false },
+    );
     await r.flush();
     await r.click('[data-action="share"]');
-    window.__tg!.answerShare(false);
-    await r.flush();
-    expect(window.__tg!.closed).toBe(false);
+    expect(r.calls.map((c) => c.path)).toEqual([
+      `/api/games/${GAME}/share/inline`,
+      `/api/games/${GAME}/share`,
+    ]);
+    expect(document.querySelector('.toast')?.textContent).toBe('Shared to the group');
   });
 
-  it('has the bot post the position on clients without the share sheet', async () => {
-    const r = mount(afterPlies(3, { viewerRole: 'white' }), undefined, '7.10');
+  it('has the bot post the position on clients without the chat picker', async () => {
+    const r = mount(afterPlies(3, { viewerRole: 'white' }), undefined, '6.4');
     await r.flush();
     await r.click('[data-ply="1"]');
     await r.click('[data-action="share"]');
-    expect(r.calls.at(-1)).toMatchObject({
-      method: 'POST',
-      path: `/api/games/${GAME}/share`,
-      body: { ply: 1 },
-    });
+    expect(r.calls.map((c) => [c.method, c.path, c.body])).toEqual([
+      ['POST', `/api/games/${GAME}/share`, { ply: 1 }],
+    ]);
     expect(document.querySelector('.toast')?.textContent).toBe('Shared to the group');
-    expect(window.__tg!.closed).toBe(false);
   });
 
   it('marks your bar and clock gold on your move, and names the waiting side', async () => {
