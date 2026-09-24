@@ -17,9 +17,28 @@ const CASTLES = [
   { colour: 'black', right: 'q', king: 'e8', to: 'c8', rookFrom: 'a8', rookTo: 'd8', rook: 'r' },
 ] as const;
 
-const KNIGHT = [[1, 2], [2, 1], [-1, 2], [-2, 1], [1, -2], [2, -1], [-1, -2], [-2, -1]] as const;
-const STRAIGHT = [[1, 0], [-1, 0], [0, 1], [0, -1]] as const;
-const DIAGONAL = [[1, 1], [1, -1], [-1, 1], [-1, -1]] as const;
+const KNIGHT = [
+  [1, 2],
+  [2, 1],
+  [-1, 2],
+  [-2, 1],
+  [1, -2],
+  [2, -1],
+  [-1, -2],
+  [-2, -1],
+] as const;
+const STRAIGHT = [
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+] as const;
+const DIAGONAL = [
+  [1, 1],
+  [1, -1],
+  [-1, 1],
+  [-1, -1],
+] as const;
 
 export function pieceColour(piece: string): Colour {
   return piece === piece.toUpperCase() ? 'white' : 'black';

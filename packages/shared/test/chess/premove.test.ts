@@ -31,7 +31,7 @@ describe('premoveTargets (the pattern rule)', () => {
     expect(sorted(premoveTargets(start, 'black').get('a7'))).toEqual(['a5', 'a6', 'b6']);
   });
 
-  it('ignores blockers for sliders and allows squares held by the player\'s own pieces', () => {
+  it("ignores blockers for sliders and allows squares held by the player's own pieces", () => {
     const queen = premoveTargets(start, 'black').get('d8') ?? [];
     expect(queen).toContain('h4'); // through the e7 pawn
     expect(queen).toContain('d1'); // the whole file
