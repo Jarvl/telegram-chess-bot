@@ -194,7 +194,14 @@ export function engineJobHandlers(ctx: EngineHandlerContext): JobHandlers {
           // touch the game again: it is stalled for good. And because our own arbiter says a move
           // is owed, reaching here means Stockfish and the arbiter disagree — an error, not noise.
           const fresh = await requireGameById(deps.db, gameId);
-          if (fresh.status === 'active' && (await engineIsToMove(deps.db, fresh))) {
+          // A premove the human queued can answer the engine inside its own move, leaving the
+          // engine to move again at a later ply; that ply's job is already enqueued (premoves spec,
+          // Engine job). Only the same ply still owing a move is a stall.
+          if (
+            fresh.status === 'active' &&
+            fresh.plyCount === game.plyCount &&
+            (await engineIsToMove(deps.db, fresh))
+          ) {
             log.error(
               { gameId, fen: fresh.fen },
               'the engine made no move and the game is still active',
