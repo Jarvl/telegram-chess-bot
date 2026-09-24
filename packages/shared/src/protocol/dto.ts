@@ -98,6 +98,8 @@ export const GameDtoSchema = z.object({
   finishedAt: IsoDateSchema.nullable(),
   /** The bot level when this is a game against the bot, otherwise null. */
   engineLevel: EngineLevelSchema.nullable(),
+  /** The viewer's own premove chain while it is not their turn; `[]` for everyone else (premoves spec). */
+  premoves: z.array(UciSchema).default([]),
   /** Only present once the game is finished (spec §7.6). */
   lichessUrl: z.url().optional(),
   analysisUrl: z.url().optional(),

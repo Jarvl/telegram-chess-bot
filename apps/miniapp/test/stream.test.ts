@@ -44,6 +44,7 @@ const dto = (version: number): GameDto => ({
   startedAt: new Date().toISOString(),
   finishedAt: null,
   engineLevel: null,
+  premoves: [],
 });
 
 let visibility: 'visible' | 'hidden' = 'visible';
