@@ -1,5 +1,7 @@
+import type { MoveConfirmations } from '@group-chess/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { prefs, session } from '../src/state/session';
+import { createTg } from '../src/tg/webapp';
 import { Game } from '../src/ui/screens/Game';
 import { FakeEventSource } from './support/fakeEventSource';
 import type { FakeResponse, FakeRoute } from './support/fakeFetch';
@@ -31,7 +33,11 @@ const okRoute =
     return { status: 200, body: { ok: true } };
   };
 
-const wantPrefs = { closeAfterMove: false };
+const wantPrefs: { closeAfterMove: boolean; moveConfirmations: MoveConfirmations } = {
+  closeAfterMove: false,
+  // The flows below predate move confirmations; the describe block for them sets its own.
+  moveConfirmations: 'never',
+};
 
 function mount(
   initial: ReturnType<typeof gameDto>,
@@ -56,6 +62,7 @@ beforeEach(() => {
   FakeEventSource.reset();
   vi.stubGlobal('EventSource', FakeEventSource);
   wantPrefs.closeAfterMove = false;
+  wantPrefs.moveConfirmations = 'never';
 });
 afterEach(async () => {
   // Preact flushes effects on animation frames; run the faked ones before real timers return,
@@ -322,5 +329,167 @@ describe('Game', () => {
     const bar = r.root.querySelector('.player-bar[data-colour="black"]')!;
     expect(bar.querySelector('img.avatar.bot')).not.toBeNull();
     expect(bar.querySelector('.rating')?.textContent).toBe('Club');
+  });
+});
+
+describe('Game with move confirmations', () => {
+  beforeEach(() => {
+    wantPrefs.moveConfirmations = 'people';
+  });
+  const posts = (r: ReturnType<typeof mount>) =>
+    r.calls.filter((c) => c.method === 'POST' && c.path === `/api/games/${GAME}/moves`);
+
+  it('holds a move against a person for Confirm move, then sends it once', async () => {
+    const r = mount(gameDto());
+    await r.flush();
+    adapter.drop('e2', 'e4');
+    await r.flush();
+    expect(posts(r)).toHaveLength(0);
+    expect(window.__tg!.mainButton).toMatchObject({ text: 'Confirm move', visible: true });
+    expect(window.__tg!.secondaryButton).toMatchObject({ text: 'Cancel', visible: true });
+    expect(r.root.querySelector('[data-action="resign"]')?.hasAttribute('disabled')).toBe(true);
+    // Review Focus 2: two taps before the screen re-renders still send one move.
+    window.__tg!.clickMain();
+    window.__tg!.clickMain();
+    await r.flush();
+    expect(posts(r)).toHaveLength(1);
+    expect(posts(r)[0]?.body).toMatchObject({ uci: 'e2e4', expectedPly: 0 });
+    expect(window.__tg!.mainButton.visible).toBe(false);
+    expect(window.__tg!.secondaryButton!.visible).toBe(false);
+  });
+
+  it('keeps the bar up with a spinner while a confirmed move sends', async () => {
+    let answer: (response: FakeResponse) => void = () => undefined;
+    const r = mount(
+      gameDto(),
+      okRoute(gameDto(), () => new Promise<FakeResponse>((resolve) => (answer = resolve))),
+    );
+    await r.flush();
+    adapter.drop('e2', 'e4');
+    await r.flush();
+    window.__tg!.clickMain();
+    await r.flush();
+    expect(window.__tg!.mainButton).toMatchObject({
+      text: 'Sending…',
+      visible: true,
+      progress: true,
+    });
+    expect(window.__tg!.secondaryButton!.visible).toBe(false);
+    answer({ status: 200, body: afterPlies(1) });
+    await r.flush();
+    expect(window.__tg!.mainButton.visible).toBe(false);
+  });
+
+  it('puts the piece back on Cancel and sends nothing', async () => {
+    const r = mount(gameDto());
+    await r.flush();
+    adapter.drop('e2', 'e4');
+    await r.flush();
+    const restored = adapter.restored;
+    window.__tg!.clickSecondary();
+    await r.flush();
+    expect(adapter.restored).toBe(restored + 1);
+    expect(adapter.positions.at(-1)?.fen).toBe(gameDto().fen);
+    expect(posts(r)).toHaveLength(0);
+    expect(window.__tg!.mainButton.visible).toBe(false);
+    expect(window.__tg!.secondaryButton!.visible).toBe(false);
+  });
+
+  it('holds the waiting move on the board through a snapshot, and locks the move strip', async () => {
+    const r = mount(afterPlies(2));
+    await r.flush();
+    adapter.drop('b1', 'c3');
+    await r.flush();
+    const before = adapter.positions.length;
+    // Review Focus 3: a draw offer bumps the version but is no new ply.
+    FakeEventSource.instances[0]!.send(
+      'state',
+      afterPlies(2, { version: 3, drawOffer: { by: 'black', atPly: 2 } }),
+      '3',
+    );
+    await r.flush();
+    expect(adapter.positions).toHaveLength(before);
+    expect(r.text()).toContain('Bob offers a draw');
+    expect(window.__tg!.mainButton).toMatchObject({ text: 'Confirm move', visible: true });
+    expect(r.root.querySelector<HTMLButtonElement>('.move-list [data-ply="1"]')?.disabled).toBe(
+      true,
+    );
+  });
+
+  it('holds a promotion for Confirm move once the piece is picked', async () => {
+    const r = mount(gameDto({ fen: '4k3/4P3/8/8/8/8/8/4K3 w - - 0 1', plyCount: 6, version: 6 }));
+    await r.flush();
+    adapter.drop('e7', 'e8');
+    await r.flush();
+    await r.click('[data-promote="q"]');
+    expect(posts(r)).toHaveLength(0);
+    expect(window.__tg!.mainButton).toMatchObject({ text: 'Confirm move', visible: true });
+    window.__tg!.clickMain();
+    await r.flush();
+    expect(posts(r)[0]?.body).toMatchObject({ uci: 'e7e8q', expectedPly: 6 });
+  });
+
+  it('sends on drop against the bot under the default', async () => {
+    const r = mount(gameDto({ engineLevel: 'casual' }));
+    await r.flush();
+    adapter.drop('e2', 'e4');
+    await r.flush();
+    expect(posts(r)).toHaveLength(1);
+    expect(window.__tg!.calls).not.toContain('MainButton.show');
+  });
+
+  it('holds a move against the bot when the setting is Always', async () => {
+    wantPrefs.moveConfirmations = 'always';
+    const r = mount(gameDto({ engineLevel: 'casual' }));
+    await r.flush();
+    adapter.drop('e2', 'e4');
+    await r.flush();
+    expect(posts(r)).toHaveLength(0);
+    expect(window.__tg!.mainButton).toMatchObject({ text: 'Confirm move', visible: true });
+  });
+
+  it('reads the setting at each drop, so a change mid-game applies to the next move', async () => {
+    // Review Focus 5.
+    const r = mount(gameDto());
+    await r.flush();
+    prefs.value = { ...prefs.value, moveConfirmations: 'never' };
+    adapter.drop('e2', 'e4');
+    await r.flush();
+    expect(posts(r)).toHaveLength(1);
+  });
+
+  it('puts Cancel in the action row below 7.10', async () => {
+    const r = mount(gameDto(), okRoute(gameDto()), '7.0');
+    await r.flush();
+    adapter.drop('e2', 'e4');
+    await r.flush();
+    expect(window.__tg!.mainButton).toMatchObject({ text: 'Confirm move', visible: true });
+    expect(r.root.querySelector('[data-action="confirm-move"]')).toBeNull();
+    await r.click('.toolbar [data-action="cancel-move"]');
+    expect(posts(r)).toHaveLength(0);
+    expect(r.root.querySelector('[data-action="cancel-move"]')).toBeNull();
+  });
+
+  it('puts both Confirm move and Cancel first in the action row without Telegram buttons', async () => {
+    const initial = gameDto();
+    const r = renderApp(
+      (app) => {
+        app.prefetched.game = initial;
+        return <Game gameId={GAME} />;
+      },
+      okRoute(initial),
+      { tg: createTg(null) },
+    );
+    prefs.value = { ...prefs.value, ...wantPrefs };
+    await r.flush();
+    adapter.drop('e2', 'e4');
+    await r.flush();
+    const toolbar = r.root.querySelector('.toolbar')!;
+    expect(toolbar.children[0]?.getAttribute('data-action')).toBe('confirm-move');
+    expect(toolbar.children[1]?.getAttribute('data-action')).toBe('cancel-move');
+    await r.click('[data-action="confirm-move"]');
+    expect(
+      r.calls.filter((c) => c.method === 'POST' && c.path === `/api/games/${GAME}/moves`),
+    ).toHaveLength(1);
   });
 });

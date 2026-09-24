@@ -195,6 +195,7 @@ export const en = {
   'app.game.abort_confirm': 'Abort this game?',
   'app.game.flip': 'Flip',
   'app.game.confirm': 'Confirm',
+  'app.game.confirm_move': 'Confirm move',
   'app.game.cancel': 'Cancel',
   'app.game.sending': 'Sending…',
   'app.game.retry': 'Retry',

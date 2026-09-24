@@ -31,6 +31,7 @@ export function renderApp(
     client?: ApiClient;
     writeAccess?: boolean;
     popupError?: string;
+    tg?: Tg;
   } = {},
 ): Rendered {
   installFakeWebApp({
@@ -39,7 +40,7 @@ export function renderApp(
     writeAccess: options.writeAccess,
     popupError: options.popupError,
   });
-  const tg = createTg(window.Telegram!.WebApp);
+  const tg = options.tg ?? createTg(window.Telegram!.WebApp);
   const { fetch, calls } = fakeFetch(route);
   const client = options.client ?? createApiClient({ fetch });
   client.setToken('jwt');
