@@ -841,6 +841,26 @@ describe('Game premoves', () => {
     expect(r.calls.filter((c) => c.method === 'POST' && c.path.endsWith('/moves'))).toHaveLength(0);
   });
 
+  it('discards a promotion pick if the chain changed on another device while the picker was open', async () => {
+    const fen = '4k3/4P3/8/8/8/8/8/K7 b - - 0 1';
+    const initial = gameDto({ fen, plyCount: 7, version: 7 });
+    const r = mount(initial, echoPut(initial));
+    await r.flush();
+    adapter.drop('e7', 'e8');
+    await r.flush();
+    expect(r.root.querySelector('.promotion')).not.toBeNull();
+    // Another device queues a king move: same ply and version, a different chain.
+    FakeEventSource.instances[0]!.send(
+      'state',
+      gameDto({ fen, plyCount: 7, version: 7, premoves: ['a1b1'] }),
+      '7',
+    );
+    await r.flush();
+    await r.click('[data-promote="n"]');
+    expect(r.calls.filter((c) => c.method === 'PUT')).toHaveLength(0);
+    expect(r.root.querySelector('.move-list [data-premove="1"]')?.textContent).toBe('Kb1');
+  });
+
   it('ignores a second drop while a premove edit is still sending', async () => {
     let resolvePut: (response: FakeResponse) => void = () => undefined;
     const r = mount(

@@ -22,6 +22,7 @@ import {
   type PromotionPiece,
 } from '../../board/promotion';
 import { diffNotices, GameStore, positionAt, type Notice } from '../../state/game';
+import { sameList } from '../../state/premoves';
 import { noteTurnChange } from '../../state/yourMove';
 import {
   needsConfirmation,
@@ -93,6 +94,8 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
     dest: string;
     premove: boolean;
     ply: number;
+    /** The chain the piece was dropped onto; a different one by pick time voids the pick. */
+    base: string[];
   } | null>(null);
   const [slowSend, setSlowSend] = useState(false);
   // True from a drop that waits for Confirm move until that move settles (sent, cancelled or
@@ -361,7 +364,13 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
       }
       const board = imaginedBoard(store.dto.value.fen, store.premoves.value);
       if (isPremovePromotion(board, orig, dest)) {
-        setPromotion({ orig, dest, premove: true, ply: store.dto.value.plyCount });
+        setPromotion({
+          orig,
+          dest,
+          premove: true,
+          ply: store.dto.value.plyCount,
+          base: store.premoves.value,
+        });
         return;
       }
       void editPremoves([...store.premoves.value, `${orig}${dest}`], null);
@@ -369,7 +378,13 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
     }
     tg.haptic(meta.captured ? 'medium' : 'light');
     if (isPromotion(store.dto.value.fen, orig, dest)) {
-      setPromotion({ orig, dest, premove: false, ply: store.dto.value.plyCount });
+      setPromotion({
+        orig,
+        dest,
+        premove: false,
+        ply: store.dto.value.plyCount,
+        base: store.premoves.value,
+      });
       return;
     }
     dispatch({ type: 'drop', uci: `${orig}${dest}`, expectedPly: store.dto.value.plyCount });
@@ -390,11 +405,13 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
       return;
     }
     if (pending.premove) {
-      if (store.premoveSending.value) {
+      // Likewise a chain changed by another device while the picker was open: the pawn was dropped
+      // onto the old one, so appending to the new chain would queue a premove nobody chose.
+      if (store.premoveSending.value || !sameList(store.premoves.value, pending.base)) {
         restore();
         return;
       }
-      void editPremoves([...store.premoves.value, `${pending.orig}${pending.dest}${piece}`], null);
+      void editPremoves([...pending.base, `${pending.orig}${pending.dest}${piece}`], null);
       return;
     }
     dispatch({
