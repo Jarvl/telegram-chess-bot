@@ -641,4 +641,57 @@ describe('Game with move confirmations', () => {
     expect(r.app.router.suppressTabs.value).toBe(false);
     expect(r.calls.filter((c) => c.method === 'POST')).toHaveLength(0);
   });
+
+  it('closes after a confirmed move when launched from a game card and the setting is on', async () => {
+    vi.useFakeTimers();
+    wantPrefs.closeAfterMove = true;
+    const r = mount(gameDto());
+    session.value = { ...session.value!, launchedFrom: { kind: 'game', gameId: GAME } };
+    await vi.advanceTimersByTimeAsync(100); // effects run on the next (faked) frame
+    adapter.drop('e2', 'e4');
+    await vi.advanceTimersByTimeAsync(100);
+    window.__tg!.clickMain();
+    await vi.advanceTimersByTimeAsync(100);
+    expect(window.__tg!.closed).toBe(false);
+    await vi.advanceTimersByTimeAsync(300);
+    expect(window.__tg!.closed).toBe(true);
+    void r;
+  });
+
+  it('restores the board and reloads the state when a confirmed move is answered 409', async () => {
+    const r = mount(
+      gameDto(),
+      okRoute(gameDto(), () => ({
+        status: 409,
+        body: { error: { code: 'stale_state', message: 'the position has changed' } },
+      })),
+    );
+    await r.flush();
+    adapter.drop('e2', 'e4');
+    await r.flush();
+    const restored = adapter.restored;
+    window.__tg!.clickMain();
+    await r.flush();
+    expect(window.__tg!.mainButton.visible).toBe(false);
+    expect(r.app.router.suppressTabs.value).toBe(false);
+    expect(adapter.restored).toBe(restored + 1);
+    expect(r.calls.map((c) => [c.method, c.path])).toEqual([
+      ['POST', `/api/games/${GAME}/moves`],
+      ['GET', `/api/games/${GAME}`],
+    ]);
+  });
+
+  it('cancels a waiting move when a new ply arrives from another device', async () => {
+    const r = mount(gameDto());
+    await r.flush();
+    adapter.drop('e2', 'e4');
+    await r.flush();
+    const before = adapter.positions.length;
+    // Same player moved from another device: plyCount changes, status stays active.
+    FakeEventSource.instances[0]!.send('state', afterPlies(1, { viewerRole: 'white' }), '1');
+    await r.flush();
+    expect(window.__tg!.mainButton.visible).toBe(false);
+    expect(posts(r)).toHaveLength(0);
+    expect(adapter.positions.length).toBeGreaterThan(before);
+  });
 });
