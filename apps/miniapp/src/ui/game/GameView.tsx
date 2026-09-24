@@ -1,6 +1,8 @@
 import {
+  applyMove,
   GameDtoSchema,
   PgnLinkDtoSchema,
+  sideToMove,
   t,
   type Colour,
   type EngineGameRequest,
@@ -53,6 +55,29 @@ const PIECE_LABEL = {
   b: 'app.game.piece.b',
   n: 'app.game.piece.n',
 } as const;
+
+/**
+ * Pushes the position after a move that just went to `pendingConfirm`, so the frozen board shows
+ * what is being confirmed instead of chessground's own drop display: the picked promotion piece,
+ * an en passant capture with the pawn removed, a check highlight. Pushes nothing when `uci` turns
+ * out illegal (e.g. a malformed test fixture); the board stays as chessground left it.
+ */
+function pushPendingPosition(
+  adapter: BoardAdapter | null,
+  fen: string,
+  uci: string,
+  orientation: Colour,
+): void {
+  const result = applyMove(fen, [], uci);
+  if (!result.legal) return;
+  adapter?.setPosition({
+    fen: result.fenAfter,
+    lastMove: [uci.slice(0, 2), uci.slice(2, 4)],
+    check: result.check,
+    orientation,
+    turnColour: sideToMove(result.fenAfter),
+  });
+}
 
 export function GameView(props: { initial: GameDto; onReload: () => Promise<GameDto> }) {
   const { client, tg, router } = useApp();
@@ -139,8 +164,15 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
       const { state, effects } = reduceMove(moveRef.current, event, { confirm });
       moveRef.current = state;
       setMoveState(state);
-      if (state.kind === 'pendingConfirm') setConfirming(true);
-      else if (state.kind === 'idle') setConfirming(false);
+      if (state.kind === 'pendingConfirm') {
+        setConfirming(true);
+        pushPendingPosition(
+          adapterRef.current,
+          store.dto.value.fen,
+          state.move.uci,
+          store.orientation.value,
+        );
+      } else if (state.kind === 'idle') setConfirming(false);
       for (const effect of effects) runEffectRef.current(effect);
     },
     [store],

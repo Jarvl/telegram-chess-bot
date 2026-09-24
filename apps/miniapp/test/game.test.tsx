@@ -418,7 +418,8 @@ describe('Game with move confirmations', () => {
   });
 
   it('holds a promotion for Confirm move once the piece is picked', async () => {
-    const r = mount(gameDto({ fen: '4k3/4P3/8/8/8/8/8/4K3 w - - 0 1', plyCount: 6, version: 6 }));
+    const initial = gameDto({ fen: '8/4P3/8/8/8/8/k7/4K3 w - - 0 1', plyCount: 6, version: 6 });
+    const r = mount(initial);
     await r.flush();
     adapter.drop('e7', 'e8');
     await r.flush();
@@ -428,6 +429,31 @@ describe('Game with move confirmations', () => {
     window.__tg!.clickMain();
     await r.flush();
     expect(posts(r)[0]?.body).toMatchObject({ uci: 'e7e8q', expectedPly: 6 });
+  });
+
+  it('shows the promoted piece, not chessground’s own pawn, while the promotion waits for Confirm', async () => {
+    const initial = gameDto({ fen: '8/4P3/8/8/8/8/k7/4K3 w - - 0 1', plyCount: 6, version: 6 });
+    const r = mount(initial);
+    await r.flush();
+    adapter.drop('e7', 'e8');
+    await r.flush();
+    await r.click('[data-promote="q"]');
+    expect(posts(r)).toHaveLength(0);
+    const shown = adapter.positions.at(-1);
+    expect(shown?.fen).toMatch(/^4Q3\//);
+    expect(shown).toMatchObject({ lastMove: ['e7', 'e8'], turnColour: 'black' });
+    window.__tg!.clickSecondary();
+    await r.flush();
+    expect(adapter.positions.at(-1)?.fen).toBe(initial.fen);
+  });
+
+  it('shows check on the board while a checking move waits for Confirm', async () => {
+    const r = mount(gameDto({ fen: '4k3/8/8/8/8/8/8/R3K3 w - - 0 1', plyCount: 6, version: 6 }));
+    await r.flush();
+    adapter.drop('a1', 'a8');
+    await r.flush();
+    expect(posts(r)).toHaveLength(0);
+    expect(adapter.positions.at(-1)).toMatchObject({ check: true, lastMove: ['a1', 'a8'] });
   });
 
   it('sends on drop against the bot under the default', async () => {
