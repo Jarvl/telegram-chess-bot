@@ -18,6 +18,7 @@ const launchBody = (route: unknown, askWriteAccess = false, yourMove = 0) => ({
   prefs: {
     closeAfterMove: true,
     notifications: true,
+    moveConfirmations: 'people',
     boardTheme: null,
     pieceSet: null,
   },

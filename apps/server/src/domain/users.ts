@@ -41,9 +41,16 @@ export async function requireUser(tx: DbOrTx, id: number): Promise<UserRow> {
   return row;
 }
 
-/** Stored preferences over the defaults; keys no longer in the schema (e.g. `confirmMoves`) are dropped. */
+/**
+ * Stored preferences over the defaults; keys no longer in the schema are dropped. A
+ * `confirmMoves: false` stored before #16 reads as `moveConfirmations: 'never'`, and a stored
+ * `moveConfirmations` always wins over it (move confirmations spec).
+ */
 export function prefsOf(user: Pick<UserRow, 'prefs'>): Prefs {
-  return PrefsSchema.parse({ ...PREFS_DEFAULTS, ...user.prefs });
+  const stored = user.prefs as Partial<Prefs> & { confirmMoves?: unknown };
+  const legacy: Partial<Prefs> =
+    stored.confirmMoves === false ? { moveConfirmations: 'never' } : {};
+  return PrefsSchema.parse({ ...PREFS_DEFAULTS, ...legacy, ...user.prefs });
 }
 
 /** PRD §7.7: DMs go only to users who allowed them in Telegram and keep notifications on. */

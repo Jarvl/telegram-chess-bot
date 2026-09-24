@@ -332,6 +332,22 @@ describe('me routes', () => {
     expect(res.status).toBe(200);
     expect(await api.ctx.metrics.render()).toContain('miniapp_load_errors_total 1');
   });
+
+  it('saves a move confirmations choice and refuses an unknown one', async () => {
+    const user = await insertUser(db);
+    const token = await api.sessionFor(user);
+    const saved = await api.request('PUT', '/api/me/prefs', {
+      token,
+      body: { prefs: { moveConfirmations: 'never' } },
+    });
+    expect(await saved.json()).toMatchObject({ prefs: { moveConfirmations: 'never' } });
+    const refused = await api.request('PUT', '/api/me/prefs', {
+      token,
+      body: { prefs: { moveConfirmations: 'sometimes' } },
+    });
+    expect(refused.status).toBe(400);
+    expect(await refused.json()).toMatchObject({ error: { code: 'validation' } });
+  });
 });
 
 describe('health', () => {
