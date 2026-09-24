@@ -1,7 +1,9 @@
 import {
   applyMove,
+  opposite,
   sideToMove,
   timeoutOutcome,
+  type Colour,
   type EndReason,
   type GameDto,
   type GameResult,
@@ -193,6 +195,136 @@ export type PlayMoveInput = {
   clientMoveId: string;
 };
 
+type CommitInput = {
+  game: GameRow;
+  colour: Colour;
+  uci: string;
+  clientMoveId: string;
+  now: Date;
+  history: MoveRow[];
+  /**
+   * False only on the recursive call that plays a fired premove. That move's own reply is a real
+   * move that hasn't been queued yet in this same transaction — the row's `premoves` at that point
+   * still holds the *mover's own* leftover chain (for their next turn), not something to try firing
+   * immediately. Firing checks real legality, and a leftover entry belongs to the side that just
+   * moved, so it can never be legal for whoever is to move next; without this guard it would read as
+   * an illegal fire and wrongly cancel a chain that the "one premove per opponent move" tests (and
+   * the spec's "at most one level deep") expect to survive intact. Defaults to true.
+   */
+  firePremoves?: boolean;
+};
+
+/**
+ * Plays `uci` for `colour`, who is to move on the locked `game`, and everything that follows a
+ * move: the clock, the end of the game, the card, the turn DM or the engine's reply. The queue on the
+ * row belongs to the other side, whose turn it now is; its first premove is played or the whole
+ * chain cancelled right here (premoves spec, Firing). Returns the final row.
+ */
+async function commitMove(tx: DbOrTx, input: CommitInput): Promise<GameRow> {
+  const { game, colour, now, history } = input;
+  const result = applyMove(game.fen, positionKeys(history), input.uci);
+  if (!result.legal) throw new DomainError('illegal_move', 'illegal move');
+
+  const ply = game.plyCount + 1;
+  const [inserted] = await tx
+    .insert(moves)
+    .values({
+      gameId: game.id,
+      ply,
+      uci: result.uci,
+      san: result.san,
+      fenAfter: result.fenAfter,
+      playedAt: now,
+      clientMoveId: input.clientMoveId,
+    })
+    .returning();
+  if (!inserted) throw new Error('move insert returned no row');
+  const opponentId = colour === 'white' ? game.blackId : game.whiteId;
+  const opponent = await requireUser(tx, opponentId);
+  // `engineNext` decides whether to enqueue the engine's reply; `engineGame` suppresses the card
+  // and the turn DM. Neither touches the clock any more: a bot game has no time control, so both
+  // clock expressions below already return null for it without being asked about the engine.
+  const engineNext = opponent.isEngine;
+  const engineGame = isEngineGame(game);
+  const timePerMove = game.timePerMove as TimePerMove;
+  const offerLapses = game.drawOfferBy !== null && game.drawOfferBy !== colour;
+  const [moved] = await tx
+    .update(games)
+    .set({
+      fen: result.fenAfter,
+      plyCount: ply,
+      version: sql`${games.version} + 1`,
+      lastMoveAt: now,
+      // No engine special case: a bot game's time control is null (spec §8), so both of these
+      // already yield null for it. That null clock is what makes the engine unforfeitable and
+      // leaves the human nothing to be reminded about.
+      deadlineAt: deadlineExpression(timePerMove),
+      reminderAt: reminderExpression(timePerMove, wantsDms(opponent)),
+      // The opponent's queue rides along; after a fired premove this is the rest of the chain.
+      premoves: game.premoves,
+      ...(offerLapses ? { drawOfferBy: null, drawOfferPly: null } : {}),
+    })
+    .where(eq(games.id, game.id))
+    .returning();
+  if (!moved) throw new DomainError('not_found', 'game not found');
+
+  if (result.outcome.kind !== 'continue') {
+    const end: EndInput =
+      result.outcome.kind === 'checkmate'
+        ? { result: result.outcome.winner === 'white' ? '1-0' : '0-1', endReason: 'checkmate' }
+        : { result: '1/2-1/2', endReason: result.outcome.reason };
+    return finishGame(tx, moved, end, now);
+  }
+
+  let premovesCancelled = false;
+  if (input.firePremoves !== false) {
+    const [next, ...rest] = moved.premoves;
+    if (next !== undefined) {
+      const played = [...history, inserted];
+      if (applyMove(moved.fen, positionKeys(played), next).legal) {
+        // The premove is the opponent's move: its commit does the card, the turn DM to `colour` (or
+        // the engine enqueue) and the clock. The opponent gets no turn DM of their own. It is the
+        // only recursive call, and it never fires again (see `firePremoves` above).
+        return commitMove(tx, {
+          game: { ...moved, premoves: rest },
+          colour: opposite(colour),
+          uci: next,
+          clientMoveId: `premove:${game.publicId}:${ply + 1}`,
+          now,
+          history: played,
+          firePremoves: false,
+        });
+      }
+      await tx.update(games).set({ premoves: [] }).where(eq(games.id, game.id));
+      premovesCancelled = true;
+    }
+  }
+
+  if (engineNext) {
+    // Spec §8: engine games post no card, and the engine has no DM to receive.
+    await enqueueEngineMove(tx, moved);
+  } else if (!engineGame) {
+    // Spec §8: a bot game announces nothing when the engine moves — no card, and no turn DM to
+    // the human. The whole branch is a no-op for it.
+    await enqueue(tx, {
+      kind: 'edit_card',
+      payload: { gameId: game.id },
+      dedupKey: `card:g:${game.publicId}`,
+    });
+    await enqueue(tx, {
+      kind: 'send_dm',
+      payload: {
+        userId: opponentId,
+        template: 'turn',
+        gameId: game.id,
+        ...(premovesCancelled ? { premovesCancelled: true } : {}),
+      },
+      dedupKey: `dm:${opponentId}:g:${game.publicId}:turn:${ply}`,
+    });
+  }
+  return premovesCancelled ? { ...moved, premoves: [] } : moved;
+}
+
 /** The move transaction of spec §7.4, step for step. */
 export async function playMove(deps: Deps, input: PlayMoveInput): Promise<GameDto> {
   const dto = await deps.db.transaction(async (tx) => {
@@ -208,71 +340,15 @@ export async function playMove(deps: Deps, input: PlayMoveInput): Promise<GameDt
       throw new DomainError('stale_state', 'the position has changed', { plyCount: game.plyCount });
     }
     if (sideToMove(game.fen) !== colour) throw new DomainError('not_your_turn', 'not your turn');
-    const result = applyMove(game.fen, positionKeys(history), input.uci);
-    if (!result.legal) throw new DomainError('illegal_move', 'illegal move');
-
-    const ply = game.plyCount + 1;
-    await tx.insert(moves).values({
-      gameId: game.id,
-      ply,
-      uci: result.uci,
-      san: result.san,
-      fenAfter: result.fenAfter,
-      playedAt: now,
+    const final = await commitMove(tx, {
+      game,
+      colour,
+      uci: input.uci,
       clientMoveId: input.clientMoveId,
+      now,
+      history,
     });
-    const opponentId = colour === 'white' ? game.blackId : game.whiteId;
-    const opponent = await requireUser(tx, opponentId);
-    // `engineNext` decides whether to enqueue the engine's reply; `engineGame` suppresses the card
-    // and the turn DM. Neither touches the clock any more: a bot game has no time control, so both
-    // clock expressions below already return null for it without being asked about the engine.
-    const engineNext = opponent.isEngine;
-    const engineGame = isEngineGame(game);
-    const timePerMove = game.timePerMove as TimePerMove;
-    const offerLapses = game.drawOfferBy !== null && game.drawOfferBy !== colour;
-    const [moved] = await tx
-      .update(games)
-      .set({
-        fen: result.fenAfter,
-        plyCount: ply,
-        version: sql`${games.version} + 1`,
-        lastMoveAt: now,
-        // No engine special case: a bot game's time control is null (spec §8), so both of these
-        // already yield null for it. That null clock is what makes the engine unforfeitable and
-        // leaves the human nothing to be reminded about.
-        deadlineAt: deadlineExpression(timePerMove),
-        reminderAt: reminderExpression(timePerMove, wantsDms(opponent)),
-        ...(offerLapses ? { drawOfferBy: null, drawOfferPly: null } : {}),
-      })
-      .where(eq(games.id, game.id))
-      .returning();
-    if (!moved) throw new DomainError('not_found', 'game not found');
-
-    if (result.outcome.kind !== 'continue') {
-      const end: EndInput =
-        result.outcome.kind === 'checkmate'
-          ? { result: result.outcome.winner === 'white' ? '1-0' : '0-1', endReason: 'checkmate' }
-          : { result: '1/2-1/2', endReason: result.outcome.reason };
-      return loadGameDto(tx, await finishGame(tx, moved, end, now), input.userId);
-    }
-    if (engineNext) {
-      // Spec §8: engine games post no card, and the engine has no DM to receive.
-      await enqueueEngineMove(tx, moved);
-    } else if (!engineGame) {
-      // Spec §8: a bot game announces nothing when the engine moves — no card, and no turn DM to
-      // the human. The whole branch is a no-op for it.
-      await enqueue(tx, {
-        kind: 'edit_card',
-        payload: { gameId: game.id },
-        dedupKey: `card:g:${game.publicId}`,
-      });
-      await enqueue(tx, {
-        kind: 'send_dm',
-        payload: { userId: opponentId, template: 'turn', gameId: game.id },
-        dedupKey: `dm:${opponentId}:g:${game.publicId}:turn:${ply}`,
-      });
-    }
-    return loadGameDto(tx, moved, input.userId);
+    return loadGameDto(tx, final, input.userId);
   });
   deps.bus.publish(input.gameId);
   return dto;
