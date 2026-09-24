@@ -190,7 +190,7 @@ Deployment is a multi-stage Docker image: build the Mini App, copy the bundle in
 1. Privacy mode on (default).
 2. Create the Mini App with `/newapp`, short name `MINI_APP_SHORT_NAME`, URL `PUBLIC_URL/app/`. Enable the same URL as the Main Mini App so the bot profile opens the lobby.
 3. Commands via `setMyCommands`: scope `all_group_chats` → `/play`, `/chess`, `/settings`; scope `all_private_chats` → `/start`. No default-scope commands, so the group menu stays at three entries.
-4. `setWebhook` with `secret_token` and `allowed_updates: ["message", "callback_query", "my_chat_member", "chat_member"]`. `chat_member` is not delivered by default and only arrives where the bot is an administrator; it is a bonus feed for the known-players list, never a dependency.
+4. `setWebhook` with `secret_token` and `allowed_updates: ["message", "callback_query", "my_chat_member", "chat_member", "inline_query"]`. `chat_member` is not delivered by default and only arrives where the bot is an administrator; it is a bonus feed for the known-players list, never a dependency.
 5. Menu button left as the default (opens the Main Mini App).
 
 ### 5.2 Update handling
@@ -367,7 +367,7 @@ Enforced by a bundle-size check in CI and a Lighthouse run against the staging U
 | `SecondaryButton` | 7.10 | In-page Cancel button |
 | `HapticFeedback` | 6.1 | Skip |
 | `downloadFile` | 8.0 | `openLink` to the PGN URL |
-| `shareMessage` + `savePreparedInlineMessage` (P1) | 8.0 | Hide the share-to-chat action |
+| `switchInlineQuery` with `choose_chat_types` | 6.7 | The bot posts the shared position to the group (`POST /games/:id/share`); also when the bot's inline mode is off |
 
 ### 6.7 Theme and layout
 
@@ -498,6 +498,8 @@ Lichess import runs as a `lichess_import` job when a game with at least one move
 
 Cache: `board_images(key, telegram_file_id)` with `key = sha256(piece placement | side to move | lastMove | check | orientation | theme)`. On a hit the share job calls `sendPhoto` with the `file_id` and no upload; on a miss it uploads and stores the returned `file_id`. The image has White at the bottom when a spectator shares and the sharer's own colour at the bottom when a player shares.
 
+Inline sharing (Bot API 6.7+): `POST /games/:id/share/inline` stages the position in `pending_shares` (one row per user, overwritten on each share), then the app calls `WebApp.switchInlineQuery('', ['users', 'groups', 'channels'])`. Telegram opens its chat picker, then the chosen chat with `@<bot>` in the input field, and the resulting `inline_query` is answered with the user's staged position if it is under ten minutes old (`cache_time: 0`, `is_personal`), as an `InlineQueryResultPhoto` with the share caption and `Open game`. One tap sends it as the user, via the bot. Telegram takes such photos only by URL and only as JPEG, so `photo_url` and `thumbnail_url` point at `GET /api/board-images/<board>/<signature>/(board|thumb).jpg`: the path carries the FEN, orientation and last move, an HMAC over them keeps it to boards this server issued, and the image is drawn on each request (about 0.1 s) and served as immutable. No `shares` row or job is written.
+
 ### 7.8 Limits
 
 | Limit | Value | Enforced in |
@@ -506,7 +508,7 @@ Cache: `board_images(key, telegram_file_id)` with `key = sha256(piece placement 
 | Active games per user per group | 5, admin-configurable 1–20 | `challenges.create` and `accept` |
 | Concurrent games between the same pair | 2 | same |
 | Challenge lifetime | 24 h | expiry scanner |
-| Position shares | 1 per user per minute | `sharing.share` |
+| Position shares posted by the bot (the fallback) | 1 per user per minute | `sharing.share` |
 | `/chess`, `/settings` | 1 per group per minute | `bot` |
 | API requests | 120 per user per minute | `api` middleware |
 | Open SSE streams | 4 per user | `api` |
@@ -525,7 +527,8 @@ Primary keys are `bigint` identities; `public_id` columns are the 10-character i
 | `games` | `id`, `public_id`, `group_id`, `white_id`, `black_id`, `time_per_move`, `rated`, `status`, `result`, `end_reason`, `fen`, `ply_count`, `version`, `deadline_at`, `reminder_at`, `draw_offer_by`, `draw_offer_ply`, `last_draw_offer_ply_white`, `last_draw_offer_ply_black`, `card_message_id`, `card_thread_id`, `card_missing`, `lichess_url`, `lichess_import_status`, `white_rating_before`, `white_rating_after`, `white_rd_before`, `white_rd_after`, same four for Black, `voided_at`, `voided_by`, `started_at`, `finished_at`, `last_move_at` | Partial indexes on `deadline_at` and `reminder_at` where `status = 'active'`; index on (`group_id`, `status`, `last_move_at`) |
 | `moves` | `game_id`, `ply`, `uci`, `san`, `fen_after`, `played_at`, `client_move_id`, primary key (`game_id`, `ply`), unique (`game_id`, `client_move_id`) | The replay and PGN source |
 | `ratings` | `group_id`, `user_id`, `rating`, `rd`, `volatility`, `games_played`, `wins`, `draws`, `losses`, `last_rated_game_at`, primary key (`group_id`, `user_id`) | Projection; rebuilt on void |
-| `shares` | `id`, `game_id`, `user_id`, `ply`, `message_id`, `created_at` | Rate limit and the "positions shared per 10 games" metric |
+| `shares` | `id`, `game_id`, `user_id`, `ply`, `message_id`, `created_at` | Rate limit and the "positions shared per 10 games" metric (bot-posted shares only) |
+| `pending_shares` | `user_id` (PK), `game_id`, `ply`, `created_at` | The position the user last staged for inline sharing (§7.7) |
 | `board_images` | `key` primary key, `telegram_file_id`, `created_at` | |
 | `jobs` | `id`, `kind`, `dedup_key`, `payload jsonb`, `run_at`, `attempts`, `max_attempts`, `locked_until`, `locked_by`, `last_error`, `created_at`, `done_at` | Unique partial index on `dedup_key` where `done_at is null`; index on (`run_at`) where `done_at is null` |
 | `telegram_updates` | `update_id` primary key, `received_at` | Pruned after 7 days |
@@ -555,7 +558,9 @@ All routes are under `/api`, JSON in and out, validated with the zod schemas in 
 | `POST /games/:id/moves` | player | `{ uci, expectedPly, clientMoveId }` → game DTO |
 | `POST /games/:id/draw/offer`, `/accept`, `/decline`, `/claim` | player | |
 | `POST /games/:id/resign`, `/abort` | player | |
-| `POST /games/:id/share` | player or member | `{ ply }` → `{ ok }`; enqueues the photo job |
+| `POST /games/:id/share` | player or member | `{ ply }` → `{ ok }`; enqueues the photo job (the fallback) |
+| `POST /games/:id/share/inline` | player or member | `{ ply }` → `{ ok }`; stages the position for the user's next inline query (§7.7) |
+| `GET /board-images/:board/:signature/(board\|thumb).jpg` | none; the signature is the authorisation | JPEG of a signed board, fetched by Telegram (§7.7) |
 | `POST /games/:id/rematch` | player | Creates the reversed-colour challenge |
 | `GET /games/:id/pgn` | player or member | `application/x-chess-pgn` |
 | `GET /groups/:g/settings`, `PUT /groups/:g/settings` | admin | |

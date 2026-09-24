@@ -15,6 +15,8 @@ export type FakeWebAppOptions = {
   /** Makes `showPopup` throw this message instead of opening a popup, e.g. a client-side param
    * rejection (`WebAppPopupParamInvalid`) rather than the "already open" case. */
   popupError?: string;
+  /** False makes `switchInlineQuery` throw as it does when BotFather's inline mode is off. */
+  inlineMode?: boolean;
 };
 
 export type FakeButton = {
@@ -42,6 +44,8 @@ export type FakeWebAppRecord = {
     buttons: { id?: string; type?: string; text?: string }[];
   }[];
   answerPopup(id: string): void;
+  /** `switchInlineQuery` calls, in order. */
+  inlineSwitches: { query: string; chatTypes: string[] }[];
   closingConfirmation: boolean;
   settingsButton: { visible: boolean } | null;
   clickSettings(): void;
@@ -85,6 +89,7 @@ export function installFakeWebApp(options: FakeWebAppOptions): void {
     popups: [],
     closingConfirmation: false,
     settingsButton: atLeast(options.version, '7.0') ? { visible: false } : null,
+    inlineSwitches: [],
     answerPopup: (id) => {
       const answer = pendingPopup;
       pendingPopup = null;
@@ -294,6 +299,12 @@ export function installFakeWebApp(options: FakeWebAppOptions): void {
     webApp.requestWriteAccess = (cb?: (granted: boolean) => void) => {
       record.calls.push('requestWriteAccess');
       cb?.(options.writeAccess === true);
+    };
+  }
+  if (atLeast(options.version, '6.7')) {
+    webApp.switchInlineQuery = (query: string, chatTypes: string[] = []) => {
+      if (options.inlineMode === false) throw new Error('WebAppInlineModeDisabled');
+      record.inlineSwitches.push({ query, chatTypes });
     };
   }
   if (atLeast(options.version, '7.7')) {

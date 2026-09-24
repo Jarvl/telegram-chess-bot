@@ -12,7 +12,7 @@ import {
   resign,
 } from '../../domain/games';
 import { buildGamePgn } from '../../domain/pgn';
-import { sharePosition } from '../../domain/sharing';
+import { sharePosition, stagePendingShare } from '../../domain/sharing';
 import { challengeDtoRows, challengeToDto } from '../../domain/summaries';
 import { requireGameAccess } from '../access';
 import type { ApiContext, ApiEnv } from '../context';
@@ -77,6 +77,13 @@ export function gamesRoutes(api: Hono<ApiEnv>, ctx: ApiContext): void {
       userId: userId(c),
       ply: c.req.valid('json').ply,
     });
+    return c.json({ ok: true });
+  });
+
+  // Bot API 6.7+: stage the position, then the app opens Telegram's chat picker (inline mode).
+  api.post('/games/:id/share/inline', validate('json', ShareRequestSchema), async (c) => {
+    const game = await accessible(c);
+    await stagePendingShare(db, { game, userId: userId(c), ply: c.req.valid('json').ply });
     return c.json({ ok: true });
   });
 

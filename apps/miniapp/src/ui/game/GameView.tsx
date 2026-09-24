@@ -251,9 +251,17 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
           .catch(() => undefined);
     }
   };
+  // Bot API 6.7+: stage the position, then Telegram's chat picker opens the chosen chat with the
+  // position offered above the keyboard (inline mode). Older clients, or a bot whose inline mode is
+  // off, have the bot post the photo to the group instead.
   const share = async (): Promise<void> => {
+    const body = { ply: store.position.value.ply };
     try {
-      await client.post(`/api/games/${gameId}/share`, { ply: store.position.value.ply });
+      if (tg.supports('switchInlineQuery')) {
+        await client.post(`/api/games/${gameId}/share/inline`, body);
+        if (tg.switchInlineQuery('', ['users', 'groups', 'channels'])) return;
+      }
+      await client.post(`/api/games/${gameId}/share`, body);
       toast(t('app.game.shared'));
     } catch (error) {
       toast(

@@ -6,6 +6,7 @@ import type { StatusCode } from 'hono/utils/http-status';
 import { isDomainError } from '../domain/errors';
 import type { ApiContext, ApiEnv } from './context';
 import { requireSession, userRateLimit } from './middleware';
+import { boardImageRoutes } from './routes/boardImages';
 import { healthRoutes } from './routes/health';
 import { launchRoutes } from './routes/launch';
 import { meRoutes } from './routes/me';
@@ -47,6 +48,8 @@ export function createApiApp(ctx: ApiContext, extra: RegisterRoutes[] = []): Hon
   const api = new Hono<ApiEnv>();
   api.use('*', bodyLimit({ maxSize: 64 * 1024 }));
   api.route('/', launchRoutes(ctx));
+  // Fetched by Telegram's servers, which have no session: the signed URL is the authorisation.
+  api.route('/', boardImageRoutes(ctx));
   api.use('*', requireSession(ctx));
   api.use('*', userRateLimit(ctx));
   api.route('/', meRoutes(ctx));

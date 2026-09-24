@@ -235,6 +235,21 @@ export const shares = pgTable(
   (t) => [index('shares_user_created').on(t.userId, t.createdAt)],
 );
 
+/**
+ * The position a user last chose to share through inline mode: the app stages it, then hands off
+ * to Telegram's chat picker, and the bot answers that user's inline query with it (spec §7.7).
+ */
+export const pendingShares = pgTable('pending_shares', {
+  userId: bigint({ mode: 'number' })
+    .primaryKey()
+    .references(() => users.id),
+  gameId: bigint({ mode: 'number' })
+    .notNull()
+    .references(() => games.id),
+  ply: integer().notNull(),
+  createdAt: tz().notNull().defaultNow(),
+});
+
 export const boardImages = pgTable('board_images', {
   key: text().primaryKey(),
   telegramFileId: text().notNull(),

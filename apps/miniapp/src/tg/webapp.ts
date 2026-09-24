@@ -1,4 +1,4 @@
-import type { TelegramButton, TelegramWebApp, ThemeParams } from './types';
+import type { InlineChatType, TelegramButton, TelegramWebApp, ThemeParams } from './types';
 
 export type Feature =
   | 'haptics'
@@ -6,6 +6,7 @@ export type Feature =
   | 'verticalSwipes'
   | 'secondaryButton'
   | 'downloadFile'
+  | 'switchInlineQuery'
   | 'headerColor'
   | 'bottomBarColor'
   | 'popup'
@@ -19,6 +20,7 @@ export const FEATURE_MIN_VERSION: Record<Feature, string> = {
   verticalSwipes: '7.7',
   secondaryButton: '7.10',
   downloadFile: '8.0',
+  switchInlineQuery: '6.7',
   headerColor: '6.1',
   bottomBarColor: '7.10',
   popup: '6.2',
@@ -83,6 +85,11 @@ export interface Tg {
   openLink(url: string): void;
   /** False when the client cannot download (below 8.0); the caller opens the link instead. */
   downloadFile(url: string, fileName: string): boolean;
+  /**
+   * Telegram's chat picker, then the picked chat with the bot's username and `query` in the input
+   * field (6.7+). False when the client has none or the bot's inline mode is off.
+   */
+  switchInlineQuery(query: string, chatTypes: InlineChatType[]): boolean;
   onViewportChanged(callback: (stableHeight: number) => void): () => void;
   onThemeChanged(callback: () => void): () => void;
   /** Header and background (6.1) and bottom bar (7.10) take this theme colour; a no-op below. */
@@ -157,6 +164,7 @@ function nullTg(): Tg {
       window.open(url, '_blank', 'noopener');
     },
     downloadFile: () => false,
+    switchInlineQuery: () => false,
     onViewportChanged: () => () => undefined,
     onThemeChanged: () => () => undefined,
     setChromeColor: () => undefined,
@@ -241,6 +249,16 @@ export function createTg(
       if (!supports('downloadFile') || !raw.downloadFile) return false;
       raw.downloadFile({ url, file_name: fileName });
       return true;
+    },
+    switchInlineQuery(query, chatTypes) {
+      if (!supports('switchInlineQuery') || !raw.switchInlineQuery) return false;
+      try {
+        raw.switchInlineQuery(query, chatTypes);
+        return true;
+      } catch {
+        // telegram-web-app.js throws WebAppInlineModeDisabled when BotFather's inline mode is off.
+        return false;
+      }
     },
     onViewportChanged(callback) {
       const handler = (): void => callback(raw.viewportStableHeight || window.innerHeight);

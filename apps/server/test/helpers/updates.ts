@@ -57,6 +57,14 @@ export function commandUpdate(options: {
   } as Update;
 }
 
+/** What Telegram sends as the user types after the bot's username in any chat's input field. */
+export function inlineQueryUpdate(from: User, query = ''): Update {
+  return {
+    update_id: (updateId += 1),
+    inline_query: { id: String(updateId), from, query, offset: '' },
+  } as Update;
+}
+
 export function callbackUpdate(options: {
   from: User;
   chat: Chat.SupergroupChat;

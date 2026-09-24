@@ -38,6 +38,7 @@ export const ALLOWED_UPDATES = [
   'callback_query',
   'my_chat_member',
   'chat_member',
+  'inline_query',
 ] as const;
 
 /** Spec §5.1 step 3: three group commands, one private command, nothing in the default scope. */

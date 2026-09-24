@@ -284,7 +284,7 @@ describe('Game', () => {
     expect(r.app.router.current.value).toEqual({ name: 'game', gameId: 'NextGameA1' });
   });
 
-  it('lets spectators flip and share the viewed position', async () => {
+  it('lets spectators flip and share the viewed position through the chat picker', async () => {
     const r = mount(afterPlies(3, { viewerRole: 'spectator' }));
     await r.flush();
     expect(adapter.viewOnly).toBe(true);
@@ -294,9 +294,42 @@ describe('Game', () => {
     await r.click('[data-action="share"]');
     expect(r.calls.at(-1)).toMatchObject({
       method: 'POST',
-      path: `/api/games/${GAME}/share`,
+      path: `/api/games/${GAME}/share/inline`,
       body: { ply: 1 },
     });
+    expect(window.__tg!.inlineSwitches).toEqual([
+      { query: '', chatTypes: ['users', 'groups', 'channels'] },
+    ]);
+    expect(r.calls.some((c) => c.path === `/api/games/${GAME}/share`)).toBe(false);
+  });
+
+  it('has the bot post the position when the bot has inline mode off', async () => {
+    const initial = afterPlies(3, { viewerRole: 'white' });
+    const r = renderApp(
+      (app) => {
+        app.prefetched.game = initial;
+        return <Game gameId={GAME} />;
+      },
+      okRoute(initial),
+      { inlineMode: false },
+    );
+    await r.flush();
+    await r.click('[data-action="share"]');
+    expect(r.calls.map((c) => c.path)).toEqual([
+      `/api/games/${GAME}/share/inline`,
+      `/api/games/${GAME}/share`,
+    ]);
+    expect(document.querySelector('.toast')?.textContent).toBe('Shared to the group');
+  });
+
+  it('has the bot post the position on clients without the chat picker', async () => {
+    const r = mount(afterPlies(3, { viewerRole: 'white' }), undefined, '6.4');
+    await r.flush();
+    await r.click('[data-ply="1"]');
+    await r.click('[data-action="share"]');
+    expect(r.calls.map((c) => [c.method, c.path, c.body])).toEqual([
+      ['POST', `/api/games/${GAME}/share`, { ply: 1 }],
+    ]);
     expect(document.querySelector('.toast')?.textContent).toBe('Shared to the group');
   });
 

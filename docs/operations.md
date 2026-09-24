@@ -4,10 +4,11 @@
 
 1. Create the bot; keep privacy mode on (the default). The bot only ever sees its commands, replies to its own messages, button taps and Mini App requests.
 2. `/newapp`: choose the bot, a title, a short description, an image, and the short name that becomes `MINI_APP_SHORT_NAME`. Web App URL: `<PUBLIC_URL>/app/`. In the bot's settings enable the same URL as the **Main Mini App**, so the profile button opens the lobby.
-3. Commands: the server registers them itself at every boot (`/play`, `/chess`, `/settings` for group chats; `/start` for private chats; nothing in the default scope). Do not add commands in BotFather.
-4. Webhook: the server calls `setWebhook` at boot with `WEBHOOK_SECRET` and `allowed_updates` `message, callback_query, my_chat_member, chat_member`. With `TELEGRAM_POLLING=true` it deletes the webhook and long-polls instead.
-5. Leave the menu button on its default (opens the Main Mini App).
-6. Add the bot to a group. It posts a welcome card with an **♟ Open Chess** button; promote it to administrator so it can pin the card and see joins and leaves.
+3. `/setinline`: turn inline mode on, with a placeholder such as `Share a position…`. **Share position** opens Telegram's chat picker and offers the position as an inline result in the chosen chat; with inline mode off the app falls back to the bot posting the photo to the group.
+4. Commands: the server registers them itself at every boot (`/play`, `/chess`, `/settings` for group chats; `/start` for private chats; nothing in the default scope). Do not add commands in BotFather.
+5. Webhook: the server calls `setWebhook` at boot with `WEBHOOK_SECRET` and `allowed_updates` `message, callback_query, my_chat_member, chat_member, inline_query`. With `TELEGRAM_POLLING=true` it deletes the webhook and long-polls instead.
+6. Leave the menu button on its default (opens the Main Mini App).
+7. Add the bot to a group. It posts a welcome card with an **♟ Open Chess** button; promote it to administrator so it can pin the card and see joins and leaves.
 
 ## Deploying the image
 

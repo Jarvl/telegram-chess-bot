@@ -7,7 +7,8 @@ import {
 } from '@group-chess/shared';
 import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { adminActions, groupMembers, jobs, shares } from '../../src/db/schema';
+import { adminActions, groupMembers, jobs, pendingShares, shares } from '../../src/db/schema';
+import { boardImagePath } from '../../src/images/signedUrl';
 import { touchMember } from '../../src/domain/members';
 import { startTestApi, type TestApi } from '../helpers/api';
 import { openTestDb, truncateAll } from '../helpers/db';
@@ -212,6 +213,44 @@ describe('games', () => {
     );
     expect(resigned).toMatchObject({ status: 'finished', result: '0-1', endReason: 'resignation' });
     expect(resigned.analysisUrl).toBeUndefined();
+  });
+
+  it('stages a position for inline sharing and serves signed board images', async () => {
+    const { group, alice, bob, tokens } = await world();
+    const game = await insertGame(db, group.id, alice.id, bob.id, { fen: AFTER_E4, plyCount: 1 });
+    await insertMove(db, game.id, 1, 'e2e4', 'e4', AFTER_E4);
+    const stage = (token: string, ply: number) =>
+      api.request('POST', `/api/games/${game.publicId}/share/inline`, { token, body: { ply } });
+
+    expect((await stage(tokens.bob, 1)).status).toBe(200);
+    expect((await stage(tokens.bob, 0)).status).toBe(200);
+    expect(await db.select().from(pendingShares)).toMatchObject([
+      { userId: bob.id, gameId: game.id, ply: 0 },
+    ]);
+    // Staging posts nothing and is not a bot share: no share row, job or Telegram call.
+    expect(await db.select().from(shares)).toHaveLength(0);
+    expect(await db.select().from(jobs)).toHaveLength(0);
+    expect(api.fake.calls).toHaveLength(0);
+    expect((await stage(tokens.bob, 5)).status).toBe(400);
+    expect((await stage(tokens.dave, 1)).status).toBe(403);
+
+    // Telegram fetches the photo without a session.
+    const path = boardImagePath(api.config.SESSION_SECRET, {
+      fen: AFTER_E4,
+      lastMove: 'e2e4',
+      orientation: 'black',
+    });
+    for (const file of ['board.jpg', 'thumb.jpg']) {
+      const image = await api.request('GET', `${path}/${file}`);
+      expect(image.status).toBe(200);
+      expect(image.headers.get('content-type')).toBe('image/jpeg');
+      expect(image.headers.get('cache-control')).toContain('immutable');
+      const bytes = new Uint8Array(await image.arrayBuffer());
+      expect([bytes[0], bytes[1]]).toEqual([0xff, 0xd8]);
+    }
+    const tampered = path.replace(/\/([\w-]+)$/, '/AAAA$1');
+    expect((await api.request('GET', `${tampered}/board.jpg`)).status).toBe(404);
+    expect((await api.request('GET', `${path}/big.jpg`)).status).toBe(404);
   });
 
   it('shares a position once a minute and serves the PGN', async () => {

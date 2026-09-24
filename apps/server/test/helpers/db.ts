@@ -12,7 +12,7 @@ export function openTestDb(): ReturnType<typeof createDb> {
 
 export async function truncateAll(db: Db): Promise<void> {
   await db.execute(
-    sql`truncate table admin_actions, shares, board_images, moves, games, challenges, ratings, group_members, jobs, telegram_updates, groups, users restart identity cascade`,
+    sql`truncate table admin_actions, pending_shares, shares, board_images, moves, games, challenges, ratings, group_members, jobs, telegram_updates, groups, users restart identity cascade`,
   );
   // The engine user is created by migration 0002, not by any test — truncating `users`
   // removes it, so put it back to keep the helper's contract "empty database, plus the

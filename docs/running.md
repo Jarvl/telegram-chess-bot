@@ -77,6 +77,10 @@ Still in BotFather:
 - Optional but nicer: `/mybots` → your bot → *Bot Settings* → *Menu Button* / *Main Mini App*, set to
   the same `<PUBLIC_URL>/app/`, so the bot's profile button opens the lobby.
 
+- `/setinline` — choose your bot and give it a placeholder such as `Share a position…`. This turns
+  on inline mode, which **Share position** uses: it opens Telegram's chat picker and offers the
+  board in the chat you pick. Without it the bot posts shared positions to the group instead.
+
 Do **not** add commands in BotFather. The server registers `/play`, `/chess` and `/settings` itself
 on every start.
 

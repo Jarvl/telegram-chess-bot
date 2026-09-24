@@ -122,6 +122,7 @@ export async function tgState(
       haptics: record.haptics,
       links: record.links,
       downloads: record.downloads,
+      inlineSwitches: record.inlineSwitches,
       closed: record.closed,
       chrome: record.chrome,
       popups: record.popups,
