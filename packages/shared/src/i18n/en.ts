@@ -140,7 +140,6 @@ export const en = {
   'app.lobby.no_finished_mine': "You haven't finished a game here yet.",
   'app.lobby.no_players': 'Nobody has played enough rated games here yet.',
   'app.lobby.your_move': 'Your move',
-  'app.lobby.to_move': '{name} to move',
   'app.lobby.challenge.direct': '{challenger} challenges {opponent}',
   'app.lobby.challenge.open': '{challenger} · open challenge',
   'app.lobby.challenge.you': '{challenger} challenges you',

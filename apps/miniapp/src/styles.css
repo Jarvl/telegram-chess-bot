@@ -109,7 +109,6 @@ button {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-/* Scoped names of its own: the lobby's segmented control owns `.tab` further down. */
 .tabbar .nav-item {
   flex: 1;
   display: flex;
@@ -213,8 +212,7 @@ button {
   color: var(--hint);
 }
 
-.card,
-.list {
+.card {
   background: var(--card);
   border-radius: 18px;
   overflow: hidden;
@@ -243,8 +241,7 @@ button {
   text-align: left;
 }
 
-.card > .row:last-child,
-.list > .row:last-child {
+.card > .row:last-child {
   border-bottom: 0;
 }
 
@@ -267,6 +264,28 @@ button {
   color: var(--hint);
 }
 
+/* A primary line whose leading name ellipsises while trailing badges (a rating, "(you)") stay
+   fully visible — same shrink technique as `.game-card .who`: the name's own `overflow: hidden`
+   zeroes out its flex auto-minimum, so it alone gives way as the row narrows. */
+.name-row {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
+}
+
+.name-row .name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.name-row .you {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .chevron {
   color: var(--hint);
   font-size: 22px;
@@ -283,11 +302,6 @@ button {
   background: var(--move);
   color: var(--move-ink);
   white-space: nowrap;
-}
-
-.badge.muted {
-  background: color-mix(in srgb, var(--hint) 30%, transparent);
-  color: var(--text);
 }
 
 .btn {
@@ -537,20 +551,36 @@ button {
    `coords.files` below), which assumes a wrap with extra margin reserved around the board. This
    wrap is sized flush to the board, so the default offsets both overshoot the wrap (files) and
    get painted over by the player bar that follows in the DOM (both). Flush them to the board's
-   own edges instead, matching the prototype's corner-of-the-square coordinates (spec §1 Board). */
+   own edges and restyle to match the prototype's corner-of-the-square coordinates (spec §1
+   Board): 10 px bold, lower-case files bottom-right of their own square, ranks top-left. */
+.board-wrap coords {
+  font-size: 10px;
+  font-weight: 700;
+  /* Pieces carry their own stacking z-index (chessground render.js, 2-11) so they paint over
+     coordinates placed on the board unless the coordinates are lifted above that range. */
+  z-index: 20;
+}
+
 .board-wrap coords.files {
   left: 0;
-  bottom: 0;
+  bottom: 1px;
+  text-transform: none;
+}
+
+.board-wrap coords.files coord {
+  flex: 1 1 0;
+  text-align: right;
+  padding-right: 3px;
 }
 
 .board-wrap coords.ranks {
   top: 0;
+  left: 3px;
 }
 
-/* Pieces carry their own stacking z-index (chessground render.js, 2-11) so they paint over
-   coordinates placed on the board unless the coordinates are lifted above that range. */
-.board-wrap coords {
-  z-index: 20;
+.board-wrap coords.ranks coord {
+  transform: none;
+  padding-top: 1px;
 }
 
 .player-bar {
@@ -601,6 +631,9 @@ button {
 .player-bar .sub {
   font-size: 12px;
   color: var(--hint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .player-bar .sub.yours {

@@ -62,9 +62,9 @@ time per move, one hour)).
 
 ### Brand
 
-- `goat-mark.png` (round avatar crop, `object-position: 50% 30%`) and `goat-banner.png`
-  (16:9) come from the design project into the Mini App's assets, re-encoded so neither
-  exceeds 60 KB. The banner is `loading="lazy"`.
+- `goat-mark.png` (round avatar crop, `object-position: 50% 30%`) and `goat-banner.jpg`
+  (16:9, a JPEG re-encode at its native 640 px) come from the design project into the Mini
+  App's assets, re-encoded so neither exceeds 60 KB. The banner is `loading="lazy"`.
 - `<title>Chess Goat</title>` in `apps/miniapp/index.html`.
 - `app.settings.about` reads "…Chess Goat is free software under the GPL-3.0-or-later."
 - The PGN `[Event]` default in `packages/shared/src/chess/pgn.ts` becomes `"Chess Goat"`, so
@@ -264,8 +264,10 @@ Rebuilt from the same parts so nothing looks left behind:
   the head-to-head line, then "Recent games" as `GameCard`s.
 - **GroupSettings:** its fields as `Card` rows with `SectionLabel`s, `Switch`es and `Tiles`
   where it has choices today.
-- **Loading, Error, Reopen, Locked:** centred, the goat mark at 72 px above the existing copy
-  and buttons.
+- **Loading:** centred hint text only, no goat mark — it would flash on every screen change,
+  since this is the one status screen shown on every navigation, not just a failure or a wall.
+- **Error, Reopen, Locked:** centred, the goat mark at 72 px above the existing copy and
+  buttons.
 
 ## 4. Telegram integration
 
