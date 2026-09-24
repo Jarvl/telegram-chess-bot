@@ -45,6 +45,9 @@ export const ACCENTS = {
     '--lm': 'rgba(224, 185, 74, 0.6)',
     '--sel': 'rgba(46, 125, 79, 0.55)',
     '--dot': 'rgba(21, 58, 38, 0.4)',
+    '--pm': '#2481cc',
+    '--pm-sq': 'rgba(36, 129, 204, 0.42)',
+    '--pm-soft': '#e6f1fa',
   },
   dark: {
     '--acc': '#4cbb7a',
@@ -64,6 +67,9 @@ export const ACCENTS = {
     '--lm': 'rgba(232, 195, 90, 0.6)',
     '--sel': 'rgba(76, 187, 122, 0.6)',
     '--dot': 'rgba(12, 40, 24, 0.45)',
+    '--pm': '#6ab2f2',
+    '--pm-sq': 'rgba(106, 178, 242, 0.45)',
+    '--pm-soft': 'rgba(106, 178, 242, 0.14)',
   },
 } as const satisfies Record<'light' | 'dark', Record<string, string>>;
 
