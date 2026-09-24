@@ -4,6 +4,7 @@ import {
   computeClaims,
   isProvisional,
   positionKey,
+  sideToMove,
   type Colour,
   type GameDto,
   type GamePlayer,
@@ -125,7 +126,11 @@ export function buildGameDto(input: GameDtoInput): GameDto {
     startedAt: game.startedAt.toISOString(),
     finishedAt: game.finishedAt ? game.finishedAt.toISOString() : null,
     engineLevel: game.engineLevel,
-    premoves: [],
+    premoves: (() => {
+      const viewer = colourOf(game, input.viewerUserId);
+      // The queue always belongs to the side not to move, and only its owner may see it.
+      return active && viewer !== null && sideToMove(game.fen) !== viewer ? [...game.premoves] : [];
+    })(),
   };
   if (game.status === 'finished') {
     if (game.lichessUrl) dto.lichessUrl = game.lichessUrl;
