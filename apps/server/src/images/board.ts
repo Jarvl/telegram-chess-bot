@@ -2,12 +2,13 @@ import { sideToMove, type Colour } from '@group-chess/shared';
 import { Resvg } from '@resvg/resvg-js';
 import { PIECE_VIEWBOX, PIECES, type PieceCode } from './pieces';
 
-export const BOARD_THEME = 'brown';
+export const BOARD_THEME = 'green';
 export const IMAGE_SIZE = 1024;
 const SQUARE = 100;
-const LIGHT = '#f0d9b5';
-const DARK = '#b58863';
-const LAST_MOVE = 'rgba(155, 199, 0, 0.41)';
+/** The Mini App's board (`--bl` / `--bd`) and the prototype's gold last-move tint. */
+export const BOARD_LIGHT = '#f0ead2';
+export const BOARD_DARK = '#7d9f6b';
+const LAST_MOVE = 'rgba(224, 185, 74, 0.6)';
 const FILES = 'abcdefgh';
 const CHECK_GRADIENT =
   '<defs><radialGradient id="check" r="0.5">' +
@@ -65,7 +66,12 @@ function origin(file: number, rank: number, orientation: Colour): { x: number; y
 const rect = (cls: string | null, x: number, y: number, fill: string): string =>
   `<rect ${cls ? `class="${cls}" ` : ''}x="${x}" y="${y}" width="${SQUARE}" height="${SQUARE}" fill="${fill}"/>`;
 
-/** Spec §7.7: squares, last-move and check highlights, cburnett glyphs; no text, so no fonts. */
+/** 0-based file (a = 0) and rank (first rank = 0); a1 is dark. */
+export function isLightSquare(file: number, rank: number): boolean {
+  return (file + rank) % 2 === 1;
+}
+
+/** Snapshot spec §1.1: green squares, last-move and check highlights, cburnett glyphs; no text. */
 export function renderBoardSvg(input: BoardRenderInput): string {
   const pieces = parsePlacement(input.fen);
   const parts: string[] = [
@@ -75,7 +81,7 @@ export function renderBoardSvg(input: BoardRenderInput): string {
   for (let rank = 0; rank < 8; rank += 1) {
     for (let file = 0; file < 8; file += 1) {
       const { x, y } = origin(file, rank, input.orientation);
-      parts.push(rect(null, x, y, (file + rank) % 2 === 1 ? LIGHT : DARK));
+      parts.push(rect(null, x, y, isLightSquare(file, rank) ? BOARD_LIGHT : BOARD_DARK));
     }
   }
   if (input.lastMove) {

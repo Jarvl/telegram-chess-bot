@@ -1,6 +1,11 @@
 import { INITIAL_FEN } from '@group-chess/shared';
 import { describe, expect, it } from 'vitest';
-import { parsePlacement, renderBoardPng, renderBoardSvg } from '../../src/images/board';
+import {
+  isLightSquare,
+  parsePlacement,
+  renderBoardPng,
+  renderBoardSvg,
+} from '../../src/images/board';
 import { boardImageKey } from '../../src/images/cache';
 
 const AFTER_E4 = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1';
@@ -17,11 +22,19 @@ describe('parsePlacement', () => {
   });
 });
 
+describe('isLightSquare', () => {
+  it('has a dark a1 and a light h1 and a8', () => {
+    expect(isLightSquare(0, 0)).toBe(false);
+    expect(isLightSquare(7, 0)).toBe(true);
+    expect(isLightSquare(0, 7)).toBe(true);
+  });
+});
+
 describe('renderBoardSvg', () => {
   it('draws 64 squares with a dark a1 and 32 pieces for the initial position', () => {
     const svg = renderBoardSvg({ fen: INITIAL_FEN, ...white });
     expect(svg.match(/<rect /g)).toHaveLength(64);
-    expect(svg).toContain('<rect x="0" y="700" width="100" height="100" fill="#b58863"/>');
+    expect(svg).toContain('<rect x="0" y="700" width="100" height="100" fill="#7d9f6b"/>');
     expect(svg.match(/<g class="piece /g)).toHaveLength(32);
     expect(svg).toContain('class="piece wK" transform="translate(400 700)');
   });
@@ -31,6 +44,8 @@ describe('renderBoardSvg', () => {
     expect(svg).toContain('<rect class="last-move" x="300" y="0"');
     expect(svg).toContain('<rect class="last-move" x="700" y="400"');
     expect(svg).toContain('<rect class="check" x="400" y="700"');
+    expect(svg).toContain('fill="rgba(224, 185, 74, 0.6)"');
+    expect(svg).toContain('fill="#f0ead2"');
   });
 
   it('puts the sharer colour at the bottom', () => {
@@ -63,6 +78,6 @@ describe('boardImageKey', () => {
     expect(boardImageKey(base)).not.toBe(boardImageKey({ ...base, orientation: 'black' }));
     expect(boardImageKey(base)).not.toBe(boardImageKey({ ...base, lastMove: null }));
     expect(boardImageKey(base)).not.toBe(boardImageKey({ ...base, check: true }));
-    expect(boardImageKey(base)).not.toBe(boardImageKey(base, 'blue'));
+    expect(boardImageKey(base)).not.toBe(boardImageKey(base, 'brown'));
   });
 });
