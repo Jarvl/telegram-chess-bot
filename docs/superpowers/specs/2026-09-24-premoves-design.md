@@ -69,6 +69,9 @@ other premove may carry one.
 - A promotion puts the chosen piece on `to`.
 - A king moving two files from its start square also moves that side's rook, as in castling.
 - There is no en passant removal. A pawn premoved diagonally to an empty square just moves there.
+- An entry whose `from` square no longer holds one of the owner's pieces is skipped. This happens
+  when the opponent captured that piece after an earlier premove fired. The entry stays in the
+  chain, shows as its raw UCI, and cancels the chain when its turn comes, with the flagged turn DM.
 
 The imagined position can be illegal as chess, and that is expected. It is only a board layout.
 Premoves are checked properly, with the arbiter, when they fire.
@@ -118,7 +121,12 @@ does for every other action. It returns the caller's `GameDto`.
 | It is the caller's turn | `not_your_turn` (they should make the move instead) |
 | `expectedPly !== plyCount` | `stale_state`, `{ plyCount }` |
 | The stored queue is not exactly `base` | `stale_state`, `{ reason: 'premoves_changed' }` |
-| Walking `premoves` in order from the real position: some `from` does not hold the caller's piece in the imagined position, the pattern rule does not reach `to`, or the promotion suffix is missing or not allowed | `illegal_move`, `{ index }` |
+| From the first index where `premoves` differs from `base`: some `from` does not hold the caller's piece in the imagined position, the pattern rule does not reach `to`, or the promotion suffix is missing or not allowed | `illegal_move`, `{ index }` |
+
+The unchanged prefix is not checked again. It is the stored chain, and it was accepted when it was
+stored. Checking it again would refuse every edit to a chain whose leftover went stale when the
+opponent captured a piece, although that chain is still cancelled with the flagged DM at its own
+turn. A fired premove leaves the rest of the chain untouched.
 
 If every check passes, the queue is replaced with `premoves`. A request whose `premoves` equals the
 stored queue changes nothing and publishes nothing.
@@ -319,11 +327,19 @@ It shows under the move strip only in premove mode with a non-empty queue:
 
 ### Notices
 
-`diffNotices` gains `premoves_cancelled`. It fires when `plyCount` went up, the previous
-`premoves` was not empty, the next is empty, and the move at `prev.plyCount + 2` is not the
-previous first premove, or that move does not exist. `GameView` shows
-`toast(t('app.game.premoves_cancelled'))` and `tg.hapticNotify('warning')`. A premove that played
-comes through as the existing `opponent_moved` notice, with its light haptic.
+`diffNotices` gains `premove_played` and `premoves_cancelled`. They are checked when `plyCount`
+went up, the game is still active, and the previous chain was not empty.
+
+- **Counting what fired.** `fired` is how many previous premoves played in a row: the move at
+  `prev.plyCount + 2 + 2i` is `prev.premoves[i]`. It is counted rather than assumed, because a
+  resumed app can receive several plies in one state.
+- **`premove_played`** fires when `fired ≥ 1`, with the light haptic. The existing `opponent_moved`
+  needs the viewer to be on move, and after a premove fires they are not.
+- **`premoves_cancelled`** fires when `next.premoves.length < prev.premoves.length - fired`.
+  `GameView` shows `toast(t('app.game.premoves_cancelled'))` and `tg.hapticNotify('warning')`.
+
+Premove mode is also off while the player's own move is still sending or retrying
+(`GameStore.moveBusy`).
 
 ### Theme
 
