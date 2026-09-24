@@ -452,7 +452,9 @@ button {
   border: 0;
   padding: 0;
   background: none;
-  font: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
   cursor: pointer;
 }
 
