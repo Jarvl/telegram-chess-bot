@@ -89,6 +89,10 @@ export type TelegramWebApp = {
     },
     callback?: (buttonId: string) => void,
   ): void;
+  openInvoice?(
+    url: string,
+    callback?: (status: 'paid' | 'cancelled' | 'failed' | 'pending') => void,
+  ): void;
   enableClosingConfirmation?(): void;
   disableClosingConfirmation?(): void;
   SettingsButton?: {

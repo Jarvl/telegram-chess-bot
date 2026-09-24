@@ -15,6 +15,8 @@ export type FakeWebAppOptions = {
   /** Makes `showPopup` throw this message instead of opening a popup, e.g. a client-side param
    * rejection (`WebAppPopupParamInvalid`) rather than the "already open" case. */
   popupError?: string;
+  /** Makes `openInvoice` throw this message, e.g. `WebAppInvoiceUrlInvalid`. */
+  invoiceError?: string;
 };
 
 export type FakeButton = {
@@ -42,6 +44,8 @@ export type FakeWebAppRecord = {
     buttons: { id?: string; type?: string; text?: string }[];
   }[];
   answerPopup(id: string): void;
+  invoices: string[];
+  answerInvoice(status: 'paid' | 'cancelled' | 'failed' | 'pending'): void;
   closingConfirmation: boolean;
   settingsButton: { visible: boolean } | null;
   clickSettings(): void;
@@ -70,6 +74,7 @@ export function installFakeWebApp(options: FakeWebAppOptions): void {
     return true;
   };
   let pendingPopup: ((id: string) => void) | null = null;
+  let pendingInvoice: ((status: string) => void) | null = null;
   const record: FakeWebAppRecord = {
     calls: [],
     mainButton: { text: '', visible: false, progress: false, enabled: true },
@@ -83,6 +88,12 @@ export function installFakeWebApp(options: FakeWebAppOptions): void {
     closed: false,
     chrome: {},
     popups: [],
+    invoices: [],
+    answerInvoice: (status) => {
+      const answer = pendingInvoice;
+      pendingInvoice = null;
+      answer?.(status);
+    },
     closingConfirmation: false,
     settingsButton: atLeast(options.version, '7.0') ? { visible: false } : null,
     answerPopup: (id) => {
@@ -247,6 +258,15 @@ export function installFakeWebApp(options: FakeWebAppOptions): void {
     webApp.setBackgroundColor = (color: string) => {
       record.chrome.background = color;
       record.calls.push(`setBackgroundColor:${color}`);
+    };
+  }
+  if (atLeast(options.version, '6.1')) {
+    webApp.openInvoice = (url: string, cb?: (status: string) => void) => {
+      if (options.invoiceError) throw new Error(options.invoiceError);
+      if (pendingInvoice !== null) throw new Error('WebAppInvoiceOpened');
+      record.invoices.push(url);
+      record.calls.push(`openInvoice:${url}`);
+      pendingInvoice = cb ?? (() => undefined);
     };
   }
   if (atLeast(options.version, '7.10')) {

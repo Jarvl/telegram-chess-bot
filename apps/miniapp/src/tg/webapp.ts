@@ -11,7 +11,8 @@ export type Feature =
   | 'popup'
   | 'closingConfirmation'
   | 'settingsButton'
-  | 'activation';
+  | 'activation'
+  | 'invoice';
 
 /** Spec §6.6: the first Bot API version that has each capability. */
 export const FEATURE_MIN_VERSION: Record<Feature, string> = {
@@ -26,6 +27,7 @@ export const FEATURE_MIN_VERSION: Record<Feature, string> = {
   closingConfirmation: '6.2',
   settingsButton: '7.0',
   activation: '8.0',
+  invoice: '6.1',
 };
 
 export function versionAtLeast(version: string, minimum: string): boolean {
@@ -41,6 +43,7 @@ export function versionAtLeast(version: string, minimum: string): boolean {
 
 export type HapticImpact = 'light' | 'medium' | 'heavy';
 export type HapticNotification = 'success' | 'warning' | 'error';
+export type InvoiceStatus = 'paid' | 'cancelled' | 'failed' | 'pending';
 
 export type ButtonSpec = {
   text: string;
@@ -105,6 +108,11 @@ export interface Tg {
   hapticSelection(): void;
   /** A t.me link, opened inside Telegram. */
   openTelegramLink(url: string): void;
+  /**
+   * Telegram's payment sheet (6.1+): resolves the invoice's final status, or rejects when the
+   * client refuses the link. Returns null instead of a promise when the client has none.
+   */
+  openInvoice(url: string): Promise<InvoiceStatus> | null;
 }
 
 class ButtonBinding {
@@ -173,6 +181,7 @@ function nullTg(): Tg {
     openTelegramLink: (url) => {
       window.open(url, '_blank', 'noopener');
     },
+    openInvoice: () => null,
   };
 }
 
@@ -306,5 +315,10 @@ export function createTg(
       if (supports('haptics')) raw.HapticFeedback?.selectionChanged();
     },
     openTelegramLink: (url) => raw.openTelegramLink(url),
+    openInvoice(url) {
+      if (!supports('invoice') || !raw.openInvoice) return null;
+      // A synchronous throw (WebAppInvoiceOpened, WebAppInvoiceUrlInvalid) rejects the promise.
+      return new Promise((resolve) => raw.openInvoice!(url, resolve));
+    },
   };
 }
