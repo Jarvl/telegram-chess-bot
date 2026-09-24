@@ -52,14 +52,13 @@ Logs are JSON (pino) with numeric and public ids only; bound query parameters ar
 - **A rated game must be voided**: an admin does it from the app's group settings; ratings are recomputed by the `rebuild_ratings` job and the affected cards are re-edited.
 - **Ratings look wrong without a void**: enqueue `rebuild_ratings` for the group by inserting a job row (`kind = 'rebuild_ratings'`, `payload = {"groupId": <internal id>}`, `dedup_key = 'ratings:<group public id>'`).
 - **A user asked for deletion**: they do it themselves in the app (Settings → Delete my data); it resigns their games, cancels their challenges and anonymises the row immediately.
-- **A tip must be refunded**: find the row in `tips` (by `telegram_user_id`, `stars` and `paid_at`), then call the Bot API with its charge id:
+- **A tip must be refunded**: ask the payer for the transaction id on their Telegram receipt (it is the tip's `telegram_payment_charge_id`), open a terminal in the app container and run, from `/app/apps/server`:
 
   ```bash
-  curl -s "https://api.telegram.org/bot$BOT_TOKEN/refundStarPayment" \
-    -d user_id=<telegram_user_id> -d telegram_payment_charge_id=<telegram_payment_charge_id>
+  node --import tsx src/cli/refundTip.ts <transaction id>
   ```
 
-  Telegram then sends `refunded_payment` and the bot sets `refunded_at`. Tip rows survive "Delete my data" for exactly this reason.
+  It finds the tip, refuses an unknown or already-refunded one, shows the transaction (amount, when it was paid, the payer) and asks `[y/N]`; only `y` or `yes` goes ahead. It then refunds the payer using the container's own `BOT_TOKEN`, so the token is never typed or pasted. Telegram then sends `refunded_payment` and the bot sets `refunded_at`. Tip rows survive "Delete my data" for exactly this reason. If the app container is down, the same refund is `refundStarPayment` with `user_id=<telegram_user_id>` and `telegram_payment_charge_id=<transaction id>`, sent with `curl -d`; keep the token out of shell history (a leading space, or `read -s BOT_TOKEN` first).
 - **The engine binary is missing or broken**: `engine_available` reads 0. This degrades bot games only — the bot stops appearing as an opponent, and existing bot games queue and then abort — and never affects human games, which do not touch the engine.
 
 ## Known limits of the alpha

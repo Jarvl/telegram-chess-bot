@@ -93,15 +93,20 @@ A new `bot/payments.ts`, registered from `createBot`.
 
 ### 2.4 Refunds
 
-Manual. `docs/operations.md` gains a runbook entry: look up the charge id and Telegram user id in
-`tips`, then
+Operator-run, by the tip's transaction id (its `telegram_payment_charge_id`, which the payer sees on
+their Telegram receipt). Inside the app container, from `apps/server`:
 
 ```bash
-curl -s "https://api.telegram.org/bot$BOT_TOKEN/refundStarPayment" \
-  -d user_id=<telegram_user_id> -d telegram_payment_charge_id=<charge_id>
+node --import tsx src/cli/refundTip.ts <transaction id>
 ```
 
-Telegram then sends `refunded_payment`, and the bot records `refunded_at`.
+`refundTip` (`domain/tipRefunds.ts`) looks the tip up by that id, refuses an unknown or
+already-refunded one without calling Telegram, shows the operator the transaction id, amount,
+payment time and payer, and asks `[y/N]`. Only `y` or `yes` calls `refundStarPayment` with the row's
+`telegram_user_id`; any other answer, or none, refunds nothing. The script uses the container's own `BOT_TOKEN` and `DATABASE_URL`, so the
+token is never typed or pasted. Telegram then sends `refunded_payment`, and the bot records
+`refunded_at`. `docs/operations.md` documents it, with the raw `refundStarPayment` call as the
+fallback when the container is down.
 
 ## 3. Mini App
 
