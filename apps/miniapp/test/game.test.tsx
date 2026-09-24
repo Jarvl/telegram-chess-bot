@@ -85,7 +85,8 @@ describe('Game', () => {
       orientation: 'black',
       lastMove: ['e7', 'e5'],
     });
-    expect(adapter.movables.at(-1)).toMatchObject({ colour: 'none' });
+    // Black waits, so its pieces lift for premoves.
+    expect(adapter.movables.at(-1)).toMatchObject({ colour: 'black' });
   });
 
   it('sends a move as soon as it is dropped and applies the response', async () => {

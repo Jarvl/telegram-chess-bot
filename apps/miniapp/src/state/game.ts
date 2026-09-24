@@ -1,12 +1,16 @@
 import {
+  imaginedBoard,
   INITIAL_FEN,
   legalDests,
+  placementOf,
+  premoveTargets,
   sideToMove,
   type Colour,
   type GameDto,
 } from '@group-chess/shared';
 import { computed, signal, type ReadonlySignal, type Signal } from '@preact/signals';
 import { Chess } from 'chess.js';
+import { premoveLabel, sameList } from './premoves';
 
 export type Position = {
   ply: number;
@@ -15,7 +19,13 @@ export type Position = {
   check: boolean;
 };
 
-export type Notice = 'draw_offered' | 'draw_declined' | 'opponent_moved' | 'finished';
+export type Notice =
+  | 'draw_offered'
+  | 'draw_declined'
+  | 'opponent_moved'
+  | 'finished'
+  | 'premove_played'
+  | 'premoves_cancelled';
 
 function inCheck(fen: string): boolean {
   try {
@@ -65,6 +75,16 @@ export function diffNotices(prev: GameDto, next: GameDto): Notice[] {
   ) {
     notices.push('opponent_moved');
   }
+  // Premoves spec, Notices: the viewer's chain either played its first move or was cancelled.
+  if (next.plyCount > prev.plyCount && next.status === 'active' && prev.premoves.length > 0) {
+    if (next.moves[prev.plyCount + 1]?.uci === prev.premoves[0]) {
+      notices.push('premove_played');
+      // Controller ruling: the server trims a fired premove's leftover chain at its first
+      // pattern-invalid entry, so a chain that lost more than the one fired move needs its own
+      // notice too.
+      if (next.premoves.length < prev.premoves.length - 1) notices.push('premoves_cancelled');
+    } else if (next.premoves.length === 0) notices.push('premoves_cancelled');
+  }
   return notices;
 }
 
@@ -79,6 +99,19 @@ export class GameStore {
   readonly sideToMove: ReadonlySignal<Colour>;
   readonly canMove: ReadonlySignal<boolean>;
   readonly dests: ReadonlySignal<Map<string, string[]>>;
+  /** An edit waiting for the server; any state from the server replaces it (premoves spec, State). */
+  readonly optimisticPremoves: Signal<string[] | null> = signal(null);
+  /** null is the end of the chain; 0 the current position; k the position after premove k. */
+  readonly premoveStep: Signal<number | null> = signal(null);
+  readonly premoveSending: Signal<boolean> = signal(false);
+  readonly premoves: ReadonlySignal<string[]>;
+  readonly premoveMode: ReadonlySignal<boolean>;
+  readonly shownStep: ReadonlySignal<number>;
+  readonly atChainEnd: ReadonlySignal<boolean>;
+  readonly boardView: ReadonlySignal<Position>;
+  readonly boardTurn: ReadonlySignal<Colour>;
+  readonly premoveSquares: ReadonlySignal<string[]>;
+  readonly premoveLabels: ReadonlySignal<string[]>;
 
   constructor(initial: GameDto) {
     this.dto = signal(initial);
@@ -91,8 +124,43 @@ export class GameStore {
       return this.flipped.value ? (own === 'white' ? 'black' : 'white') : own;
     });
     this.sideToMove = computed(() => sideToMove(this.position.value.fen));
+    this.premoves = computed(() => this.optimisticPremoves.value ?? this.dto.value.premoves);
+    this.premoveMode = computed(() => {
+      const dto = this.dto.value;
+      return (
+        dto.status === 'active' &&
+        this.isLatest.value &&
+        (dto.viewerRole === 'white' || dto.viewerRole === 'black') &&
+        sideToMove(dto.fen) !== dto.viewerRole
+      );
+    });
+    this.shownStep = computed(() =>
+      Math.min(this.premoveStep.value ?? Number.POSITIVE_INFINITY, this.premoves.value.length),
+    );
+    this.atChainEnd = computed(() => this.shownStep.value === this.premoves.value.length);
+    const imagined = (count: number) =>
+      imaginedBoard(this.dto.value.fen, this.premoves.value.slice(0, count));
+    this.boardView = computed(() => {
+      const real = this.position.value;
+      if (!this.premoveMode.value || this.shownStep.value === 0) return real;
+      const side = this.dto.value.viewerRole === 'black' ? 'b' : 'w';
+      const placement = placementOf(imagined(this.shownStep.value).pieces);
+      return { ...real, fen: `${placement} ${side} - - 0 1`, check: false };
+    });
+    this.boardTurn = computed(() =>
+      this.premoveMode.value ? (this.dto.value.viewerRole as Colour) : this.sideToMove.value,
+    );
+    this.premoveSquares = computed(() => {
+      const step = this.shownStep.value;
+      const uci = this.premoveMode.value && step > 0 ? this.premoves.value[step - 1] : undefined;
+      return uci ? [uci.slice(0, 2), uci.slice(2, 4)] : [];
+    });
+    this.premoveLabels = computed(() =>
+      this.premoves.value.map((uci, index) => premoveLabel(imagined(index), uci)),
+    );
     this.canMove = computed(() => {
       const dto = this.dto.value;
+      if (this.premoveMode.value) return this.atChainEnd.value && !this.premoveSending.value;
       return (
         dto.status === 'active' &&
         this.isLatest.value &&
@@ -100,9 +168,15 @@ export class GameStore {
         sideToMove(dto.fen) === dto.viewerRole
       );
     });
-    this.dests = computed(() =>
-      this.canMove.value ? legalDests(this.dto.value.fen) : new Map<string, string[]>(),
-    );
+    this.dests = computed(() => {
+      if (!this.canMove.value) return new Map<string, string[]>();
+      if (this.premoveMode.value)
+        return premoveTargets(
+          imagined(this.premoves.value.length),
+          this.dto.value.viewerRole as Colour,
+        );
+      return legalDests(this.dto.value.fen);
+    });
   }
 
   /**
@@ -115,12 +189,15 @@ export class GameStore {
     if (
       next.version === current.version &&
       next.plyCount === current.plyCount &&
-      next.status === current.status
+      next.status === current.status &&
+      sameList(next.premoves, current.premoves)
     ) {
       return false;
     }
     const viewing = this.viewingPly.value;
     this.dto.value = next;
+    this.optimisticPremoves.value = null;
+    if (next.plyCount !== current.plyCount) this.premoveStep.value = null;
     // A player reading an old position is brought back when the game moves on; spectators stay.
     if (viewing !== null && next.plyCount > current.plyCount && next.viewerRole !== 'spectator') {
       this.viewingPly.value = null;
@@ -135,5 +212,14 @@ export class GameStore {
 
   flip(): void {
     this.flipped.value = !this.flipped.value;
+  }
+
+  /** Views premove `step` (0 = the current position); returns whether the view changed. */
+  viewPremove(step: number): boolean {
+    const length = this.premoves.value.length;
+    const k = Math.max(0, Math.min(length, step));
+    if (k === this.shownStep.value) return false;
+    this.premoveStep.value = k === length ? null : k;
+    return true;
   }
 }

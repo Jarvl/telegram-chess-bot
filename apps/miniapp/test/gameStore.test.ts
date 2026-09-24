@@ -24,7 +24,9 @@ describe('GameStore', () => {
     white.viewPly(null);
     expect(white.canMove.value).toBe(true);
 
-    expect(new GameStore(afterPlies(2, { viewerRole: 'black' })).canMove.value).toBe(false);
+    const waitingBlack = new GameStore(afterPlies(2, { viewerRole: 'black' }));
+    expect(waitingBlack.premoveMode.value).toBe(true); // premoves spec: the waiting player premoves
+    expect(waitingBlack.canMove.value).toBe(true);
     expect(new GameStore(afterPlies(2, { viewerRole: 'spectator' })).canMove.value).toBe(false);
     expect(
       new GameStore(
@@ -97,5 +99,105 @@ describe('diffNotices', () => {
       ),
     ).toEqual(['finished']);
     expect(diffNotices(base, base)).toEqual([]);
+  });
+});
+
+describe('GameStore premoves', () => {
+  // After 1. f3 it is Black's move; White (the viewer) premoves.
+  const waiting = (premoves: string[] = []) => afterPlies(1, { viewerRole: 'white', premoves });
+
+  it('enters premove mode only for a player waiting on the latest position', () => {
+    expect(new GameStore(waiting()).premoveMode.value).toBe(true);
+    expect(new GameStore(afterPlies(2, { viewerRole: 'white' })).premoveMode.value).toBe(false);
+    expect(new GameStore(afterPlies(1, { viewerRole: 'spectator' })).premoveMode.value).toBe(false);
+    expect(
+      new GameStore(afterPlies(1, { viewerRole: 'white', status: 'finished' })).premoveMode.value,
+    ).toBe(false);
+    const reading = new GameStore(afterPlies(3, { viewerRole: 'black' }));
+    reading.viewPly(1);
+    expect(reading.premoveMode.value).toBe(false);
+    expect(reading.canMove.value).toBe(false);
+  });
+
+  it('offers pattern targets for the viewer’s pieces at the end of the chain', () => {
+    const store = new GameStore(waiting());
+    expect(store.canMove.value).toBe(true);
+    expect(store.boardTurn.value).toBe('white');
+    expect([...(store.dests.value.get('g1') ?? [])].sort()).toEqual(['e2', 'f3', 'h3']);
+    expect(store.dests.value.has('e7')).toBe(false);
+  });
+
+  it('shows the imagined board and labels for each step, and targets only at the end', () => {
+    const store = new GameStore(waiting(['g1h3', 'h3g5']));
+    expect(store.shownStep.value).toBe(2);
+    expect(store.atChainEnd.value).toBe(true);
+    expect(store.premoveLabels.value).toEqual(['Nh3', 'Ng5']);
+    expect(store.boardView.value.fen.split(' ')[0]).toBe(
+      'rnbqkbnr/pppppppp/8/6N1/8/5P2/PPPPP1PP/RNBQKB1R',
+    );
+    expect(store.premoveSquares.value).toEqual(['h3', 'g5']);
+    expect(store.viewPremove(1)).toBe(true);
+    expect(store.premoveSquares.value).toEqual(['g1', 'h3']);
+    expect(store.canMove.value).toBe(false);
+    expect(store.dests.value.size).toBe(0);
+    store.viewPremove(0);
+    expect(store.boardView.value).toEqual(store.position.value);
+    expect(store.premoveSquares.value).toEqual([]);
+    expect(store.viewPremove(0)).toBe(false);
+    expect(store.viewPremove(9)).toBe(true);
+    expect(store.premoveStep.value).toBeNull();
+  });
+
+  it('applies a same-version state whose chain changed, and it replaces an optimistic chain', () => {
+    const store = new GameStore(waiting());
+    store.optimisticPremoves.value = ['g1h3'];
+    expect(store.premoves.value).toEqual(['g1h3']);
+    expect(store.apply(waiting(['b1c3']))).toBe(true);
+    expect(store.premoves.value).toEqual(['b1c3']);
+    expect(store.optimisticPremoves.value).toBeNull();
+    expect(store.apply(waiting(['b1c3']))).toBe(false);
+  });
+
+  it('clamps the viewed step when the chain shrinks, and resets it when the game moves on', () => {
+    const store = new GameStore(waiting(['g1h3', 'h3g5']));
+    store.premoveStep.value = 2;
+    store.apply(waiting(['g1h3']));
+    expect(store.shownStep.value).toBe(1);
+    store.viewPremove(0);
+    store.apply(afterPlies(3, { viewerRole: 'white' }));
+    expect(store.premoveStep.value).toBeNull();
+  });
+
+  it('locks the board while a premove edit is being sent', () => {
+    const store = new GameStore(waiting());
+    store.premoveSending.value = true;
+    expect(store.canMove.value).toBe(false);
+  });
+});
+
+describe('diffNotices premoves', () => {
+  it('tells a played premove from a cancelled chain', () => {
+    const before = afterPlies(1, { viewerRole: 'white', premoves: ['g2g4'] });
+    expect(diffNotices(before, afterPlies(3, { viewerRole: 'white' }))).toEqual(['premove_played']);
+    expect(diffNotices(before, afterPlies(2, { viewerRole: 'white' }))).toContain(
+      'premoves_cancelled',
+    );
+    expect(
+      diffNotices(afterPlies(1, { viewerRole: 'white' }), afterPlies(2, { viewerRole: 'white' })),
+    ).not.toContain('premoves_cancelled');
+  });
+
+  it('also flags a played premove that left a trimmed leftover chain behind', () => {
+    // The controller ruling: the first premove fired, but the server trimmed the rest of the
+    // chain at its first pattern-invalid entry, so the owner needs to know it lost more than
+    // just the one that played.
+    const prev = afterPlies(1, { viewerRole: 'white', premoves: ['g2g4', 'a2a3', 'b2b3'] });
+    expect(diffNotices(prev, afterPlies(3, { viewerRole: 'white', premoves: [] }))).toEqual([
+      'premove_played',
+      'premoves_cancelled',
+    ]);
+    expect(
+      diffNotices(prev, afterPlies(3, { viewerRole: 'white', premoves: ['a2a3', 'b2b3'] })),
+    ).toEqual(['premove_played']);
   });
 });
