@@ -1,40 +1,46 @@
 import type { LobbyDto } from '@group-chess/shared';
 import { describe, expect, it } from 'vitest';
+import { App } from '../src/ui/App';
 import { Lobby } from '../src/ui/screens/Lobby';
+import { Leaderboard } from '../src/ui/screens/Leaderboard';
 import { gameDto } from './support/gameFixtures';
 import { renderApp } from './support/render';
+import { gameSummary, playerRef } from './support/summaryFixtures';
 
-const ref = (id: string, name: string) => ({
-  id,
-  name,
-  username: null,
-  rating: 1500,
-  provisional: true,
+const ref = (id: string, name: string) => playerRef(id, name);
+const summary = (id: string, yourTurn: boolean, status: 'active' | 'finished' = 'active') =>
+  gameSummary({
+    id,
+    plyCount: 3,
+    sideToMove: 'black',
+    yourTurn,
+    status,
+    finishedAt: status === 'finished' ? '2026-09-20T12:00:00.000Z' : null,
+    result: status === 'finished' ? '1-0' : null,
+    endReason: status === 'finished' ? 'resignation' : null,
+  });
+
+const watching = gameSummary({
+  id: 'GameWwwwww',
+  white: playerRef('3', 'Carol'),
+  black: playerRef('4', 'Dan'),
+  yourTurn: false,
 });
-const summary = (id: string, yourTurn: boolean, status: 'active' | 'finished' = 'active') => ({
-  id,
-  white: ref('1', 'Alice'),
-  black: ref('2', 'Bob'),
-  status,
-  timePerMove: 86400 as const,
-  rated: true,
-  plyCount: 3,
-  sideToMove: 'black' as const,
-  yourTurn,
-  deadlineAt: null,
-  lastMoveAt: null,
-  startedAt: '2026-09-20T10:00:00.000Z',
-  finishedAt: status === 'finished' ? '2026-09-20T12:00:00.000Z' : null,
-  result: status === 'finished' ? ('1-0' as const) : null,
-  endReason: status === 'finished' ? ('resignation' as const) : null,
-  voided: false,
-});
+
+const board = (ids: string[]) =>
+  ids.map((id, index) => ({
+    ...playerRef(id, id === '1' ? 'Alice' : `P${id}`),
+    rating: 1600 - index * 10,
+    provisional: false,
+    gamesPlayed: 9,
+    record: { wins: 5, draws: 1, losses: 3 },
+  }));
 
 const lobby: LobbyDto = {
   group: { id: 'GrOuPiDxYz', title: 'Chess Club' },
   isAdmin: true,
   settings: { defaultTimePerMove: 86400, ratedDefault: true, allowOpenChallenges: true },
-  active: [summary('GameAaaaaa', false), summary('GameBbbbbb', true)],
+  active: [summary('GameAaaaaa', false), summary('GameBbbbbb', true), watching],
   finished: { items: [summary('GameCccccc', false, 'finished')], nextCursor: null },
   challenges: [
     {
@@ -50,50 +56,84 @@ const lobby: LobbyDto = {
       viewer: { canAccept: true, canDecline: true, canCancel: false },
     },
   ],
-  players: [{ ...ref('2', 'Bob'), gamesPlayed: 9, record: { wins: 5, draws: 1, losses: 3 } }],
+  players: board(['2', '1', '5']),
 };
 
+const open = (data: LobbyDto, route?: Parameters<typeof renderApp>[1]) =>
+  renderApp(
+    (app) => {
+      app.prefetched.lobby = data;
+      app.router.land('groups', { name: 'lobby', groupId: 'GrOuPiDxYz' });
+      return <App />;
+    },
+    route ?? (() => ({ status: 200, body: data })),
+  );
+const ids = (root: HTMLElement) =>
+  [...root.querySelectorAll('[data-game]')].map((el) => el.getAttribute('data-game'));
+
 describe('Lobby', () => {
-  it('renders the lobby from the launch data with your-move games first and admin entry points', async () => {
-    const r = renderApp(
-      (app) => {
-        app.prefetched.lobby = lobby;
-        return <Lobby groupId="GrOuPiDxYz" />;
-      },
-      () => ({ status: 200, body: lobby }),
-    );
+  it('heads the lobby with the group, its counts and the admin gear', async () => {
+    const r = open(lobby);
     await r.flush();
     expect(r.calls).toHaveLength(0);
-    const rows = [...r.root.querySelectorAll('[data-game]')].map((el) =>
-      el.getAttribute('data-game'),
-    );
-    expect(rows).toEqual(['GameBbbbbb', 'GameAaaaaa']);
-    expect(r.text()).toContain('Your move');
-    expect(r.text()).toContain('Bob challenges Alice');
-    expect(r.text()).toContain('Group settings');
-    await r.click('[data-tab="finished"]');
-    expect(
-      [...r.root.querySelectorAll('[data-game]')].map((el) => el.getAttribute('data-game')),
-    ).toEqual(['GameCccccc']);
-    expect(r.text()).toContain('1-0');
-    await r.click('[data-tab="players"]');
-    expect(r.text()).toContain('5 W · 1 D · 3 L');
+    expect(r.root.querySelector('.title')?.textContent).toBe('Chess Club');
+    expect(r.root.querySelector('.avatar.group')?.textContent).toBe('CC');
+    expect(r.text()).toContain('3 active · 1 your move');
+    expect(r.root.querySelector('[data-action="group-settings"]')).not.toBeNull();
+    expect(r.text()).toContain('Bob challenges you');
+  });
+
+  it('shows your games first and the whole group on request', async () => {
+    const r = open(lobby);
+    await r.flush();
+    expect(ids(r.root)).toEqual(['GameBbbbbb', 'GameAaaaaa', 'GameCccccc']);
+    await r.click('[data-scope="all"]');
+    expect(ids(r.root)).toEqual(['GameBbbbbb', 'GameAaaaaa', 'GameWwwwww', 'GameCccccc']);
+    expect(r.root.querySelector('[data-game="GameWwwwww"] .tag')?.textContent).toBe('Watching');
+    expect(window.__tg!.haptics).toContain('selection');
+  });
+
+  it('ranks the viewer on the leaderboard chip and opens the leaderboard', async () => {
+    const r = open(lobby);
+    await r.flush();
+    const chip = r.root.querySelector('[data-action="leaderboard"]')!;
+    expect(chip.textContent).toContain('#2');
+    expect(chip.textContent).toContain('Leaderboard · 1590');
+    expect(chip.textContent).toContain('5 W · 1 D · 3 L · of 3 ranked players');
+    await r.click('[data-action="leaderboard"]');
+    expect(r.app.router.current.value).toEqual({ name: 'leaderboard', groupId: 'GrOuPiDxYz' });
+  });
+
+  it('offers a plain chip when the viewer is not ranked, and none on an empty board', async () => {
+    const unranked = open({ ...lobby, players: board(['2']) });
+    await unranked.flush();
+    const chip = unranked.root.querySelector('[data-action="leaderboard"]')!;
+    expect(chip.textContent).not.toContain('#');
+    expect(chip.textContent).toContain('1 ranked player');
+    const empty = open({ ...lobby, players: [] });
+    await empty.flush();
+    expect(empty.root.querySelector('[data-action="leaderboard"]')).toBeNull();
+  });
+
+  it('says you have no finished games only once every page is loaded', async () => {
+    const othersOnly = { items: [{ ...watching, status: 'finished' as const }], nextCursor: 'c1' };
+    const paged = open({ ...lobby, finished: othersOnly });
+    await paged.flush();
+    expect(paged.text()).not.toContain("You haven't finished a game here yet.");
+    expect(paged.root.querySelector('[data-action="more"]')).not.toBeNull();
+    const done = open({ ...lobby, finished: { ...othersOnly, nextCursor: null } });
+    await done.flush();
+    expect(done.text()).toContain("You haven't finished a game here yet.");
   });
 
   it('tells the user when the next page of finished games cannot be loaded', async () => {
     const paged = { ...lobby, finished: { ...lobby.finished, nextCursor: 'c1' } };
-    const r = renderApp(
-      (app) => {
-        app.prefetched.lobby = paged;
-        return <Lobby groupId="GrOuPiDxYz" />;
-      },
-      ({ path }) =>
-        path.includes('/finished?cursor=')
-          ? { status: 500, body: { error: { code: 'internal', message: 'boom' } } }
-          : { status: 200, body: paged },
+    const r = open(paged, ({ path }) =>
+      path.includes('/finished?cursor=')
+        ? { status: 500, body: { error: { code: 'internal', message: 'boom' } } }
+        : { status: 200, body: paged },
     );
     await r.flush();
-    await r.click('[data-tab="finished"]');
     await r.click('[data-action="more"]');
     expect(r.calls.at(-1)?.path).toBe('/api/groups/GrOuPiDxYz/finished?cursor=c1');
     expect(document.querySelector('.toast')?.textContent).toBe('Something went wrong');
@@ -127,5 +167,31 @@ describe('Lobby', () => {
     r.app.router.back();
     await r.click('[data-action="new-game"]');
     expect(r.app.router.current.value).toMatchObject({ name: 'newGame', groupId: 'GrOuPiDxYz' });
+  });
+});
+
+describe('Leaderboard', () => {
+  it('ranks the group, marks you, and opens a player', async () => {
+    const r = renderApp(
+      (app) => {
+        app.router.land('groups', { name: 'leaderboard', groupId: 'GrOuPiDxYz' });
+        return <Leaderboard groupId="GrOuPiDxYz" />;
+      },
+      () => ({ status: 200, body: lobby }),
+    );
+    await r.flush();
+    expect(r.calls.map((c) => c.path)).toEqual(['/api/groups/GrOuPiDxYz']);
+    expect(r.root.querySelector('.subtitle')?.textContent).toBe('Chess Club · rated games only');
+    const rows = [...r.root.querySelectorAll('[data-player]')];
+    expect(rows.map((row) => row.getAttribute('data-player'))).toEqual(['2', '1', '5']);
+    expect(rows[0]!.querySelector('.rank')?.className).toContain('first');
+    expect(rows[1]!.className).toContain('you');
+    expect(rows[1]!.textContent).toContain('(you)');
+    await r.click('[data-player="5"]');
+    expect(r.app.router.current.value).toEqual({
+      name: 'player',
+      groupId: 'GrOuPiDxYz',
+      userId: '5',
+    });
   });
 });

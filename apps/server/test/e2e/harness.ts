@@ -6,7 +6,7 @@ import { createServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { INITIAL_FEN } from '@group-chess/shared';
 import { eq } from 'drizzle-orm';
-import { games, users } from '../../src/db/schema';
+import { games, ratings, users } from '../../src/db/schema';
 import { runMigrations } from '../../src/db/migrate';
 import { touchMember } from '../../src/domain/members';
 import { startServer } from '../../src/main';
@@ -32,8 +32,13 @@ const FOOLS_MATE = [
 /** White pawn on e7, black king on d8: e7e8 promotes with check. */
 const PROMOTION_FEN = '3k4/4P3/8/8/8/8/8/4K3 w - - 0 1';
 
-type Scenario = 'none' | 'fresh' | 'opening' | 'promotion' | 'finished';
-type SeedRequest = { scenario: Scenario; prefs?: Record<string, Record<string, unknown>> };
+type Scenario = 'none' | 'fresh' | 'opening' | 'promotion' | 'finished' | 'ranked';
+type SeedRequest = {
+  scenario: Scenario;
+  prefs?: Record<string, Record<string, unknown>>;
+  groupTitle?: string;
+  bobName?: string;
+};
 
 const TELEGRAM_USERS = {
   alice: { id: 11, first_name: 'Alice', username: 'alice' },
@@ -74,7 +79,7 @@ async function main(): Promise<void> {
     fake.admins = [TELEGRAM_USERS.alice.id];
     const group = await insertGroup(db, {
       telegramChatId: CHAT,
-      title: 'Chess Club',
+      title: request.groupTitle ?? 'Chess Club',
       botStatus: 'administrator',
       botIsAdmin: true,
     });
@@ -83,10 +88,13 @@ async function main(): Promise<void> {
       { id: number; telegram: (typeof TELEGRAM_USERS)[keyof typeof TELEGRAM_USERS] }
     > = {};
     for (const [name, telegram] of Object.entries(TELEGRAM_USERS)) {
+      // Bob's display name is his @username when he has one; a long `bobName` (Review Focus 5's
+      // long-display-name check) needs that username cleared so the long first name shows instead.
+      const bobRenamed = name === 'bob' && request.bobName;
       const row = await insertUser(db, {
         telegramUserId: telegram.id,
-        firstName: telegram.first_name,
-        username: telegram.username,
+        firstName: bobRenamed ? request.bobName! : telegram.first_name,
+        username: bobRenamed ? null : telegram.username,
       });
       const patch = request.prefs?.[name];
       if (patch) await db.update(users).set({ prefs: patch }).where(eq(users.id, row.id));
@@ -118,6 +126,33 @@ async function main(): Promise<void> {
       for (const [index, [uci, san, fen]] of FOOLS_MATE.entries())
         await insertMove(db, row.id, index + 1, uci, san, fen);
       game = row;
+    }
+    if (request.scenario === 'ranked') {
+      game = await insertGame(db, group.id, alice, bob, { fen: INITIAL_FEN });
+      await db.insert(ratings).values([
+        {
+          groupId: group.id,
+          userId: alice,
+          rating: 1540,
+          rd: 60,
+          volatility: 0.06,
+          gamesPlayed: 6,
+          wins: 4,
+          draws: 1,
+          losses: 1,
+        },
+        {
+          groupId: group.id,
+          userId: bob,
+          rating: 1510,
+          rd: 60,
+          volatility: 0.06,
+          gamesPlayed: 6,
+          wins: 1,
+          draws: 1,
+          losses: 4,
+        },
+      ]);
     }
     return {
       group: { id: group.id, publicId: group.publicId },

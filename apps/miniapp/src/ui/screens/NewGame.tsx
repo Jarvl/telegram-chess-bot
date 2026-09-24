@@ -3,9 +3,10 @@ import {
   GameDtoSchema,
   GROUP_SETTINGS_DEFAULTS,
   PlayersPickerDtoSchema,
+  ratingLabel,
   t,
   TIME_PER_MOVE_OPTIONS,
-  timePerMoveLabel,
+  timeSpanLabel,
   type ChallengeRequest,
   type ColourChoice,
   type EngineGameRequest,
@@ -13,11 +14,12 @@ import {
   type LobbyDto,
   type TimePerMove,
 } from '@group-chess/shared';
-import { useMemo, useState } from 'preact/hooks';
+import { h } from 'preact';
+import { useEffect, useMemo, useState } from 'preact/hooks';
 import { ApiError } from '../../api/client';
+import { Avatar, BotMark } from '../Avatar';
 import { useApp } from '../context';
-import { Segmented, Switch } from '../controls';
-import { playerLabel } from '../format';
+import { Switch, Tiles, type DataAttributes } from '../controls';
 import { useMainButton, useResource } from '../hooks';
 import { toast } from '../toast';
 import { ErrorScreen, Loading } from './Status';
@@ -35,8 +37,47 @@ type Selection =
   | { kind: 'open' }
   | { kind: 'bot'; level: EngineLevel };
 
+function OpponentRow(props: {
+  on: boolean;
+  avatar: preact.ComponentChildren;
+  title: preact.ComponentChildren;
+  /** A rating or level badge, kept fully visible while `title` alone ellipsises. */
+  trailing?: preact.ComponentChildren;
+  sub?: string;
+  onPick: () => void;
+  data: DataAttributes;
+}) {
+  const { tg } = useApp();
+  return (
+    <button
+      type="button"
+      class={props.on ? 'option-row on' : 'option-row'}
+      aria-pressed={props.on ? 'true' : 'false'}
+      onClick={() => {
+        tg.hapticSelection();
+        props.onPick();
+      }}
+      {...props.data}
+    >
+      {props.avatar}
+      <span class="grow">
+        <span class="name-row">
+          <span class="name">{props.title}</span>
+          {props.trailing ? <span class="rating">{props.trailing}</span> : null}
+        </span>
+        {props.sub ? <span class="secondary">{props.sub}</span> : null}
+      </span>
+      <span class={props.on ? 'radio on' : 'radio'} aria-hidden="true">
+        {props.on ? '✓' : null}
+      </span>
+    </button>
+  );
+}
+
+const king = (colour: 'white' | 'black') => h('piece', { class: `king ${colour}` });
+
 export function NewGame(props: { groupId: string; defaults?: LobbyDto['settings'] }) {
-  const { client, router } = useApp();
+  const { client, router, tg } = useApp();
   const defaults = props.defaults ?? GROUP_SETTINGS_DEFAULTS;
   const players = useResource(`players:${props.groupId}`, () =>
     client.get(`/api/groups/${props.groupId}/players`, PlayersPickerDtoSchema),
@@ -80,8 +121,14 @@ export function NewGame(props: { groupId: string; defaults?: LobbyDto['settings'
     },
     [client, router, props.groupId, selection, timePerMove, colour, rated],
   );
+  // A half-filled form is not lost to a stray swipe (Bot API 6.2).
+  useEffect(() => {
+    tg.setClosingConfirmation(true);
+    return () => tg.setClosingConfirmation(false);
+  }, [tg]);
+  const actionLabel = t(selection.kind === 'bot' ? 'app.new.start' : 'app.new.send');
   const inPage = useMainButton({
-    text: t('app.new.send'),
+    text: actionLabel,
     onClick: () => void submit(),
     enabled: ready,
     progress: sending,
@@ -98,112 +145,118 @@ export function NewGame(props: { groupId: string; defaults?: LobbyDto['settings'
     <div class="screen">
       <h1 class="title">{t('app.new.title')}</h1>
       <div class="section">{t('app.new.opponent')}</div>
-      <div class="list">
+      <div class="card">
         {botPicker && firstLevel ? (
-          <button
-            class="row"
-            data-testid="opponent-bot"
-            aria-pressed={selection.kind === 'bot' ? 'true' : 'false'}
-            onClick={() => setSelection({ kind: 'bot', level: firstLevel })}
-          >
-            <span class="grow primary">{t('app.new.bot')}</span>
-            {selection.kind === 'bot' ? <span class="badge">✓</span> : null}
-          </button>
+          <OpponentRow
+            on={selection.kind === 'bot'}
+            avatar={<BotMark size={38} />}
+            title={t('app.new.bot')}
+            sub={t('app.new.bot_sub')}
+            onPick={() => setSelection({ kind: 'bot', level: firstLevel })}
+            data={{ 'data-testid': 'opponent-bot' }}
+          />
         ) : null}
         {players.data.players.map((player) => (
-          <button
+          <OpponentRow
             key={player.id}
-            class="row"
-            data-opponent={player.id}
-            aria-pressed={
-              selection.kind === 'human' && selection.id === player.id ? 'true' : 'false'
-            }
-            onClick={() => setSelection({ kind: 'human', id: player.id })}
-          >
-            <span class="grow primary">{playerLabel(player)}</span>
-            {selection.kind === 'human' && selection.id === player.id ? (
-              <span class="badge">✓</span>
-            ) : null}
-          </button>
+            on={selection.kind === 'human' && selection.id === player.id}
+            avatar={<Avatar player={player} size={38} />}
+            title={player.name}
+            trailing={ratingLabel(player.rating, player.provisional)}
+            onPick={() => setSelection({ kind: 'human', id: player.id })}
+            data={{ 'data-opponent': player.id }}
+          />
         ))}
         {defaults.allowOpenChallenges ? (
-          <button
-            class="row"
-            data-opponent="open"
-            aria-pressed={selection.kind === 'open' ? 'true' : 'false'}
-            onClick={() => setSelection({ kind: 'open' })}
-          >
-            <span class="grow primary">{t('app.new.open_challenge')}</span>
-            {selection.kind === 'open' ? <span class="badge">✓</span> : null}
-          </button>
+          <OpponentRow
+            on={selection.kind === 'open'}
+            avatar={
+              <span
+                class="avatar open"
+                aria-hidden="true"
+                style={{ '--size': '38px' } as Record<string, string>}
+              >
+                +
+              </span>
+            }
+            title={t('app.new.open_challenge')}
+            sub={t('app.new.open_sub')}
+            onPick={() => setSelection({ kind: 'open' })}
+            data={{ 'data-opponent': 'open' }}
+          />
         ) : null}
       </div>
       {players.data.players.length === 0 ? <p class="hint">{t('app.new.no_players')}</p> : null}
       {selection.kind === 'bot' && botPicker ? (
         <>
           <div class="section">{t('app.new.bot_level')}</div>
-          <div class="list">
-            {botPicker.levels.map((level) => (
-              <button
-                key={level}
-                class="row"
-                data-testid={`bot-level-${level}`}
-                aria-pressed={selection.level === level ? 'true' : 'false'}
-                onClick={() => setSelection({ kind: 'bot', level })}
-              >
-                <span class="grow primary">{t(`app.level.${level}`)}</span>
-                {selection.level === level ? <span class="badge">✓</span> : null}
-              </button>
-            ))}
-          </div>
+          <Tiles
+            columns={4}
+            value={selection.level}
+            onChange={(level) => setSelection({ kind: 'bot', level })}
+            tiles={botPicker.levels.map((level) => ({
+              key: level,
+              value: level,
+              label: t(`app.level.${level}`),
+              'data-testid': `bot-level-${level}`,
+            }))}
+          />
           <p class="hint">{t('app.new.bot_casual')}</p>
         </>
-      ) : null}
-      {selection.kind === 'bot' ? null : (
+      ) : (
         <>
           <div class="section">{t('app.new.time')}</div>
-          <div class="list">
-            {TIME_VALUES.map((value) => (
-              <button
-                key={String(value)}
-                class="row"
-                data-time={value === null ? 'none' : value}
-                aria-pressed={timePerMove === value ? 'true' : 'false'}
-                onClick={() => setTimePerMove(value)}
-              >
-                <span class="grow primary">{timePerMoveLabel(value)}</span>
-                {timePerMove === value ? <span class="badge">✓</span> : null}
-              </button>
-            ))}
-          </div>
+          <Tiles
+            columns={3}
+            value={timePerMove}
+            onChange={setTimePerMove}
+            tiles={TIME_VALUES.map((value) => ({
+              key: String(value),
+              value,
+              label: value === null ? t('time.per_move.none') : timeSpanLabel(value),
+              'data-time': value === null ? 'none' : value,
+            }))}
+          />
         </>
       )}
       <div class="section">{t('app.new.colour')}</div>
-      <Segmented
+      <Tiles
+        columns={3}
+        variant="soft"
         value={colour}
         onChange={setColour}
-        options={[
-          { value: 'white', label: t('colour.white'), 'data-colour': 'white' },
-          { value: 'random', label: t('colour.random'), 'data-colour': 'random' },
-          { value: 'black', label: t('colour.black'), 'data-colour': 'black' },
-        ]}
+        tiles={(
+          [
+            ['white', [king('white')]],
+            ['random', [king('white'), king('black')]],
+            ['black', [king('black')]],
+          ] as const
+        ).map(([value, kings]) => ({
+          key: value,
+          value,
+          'data-colour': value,
+          label: (
+            <>
+              <span class="kings cg-wrap">{kings}</span>
+              <span>{t(`colour.${value}`)}</span>
+            </>
+          ),
+        }))}
       />
-      <div class="list" style={{ marginTop: 16 }}>
-        <div class="field">
-          <span>{t('app.new.rated')}</span>
-          <Switch
-            checked={selection.kind === 'bot' ? false : rated}
-            onChange={setRated}
-            disabled={selection.kind === 'bot'}
-            data-rated=""
-            label={t('app.new.rated')}
-          />
-        </div>
+      <div class={selection.kind === 'bot' ? 'card field inert' : 'card field'}>
+        <span>{t('app.new.rated')}</span>
+        <Switch
+          checked={selection.kind === 'bot' ? false : rated}
+          onChange={setRated}
+          disabled={selection.kind === 'bot'}
+          data-rated=""
+          label={t('app.new.rated')}
+        />
       </div>
       {inPage ? (
         <div class="inline-main">
           <button class="btn block" disabled={!ready} onClick={() => void submit()}>
-            {t('app.new.send')}
+            {actionLabel}
           </button>
         </div>
       ) : null}

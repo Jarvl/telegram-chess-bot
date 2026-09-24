@@ -1,18 +1,23 @@
 import { ENGINE_LEVELS, type GameDto } from '@group-chess/shared';
 import { describe, expect, it } from 'vitest';
+import { App } from '../src/ui/App';
 import { NewGame } from '../src/ui/screens/NewGame';
 import { gameDto } from './support/gameFixtures';
 import { renderApp } from './support/render';
 
 const players = {
-  players: [{ id: '2', name: 'Bob', username: 'bob', rating: 1520, provisional: false }],
+  players: [
+    { id: '2', name: 'Bob', username: 'bob', rating: 1520, provisional: false, isBot: false },
+  ],
   bot: null,
 };
 
 const withBot = { players: [], bot: { levels: [...ENGINE_LEVELS] } };
 
 const withBotAndPlayers = {
-  players: [{ id: '2', name: 'Bob', username: 'bob', rating: 1520, provisional: false }],
+  players: [
+    { id: '2', name: 'Bob', username: 'bob', rating: 1520, provisional: false, isBot: false },
+  ],
   bot: { levels: [...ENGINE_LEVELS] },
 };
 
@@ -26,7 +31,14 @@ function pressedOpponentRows(root: HTMLElement): Element[] {
 }
 const challenge = {
   id: 'ChalAaaaaa',
-  challenger: { id: '1', name: 'Alice', username: 'alice', rating: 1500, provisional: true },
+  challenger: {
+    id: '1',
+    name: 'Alice',
+    username: 'alice',
+    rating: 1500,
+    provisional: true,
+    isBot: false,
+  },
   opponent: null,
   timePerMove: 28800,
   challengerColour: 'white',
@@ -217,5 +229,52 @@ describe('NewGame', () => {
     const post = r.calls.find((c) => c.method === 'POST');
     expect(post?.path).toBe('/api/groups/GrOuPiDxYz/challenges');
     expect(post?.body).toMatchObject({ opponentId: '2' });
+  });
+
+  it('names the main button for what it will do', async () => {
+    const r = renderApp(
+      () => <NewGame groupId="GrOuPiDxYz" />,
+      () => ({ status: 200, body: withBotAndPlayers }),
+    );
+    await r.flush();
+    expect(window.__tg!.mainButton).toMatchObject({ text: 'Send challenge', enabled: false });
+    await r.click('[data-testid="opponent-bot"]');
+    expect(window.__tg!.mainButton).toMatchObject({ text: 'Start game', enabled: true });
+    await r.click('[data-opponent="2"]');
+    expect(window.__tg!.mainButton.text).toBe('Send challenge');
+    expect(window.__tg!.haptics).toContain('selection');
+  });
+
+  it('asks before closing while the form is open, and stops asking once it is left', async () => {
+    const r = renderApp(
+      (app) => {
+        app.router.land('groups', { name: 'groups' });
+        app.router.push({ name: 'newGame', groupId: 'GrOuPiDxYz' });
+        return <App />;
+      },
+      () => ({ status: 200, body: withBotAndPlayers }),
+    );
+    await r.flush();
+    expect(window.__tg!.closingConfirmation).toBe(true);
+    expect(r.root.querySelector('[data-nav]')).toBeNull();
+    r.app.router.back();
+    await r.flush();
+    expect(window.__tg!.closingConfirmation).toBe(false);
+  });
+
+  it('draws each opponent with an avatar and marks the pick', async () => {
+    const r = renderApp(
+      () => <NewGame groupId="GrOuPiDxYz" />,
+      () => ({ status: 200, body: withBotAndPlayers }),
+    );
+    await r.flush();
+    expect(r.root.querySelector('[data-testid="opponent-bot"] img.avatar.bot')).not.toBeNull();
+    expect(r.root.querySelector('[data-opponent="2"] .avatar')?.textContent).toBe('B');
+    expect(r.root.querySelector('[data-opponent="open"] .secondary')?.textContent).toBe(
+      'Anyone in the group can accept',
+    );
+    await r.click('[data-opponent="2"]');
+    expect(r.root.querySelector('[data-opponent="2"]')?.className).toContain('on');
+    expect(r.root.querySelector('[data-opponent="2"] .radio.on')).not.toBeNull();
   });
 });

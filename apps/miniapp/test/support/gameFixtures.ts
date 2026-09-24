@@ -40,6 +40,7 @@ const player = (id: string, name: string) => ({
   username: null,
   rating: 1500,
   provisional: true,
+  isBot: false,
   ratingAfter: null,
   provisionalAfter: null,
 });

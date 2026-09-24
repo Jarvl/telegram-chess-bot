@@ -12,6 +12,9 @@ export type FakeWebAppOptions = {
   platform?: string;
   /** What `requestWriteAccess` answers; undefined means the client has no such method. */
   writeAccess?: boolean;
+  /** Makes `showPopup` throw this message instead of opening a popup, e.g. a client-side param
+   * rejection (`WebAppPopupParamInvalid`) rather than the "already open" case. */
+  popupError?: string;
 };
 
 export type FakeButton = {
@@ -19,6 +22,8 @@ export type FakeButton = {
   visible: boolean;
   progress: boolean;
   enabled: boolean;
+  color?: string;
+  textColor?: string;
 };
 
 export type FakeWebAppRecord = {
@@ -30,6 +35,16 @@ export type FakeWebAppRecord = {
   links: string[];
   downloads: { url: string; file_name: string }[];
   closed: boolean;
+  chrome: { header?: string; background?: string; bottomBar?: string };
+  popups: {
+    title?: string;
+    message: string;
+    buttons: { id?: string; type?: string; text?: string }[];
+  }[];
+  answerPopup(id: string): void;
+  closingConfirmation: boolean;
+  settingsButton: { visible: boolean } | null;
+  clickSettings(): void;
   clickMain(): void;
   clickSecondary(): void;
   clickBack(): void;
@@ -54,6 +69,7 @@ export function installFakeWebApp(options: FakeWebAppOptions): void {
     }
     return true;
   };
+  let pendingPopup: ((id: string) => void) | null = null;
   const record: FakeWebAppRecord = {
     calls: [],
     mainButton: { text: '', visible: false, progress: false, enabled: true },
@@ -65,6 +81,18 @@ export function installFakeWebApp(options: FakeWebAppOptions): void {
     links: [],
     downloads: [],
     closed: false,
+    chrome: {},
+    popups: [],
+    closingConfirmation: false,
+    settingsButton: atLeast(options.version, '7.0') ? { visible: false } : null,
+    answerPopup: (id) => {
+      const answer = pendingPopup;
+      pendingPopup = null;
+      answer?.(id);
+    },
+    clickSettings: () => {
+      for (const cb of [...handlers.settings]) cb();
+    },
     clickMain: () => {
       for (const cb of [...handlers.main]) cb();
     },
@@ -87,6 +115,7 @@ export function installFakeWebApp(options: FakeWebAppOptions): void {
     main: [] as (() => void)[],
     secondary: [] as (() => void)[],
     back: [] as (() => void)[],
+    settings: [] as (() => void)[],
   };
   const listeners: Record<string, ((...args: unknown[]) => void)[]> = {};
   const button = (state: FakeButton, list: (() => void)[], name: string) => ({
@@ -123,6 +152,11 @@ export function installFakeWebApp(options: FakeWebAppOptions): void {
     },
     disable: () => {
       state.enabled = false;
+    },
+    setParams: (params: { color?: string; text_color?: string }) => {
+      if (params.color) state.color = params.color;
+      if (params.text_color) state.textColor = params.text_color;
+      record.calls.push(`${name}.setParams`);
     },
   });
   const params = new URLSearchParams(options.initData);
@@ -203,6 +237,57 @@ export function installFakeWebApp(options: FakeWebAppOptions): void {
       impactOccurred: (style: string) => record.haptics.push(`impact:${style}`),
       notificationOccurred: (type: string) => record.haptics.push(`notification:${type}`),
       selectionChanged: () => record.haptics.push('selection'),
+    };
+  }
+  if (atLeast(options.version, '6.1')) {
+    webApp.setHeaderColor = (color: string) => {
+      record.chrome.header = color;
+      record.calls.push(`setHeaderColor:${color}`);
+    };
+    webApp.setBackgroundColor = (color: string) => {
+      record.chrome.background = color;
+      record.calls.push(`setBackgroundColor:${color}`);
+    };
+  }
+  if (atLeast(options.version, '7.10')) {
+    webApp.setBottomBarColor = (color: string) => {
+      record.chrome.bottomBar = color;
+      record.calls.push(`setBottomBarColor:${color}`);
+    };
+  }
+  if (atLeast(options.version, '6.2')) {
+    webApp.showPopup = (params: FakeWebAppRecord['popups'][number], cb?: (id: string) => void) => {
+      if (options.popupError) throw new Error(options.popupError);
+      if (pendingPopup !== null) throw new Error('WebAppPopupOpened');
+      record.popups.push(params);
+      record.calls.push(`showPopup:${params.message}`);
+      pendingPopup = cb ?? null;
+    };
+    webApp.enableClosingConfirmation = () => {
+      record.closingConfirmation = true;
+      record.calls.push('enableClosingConfirmation');
+    };
+    webApp.disableClosingConfirmation = () => {
+      record.closingConfirmation = false;
+      record.calls.push('disableClosingConfirmation');
+    };
+  }
+  if (record.settingsButton) {
+    const state = record.settingsButton;
+    webApp.SettingsButton = {
+      show: () => {
+        state.visible = true;
+        record.calls.push('SettingsButton.show');
+      },
+      hide: () => {
+        state.visible = false;
+        record.calls.push('SettingsButton.hide');
+      },
+      onClick: (cb: () => void) => handlers.settings.push(cb),
+      offClick: (cb: () => void) => {
+        const at = handlers.settings.indexOf(cb);
+        if (at >= 0) handlers.settings.splice(at, 1);
+      },
     };
   }
   if (atLeast(options.version, '6.9') && options.writeAccess !== undefined) {

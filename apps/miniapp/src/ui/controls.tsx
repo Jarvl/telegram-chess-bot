@@ -1,6 +1,7 @@
-import type { JSX } from 'preact';
+import type { ComponentChildren, JSX } from 'preact';
+import { useApp } from './context';
 
-type DataAttributes = Record<`data-${string}`, string | number | boolean | undefined>;
+export type DataAttributes = Record<`data-${string}`, string | number | boolean | undefined>;
 
 export function Switch(
   props: {
@@ -10,6 +11,7 @@ export function Switch(
     disabled?: boolean;
   } & DataAttributes,
 ) {
+  const { tg } = useApp();
   const { checked, onChange, label, disabled, ...rest } = props;
   return (
     <button
@@ -19,7 +21,10 @@ export function Switch(
       aria-label={label}
       class="switch"
       disabled={disabled}
-      onClick={() => onChange(!checked)}
+      onClick={() => {
+        tg.hapticSelection();
+        onChange(!checked);
+      }}
       {...rest}
     />
   );
@@ -32,6 +37,7 @@ export function Segmented<V extends string>(props: {
   value: V;
   onChange: (value: V) => void;
 }) {
+  const { tg } = useApp();
   return (
     <div class="segmented" role="group">
       {props.options.map(({ value, label, ...data }) => (
@@ -39,7 +45,10 @@ export function Segmented<V extends string>(props: {
           type="button"
           key={value}
           aria-pressed={props.value === value ? 'true' : 'false'}
-          onClick={() => props.onChange(value)}
+          onClick={() => {
+            tg.hapticSelection();
+            props.onChange(value);
+          }}
           {...data}
         >
           {label}
@@ -67,6 +76,42 @@ export function Select<V extends string>(
         </option>
       ))}
     </select>
+  );
+}
+
+export type Tile<V> = { key: string; value: V; label: ComponentChildren } & DataAttributes;
+
+/** A grid of mutually exclusive choices: time per move, bot level, colour. */
+export function Tiles<V>(props: {
+  tiles: Tile<V>[];
+  value: V;
+  onChange: (value: V) => void;
+  columns: 3 | 4;
+  /** Soft: a tinted, ringed pick for tiles that carry a picture. */
+  variant?: 'solid' | 'soft';
+}) {
+  const { tg } = useApp();
+  return (
+    <div
+      class={`tiles cols-${props.columns}${props.variant === 'soft' ? ' soft' : ''}`}
+      role="group"
+    >
+      {props.tiles.map(({ key, value, label, ...data }) => (
+        <button
+          type="button"
+          key={key}
+          class="tile"
+          aria-pressed={value === props.value ? 'true' : 'false'}
+          onClick={() => {
+            tg.hapticSelection();
+            props.onChange(value);
+          }}
+          {...data}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
   );
 }
 

@@ -2,8 +2,6 @@ import type { GroupRef, LobbyDto } from '@group-chess/shared';
 import { computed, signal, type ReadonlySignal, type Signal } from '@preact/signals';
 import type { Tg } from './tg/webapp';
 
-export type LobbyTab = 'active' | 'finished' | 'players';
-
 export type Route =
   | { name: 'loading' }
   | { name: 'error' }
@@ -12,6 +10,7 @@ export type Route =
   | { name: 'games' }
   | { name: 'groups' }
   | { name: 'lobby'; groupId: string }
+  | { name: 'leaderboard'; groupId: string }
   | { name: 'newGame'; groupId: string; defaults?: LobbyDto['settings'] }
   | { name: 'game'; gameId: string }
   | { name: 'player'; groupId: string; userId: string }
@@ -29,8 +28,14 @@ const TAB_ROOT: Record<TabName, Route> = {
   settings: { name: 'settings' },
 };
 
-/** Screens that exist before or instead of a session, where no tab means anything. */
-const CHROMELESS: ReadonlySet<Route['name']> = new Set(['loading', 'error', 'reopen', 'locked']);
+/** Screens with no tab bar: before a session, and New game, whose MainButton owns the bottom. */
+const TABLESS: ReadonlySet<Route['name']> = new Set([
+  'loading',
+  'error',
+  'reopen',
+  'locked',
+  'newGame',
+]);
 
 type Stacks = Record<TabName, Route[]>;
 
@@ -55,7 +60,7 @@ export class Router {
   ) {
     this.stack = computed(() => this.stacks.value[this.tab.value]);
     this.current = computed(() => this.stack.value.at(-1) ?? { name: 'loading' });
-    this.showTabs = computed(() => !CHROMELESS.has(this.current.value.name));
+    this.showTabs = computed(() => !TABLESS.has(this.current.value.name));
     this.sync();
   }
 

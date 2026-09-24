@@ -240,9 +240,11 @@ describe('Game', () => {
     });
     const r = mount(finished, okRoute(finished), '7.0');
     await r.flush();
-    expect(r.text()).toContain('You won');
-    expect(r.text()).toContain('You won · Checkmate');
-    expect(r.text()).toContain('1500? → 1662?');
+    expect(r.root.querySelector('.result-title')?.textContent).toBe('You won');
+    expect(r.root.querySelector('.result-detail')?.textContent).toBe(
+      'Checkmate · 0-1 · 1500? → 1662?',
+    );
+    expect(r.root.querySelector('.toolbar button')?.getAttribute('data-action')).toBe('rematch');
     expect(FakeEventSource.instances).toHaveLength(0);
     await r.click('[data-action="analyse"]');
     expect(window.__tg!.links).toContain('https://lichess.org/abcd1234');
@@ -296,5 +298,29 @@ describe('Game', () => {
       body: { ply: 1 },
     });
     expect(document.querySelector('.toast')?.textContent).toBe('Shared to the group');
+  });
+
+  it('marks your bar and clock gold on your move, and names the waiting side', async () => {
+    const r = mount(afterPlies(2, { viewerRole: 'white' }));
+    await r.flush();
+    const mine = r.root.querySelector('.player-bar[data-colour="white"]')!;
+    const theirs = r.root.querySelector('.player-bar[data-colour="black"]')!;
+    expect(mine.className).toContain('yours');
+    expect(mine.querySelector('.sub')?.textContent).toBe('Your move');
+    expect(mine.querySelector('.clock')?.className).toContain('yours');
+    expect(theirs.className).not.toContain('yours');
+    expect(theirs.querySelector('.sub')?.textContent).toBe('Black · Chess Club');
+    expect(theirs.querySelector('.avatar')?.textContent).toBe('B');
+  });
+
+  it('shows the bot as the goat with its level', async () => {
+    const bot = { ...gameDto().black, name: 'Stockfish', isBot: true };
+    const r = mount(
+      gameDto({ black: bot, engineLevel: 'club', timePerMove: null, deadlineAt: null }),
+    );
+    await r.flush();
+    const bar = r.root.querySelector('.player-bar[data-colour="black"]')!;
+    expect(bar.querySelector('img.avatar.bot')).not.toBeNull();
+    expect(bar.querySelector('.rating')?.textContent).toBe('Club');
   });
 });

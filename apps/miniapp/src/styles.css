@@ -1,6 +1,17 @@
 @import 'chessground/assets/chessground.base.css';
-@import 'chessground/assets/chessground.brown.css';
 @import 'chessground/assets/chessground.cburnett.css';
+
+/* DM Serif Display, Latin subset, OFL-1.1 (assets/fonts/OFL.txt): display text only. */
+@font-face {
+  font-family: 'DM Serif Display';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./assets/fonts/dm-serif-display-latin-400.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
 
 :root {
   --bg: #ffffff;
@@ -11,6 +22,29 @@
   --button-text: #ffffff;
   --secondary-bg: #f1f1f4;
   --destructive: #d14e4e;
+  --page: var(--secondary-bg);
+  --card: var(--bg);
+  --sep: color-mix(in srgb, var(--hint) 18%, transparent);
+  --sep-strong: color-mix(in srgb, var(--hint) 45%, transparent);
+  --display: 'DM Serif Display', Georgia, serif;
+  /* The light accent set until applyTheme runs (tg/theme.ts ACCENTS). */
+  --acc: #2e7d4f;
+  --acc-ink: #ffffff;
+  --acc-text: #256b42;
+  --acc-soft: #e3f1e7;
+  --move: #e0b94a;
+  --move-ink: #2a2000;
+  --move-soft: #fbf3dc;
+  --move-text: #8a6a00;
+  --urgent: #d14e4e;
+  --hero-bg: linear-gradient(135deg, #236140, #153a26);
+  --hero-ink: #f5f0dc;
+  --hero-sub: #bcd3c2;
+  --bl: #f0ead2;
+  --bd: #7d9f6b;
+  --lm: rgba(224, 185, 74, 0.6);
+  --sel: rgba(46, 125, 79, 0.55);
+  --dot: rgba(21, 58, 38, 0.4);
   --stable-height: 100vh;
   --radius: 12px;
   --tabbar-h: calc(56px + env(safe-area-inset-bottom, 0px));
@@ -27,7 +61,7 @@ html,
 body {
   margin: 0;
   padding: 0;
-  background: var(--bg);
+  background: var(--page);
   color: var(--text);
   font:
     16px/1.4 -apple-system,
@@ -35,6 +69,7 @@ body {
     'Segoe UI',
     Roboto,
     sans-serif;
+  -webkit-font-smoothing: antialiased;
   -webkit-text-size-adjust: 100%;
   overscroll-behavior: none;
 }
@@ -49,7 +84,10 @@ button {
 }
 
 .screen {
-  padding: 12px 12px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 10px 16px 20px;
   max-width: 640px;
   margin: 0 auto;
 }
@@ -66,12 +104,11 @@ button {
   bottom: 0;
   z-index: 10;
   display: flex;
-  background: var(--secondary-bg);
-  border-top: 1px solid color-mix(in srgb, var(--hint) 20%, transparent);
+  background: var(--card);
+  border-top: 1px solid var(--sep);
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-/* Scoped names of its own: the lobby's segmented control owns `.tab` further down. */
 .tabbar .nav-item {
   flex: 1;
   display: flex;
@@ -87,12 +124,26 @@ button {
 }
 
 .tabbar .nav-item.active {
-  color: var(--link);
+  color: var(--acc-text);
 }
 
 .tabbar .nav-icon-wrap {
   position: relative;
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 32px;
+  border-radius: 16px;
+  transition: background 0.15s;
+}
+
+.tabbar .nav-item.active .nav-icon-wrap {
+  background: var(--acc-soft);
+}
+
+.tabbar .nav-item.active .nav-label {
+  font-weight: 600;
 }
 
 .tabbar .nav-icon {
@@ -105,8 +156,8 @@ button {
    count never shifts the icon or the label under it. */
 .tabbar .nav-badge {
   position: absolute;
-  bottom: 58%;
-  left: 58%;
+  top: 0;
+  left: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -114,11 +165,12 @@ button {
   height: 17px;
   padding: 0 4px;
   border-radius: 999px;
-  background: var(--destructive);
-  color: #ffffff;
+  background: var(--move);
+  color: var(--move-ink);
   font-size: 11px;
   font-weight: 600;
   line-height: 1;
+  box-shadow: 0 0 0 2px var(--card);
   /* Centring a line box leaves a digit sitting high, because the box reserves descender space no
      digit uses — and by how much depends on the font, so a fixed nudge would fix one platform and
      break another. Trimming the box to cap height and baseline makes it hug the ink, so centring
@@ -133,34 +185,46 @@ button {
 }
 
 .title {
-  font-size: 20px;
-  font-weight: 600;
-  margin: 4px 0 12px;
+  font: 30px/1.1 var(--display);
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .subtitle {
   color: var(--hint);
   font-size: 14px;
-  margin: 0 0 12px;
+  margin: 0;
 }
 
 .hint {
   color: var(--hint);
   font-size: 14px;
+  margin: 0;
 }
 
+/* The design's section label. */
 .section {
-  margin: 16px 0 8px;
+  margin: 6px 0 0;
   font-size: 13px;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--hint);
 }
 
-.list {
-  background: var(--secondary-bg);
-  border-radius: var(--radius);
+.card {
+  background: var(--card);
+  border-radius: 18px;
   overflow: hidden;
+}
+
+.card.empty {
+  padding: 28px 16px;
+  text-align: center;
+  color: var(--hint);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .row {
@@ -170,66 +234,74 @@ button {
   width: 100%;
   padding: 12px 14px;
   border: 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--hint) 20%, transparent);
+  border-bottom: 1px solid var(--sep);
   background: transparent;
   color: inherit;
+  font: inherit;
   text-align: left;
 }
 
-.row:last-child {
+.card > .row:last-child {
   border-bottom: 0;
 }
 
-.row .grow {
+.grow {
   flex: 1;
   min-width: 0;
 }
 
-.row .primary {
+.grow > .primary {
   display: block;
+  font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.row .secondary {
+.grow > .secondary {
   display: block;
   font-size: 13px;
   color: var(--hint);
 }
 
-.badge {
-  font-size: 12px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--button);
-  color: var(--button-text);
+/* A primary line whose leading name ellipsises while trailing badges (a rating, "(you)") stay
+   fully visible — same shrink technique as `.game-card .who`: the name's own `overflow: hidden`
+   zeroes out its flex auto-minimum, so it alone gives way as the row narrows. */
+.name-row {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
+}
+
+.name-row .name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.badge.muted {
-  background: color-mix(in srgb, var(--hint) 30%, transparent);
-  color: var(--text);
+.name-row .you {
+  font-weight: 600;
+  white-space: nowrap;
 }
 
-.tabs {
-  display: flex;
-  gap: 6px;
-  margin: 0 0 12px;
+.chevron {
+  color: var(--hint);
+  font-size: 22px;
+  line-height: 1;
+  opacity: 0.7;
+  flex: none;
 }
 
-.tab {
-  flex: 1;
-  padding: 8px 0;
-  border: 0;
+.badge {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 8px;
   border-radius: 999px;
-  background: var(--secondary-bg);
-  color: var(--text);
-}
-
-.tab[aria-selected='true'] {
-  background: var(--button);
-  color: var(--button-text);
+  background: var(--move);
+  color: var(--move-ink);
+  white-space: nowrap;
 }
 
 .btn {
@@ -237,28 +309,31 @@ button {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 10px 14px;
+  padding: 12px 14px;
   border: 0;
-  border-radius: var(--radius);
-  background: var(--button);
-  color: var(--button-text);
-  font-weight: 600;
+  border-radius: 14px;
+  background: var(--acc);
+  color: var(--acc-ink);
+  font: inherit;
+  font-weight: 700;
 }
 
 .btn.secondary {
-  background: var(--secondary-bg);
+  background: var(--card);
   color: var(--text);
+  font-weight: 600;
 }
 
 .btn.danger {
-  background: var(--secondary-bg);
+  background: var(--card);
   color: var(--destructive);
+  font-weight: 600;
 }
 
 .btn.block {
   display: flex;
   width: 100%;
-  margin: 12px 0;
+  margin: 0;
 }
 
 .btn:disabled {
@@ -280,6 +355,10 @@ button {
   padding: 12px 14px;
 }
 
+.card > .field + .field {
+  border-top: 1px solid var(--sep);
+}
+
 .field select,
 .field input[type='number'] {
   font: inherit;
@@ -291,18 +370,62 @@ button {
   max-width: 50%;
 }
 
+.banner-img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+}
+
+.link-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 13px 14px;
+  border: 0;
+  border-top: 1px solid var(--sep);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.banner-img + .link-row {
+  border-top: 0;
+}
+
+.link-row .primary {
+  font-weight: 400;
+}
+
+.acc-text {
+  color: var(--acc-text);
+  font-weight: 600;
+}
+
+.danger-row {
+  width: 100%;
+  padding: 14px;
+  border: 0;
+  color: var(--destructive);
+  font: inherit;
+  font-weight: 600;
+  text-align: center;
+}
+
 .switch {
   position: relative;
   width: 44px;
   height: 26px;
   border-radius: 13px;
   border: 0;
-  background: color-mix(in srgb, var(--hint) 40%, transparent);
+  background: var(--sep-strong);
   flex: none;
 }
 
 .switch[aria-checked='true'] {
-  background: var(--button);
+  background: var(--acc);
 }
 
 .switch::after {
@@ -322,23 +445,27 @@ button {
 }
 
 .segmented {
-  display: inline-flex;
+  display: flex;
+  padding: 3px;
   border-radius: 999px;
-  background: var(--secondary-bg);
-  padding: 2px;
+  background: var(--card);
 }
 
 .segmented button {
+  flex: 1;
   border: 0;
   background: transparent;
   color: var(--text);
-  padding: 6px 12px;
+  padding: 8px 0;
   border-radius: 999px;
+  font: inherit;
+  font-size: 15px;
 }
 
 .segmented button[aria-pressed='true'] {
-  background: var(--button);
-  color: var(--button-text);
+  background: var(--acc);
+  color: var(--acc-ink);
+  font-weight: 700;
 }
 
 .toast {
@@ -346,13 +473,18 @@ button {
   left: 50%;
   bottom: 24px;
   transform: translateX(-50%);
-  background: color-mix(in srgb, var(--text) 85%, transparent);
-  color: var(--bg);
+  background: color-mix(in srgb, var(--text) 88%, transparent);
+  color: var(--card);
   padding: 10px 16px;
   border-radius: 999px;
   font-size: 14px;
   z-index: 20;
   max-width: calc(100vw - 32px);
+}
+
+/* Above the tab bar when there is one. */
+.with-tabbar ~ .toast {
+  bottom: calc(var(--tabbar-h) + 16px);
 }
 
 .dialog-backdrop {
@@ -368,13 +500,19 @@ button {
 .dialog {
   width: 100%;
   max-width: 640px;
-  background: var(--bg);
-  border-radius: var(--radius) var(--radius) 0 0;
+  background: var(--card);
+  border-radius: 18px 18px 0 0;
   padding: 16px 16px 24px;
 }
 
 .dialog p {
   margin: 0 0 16px;
+}
+
+.dialog strong {
+  display: block;
+  font-size: 17px;
+  margin-bottom: 4px;
 }
 
 .centered {
@@ -391,7 +529,7 @@ button {
 .game {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0;
   padding: 8px 0 24px;
 }
 
@@ -409,12 +547,74 @@ button {
   height: 100%;
 }
 
+/* chessground's stock coordinate rows hang outside the board (`coords.ranks` above it,
+   `coords.files` below), which assumes a wrap with extra margin reserved around the board. This
+   wrap is sized flush to the board, so the default offsets both overshoot the wrap (files) and
+   get painted over by the player bar that follows in the DOM (both). Flush them to the board's
+   own edges and restyle to match the prototype's corner-of-the-square coordinates (spec §1
+   Board): 10 px bold, lower-case files bottom-right of their own square, ranks top-left. */
+.board-wrap coords {
+  font-size: 10px;
+  font-weight: 700;
+  /* Pieces carry their own stacking z-index (chessground render.js, 2-11) so they paint over
+     coordinates placed on the board unless the coordinates are lifted above that range. */
+  z-index: 20;
+}
+
+.board-wrap coords.files {
+  left: 0;
+  bottom: 1px;
+  text-transform: none;
+}
+
+.board-wrap coords.files coord {
+  flex: 1 1 0;
+  text-align: right;
+  padding-right: 3px;
+}
+
+.board-wrap coords.ranks {
+  top: 0;
+  left: 3px;
+}
+
+.board-wrap coords.ranks coord {
+  transform: none;
+  padding-top: 1px;
+}
+
 .player-bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 0 12px;
+  gap: 10px;
+  padding: 10px 16px;
+}
+
+.player-bar.yours {
+  background: var(--move-soft);
+}
+
+.player-bar .ring {
+  display: inline-flex;
+  flex: none;
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 2px var(--page),
+    0 0 0 3.5px #ffffff;
+}
+
+.player-bar .ring.black {
+  box-shadow:
+    0 0 0 2px var(--page),
+    0 0 0 3.5px #2b2b2b;
+}
+
+.player-bar .who {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
 }
 
 .player-bar .name {
@@ -425,36 +625,62 @@ button {
 }
 
 .player-bar .rating {
-  color: var(--hint);
   font-size: 14px;
-  margin-left: 6px;
+}
+
+.player-bar .sub {
+  font-size: 12px;
+  color: var(--hint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.player-bar .sub.yours {
+  color: var(--move-text);
+  font-weight: 600;
+}
+
+.player-bar .sub.to-move {
+  color: var(--acc-text);
+  font-weight: 600;
 }
 
 .clock {
   font-variant-numeric: tabular-nums;
-  padding: 4px 10px;
-  border-radius: 8px;
-  background: var(--secondary-bg);
-  min-width: 72px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--hint);
+  font-weight: 700;
+  min-width: 84px;
   text-align: center;
 }
 
 .clock.active {
-  background: var(--button);
-  color: var(--button-text);
+  background: var(--acc-soft);
+  color: var(--acc-text);
+}
+
+.clock.yours {
+  background: var(--move);
+  color: var(--move-ink);
 }
 
 .clock.urgent {
-  background: var(--destructive);
+  background: var(--urgent);
   color: #fff;
 }
 
 .move-list {
   display: flex;
-  gap: 4px;
+  gap: 2px;
+  align-items: center;
   overflow-x: auto;
-  padding: 4px 12px;
+  white-space: nowrap;
+  padding: 10px 16px 6px;
   scrollbar-width: none;
+  font-size: 15px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -462,19 +688,21 @@ button {
   border: 0;
   background: transparent;
   color: inherit;
-  padding: 4px 6px;
-  border-radius: 6px;
+  padding: 3px 7px;
+  border-radius: 8px;
   white-space: nowrap;
+  font: inherit;
 }
 
 .move-list button[aria-current='true'] {
-  background: var(--secondary-bg);
-  font-weight: 600;
+  background: var(--acc-soft);
+  color: var(--acc-text);
+  font-weight: 700;
 }
 
 .move-list .number {
   color: var(--hint);
-  padding: 4px 0 4px 6px;
+  padding-left: 6px;
 }
 
 .replay-controls {
@@ -488,11 +716,31 @@ button {
   flex: 1;
 }
 
+.result-card {
+  margin: 6px 16px;
+  padding: 14px;
+  border-radius: 16px;
+  background: var(--hero-bg);
+  color: var(--hero-ink);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.result-title {
+  font: 24px/1.15 var(--display);
+}
+
+.result-detail {
+  font-size: 14px;
+  color: var(--hero-sub);
+}
+
 .banner {
-  margin: 0 12px;
+  margin: 6px 16px;
   padding: 10px 14px;
-  border-radius: var(--radius);
-  background: var(--secondary-bg);
+  border-radius: 14px;
+  background: var(--card);
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -503,7 +751,10 @@ button {
   flex: 1;
 }
 
-.banner.result {
+.banner.soft {
+  background: var(--acc-soft);
+  color: var(--acc-text);
+  font-size: 14px;
   font-weight: 600;
 }
 
@@ -511,12 +762,7 @@ button {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  padding: 0 12px;
-}
-
-.toolbar .btn {
-  padding: 8px 12px;
-  font-weight: 500;
+  padding: 6px 16px;
 }
 
 .board-veil {
@@ -567,7 +813,583 @@ button {
   position: sticky;
   bottom: 0;
   padding: 8px 12px 12px;
-  background: var(--bg);
+  background: var(--page);
   display: flex;
   gap: 8px;
+}
+
+/* The Chess Goat board: cream and green squares, gold last move, green selection. */
+cg-board {
+  background-color: var(--bd);
+  /* One 2×2 tile per quarter: a8 (top-left, either orientation) is light. */
+  background-image: conic-gradient(var(--bd) 0 25%, var(--bl) 0 50%, var(--bd) 0 75%, var(--bl) 0);
+  background-size: 25% 25%;
+}
+
+cg-board square.last-move {
+  background-color: var(--lm);
+}
+
+cg-board square.selected {
+  background-color: var(--sel);
+}
+
+cg-board square.move-dest {
+  background: radial-gradient(var(--dot) 22%, transparent 23%);
+}
+
+cg-board square.oc.move-dest {
+  background: radial-gradient(transparent 0%, transparent 79%, var(--dot) 80%);
+}
+
+cg-board square.move-dest:hover {
+  background: var(--dot);
+}
+
+cg-board square.check {
+  background: radial-gradient(
+    ellipse at center,
+    var(--urgent) 0%,
+    color-mix(in srgb, var(--urgent) 85%, transparent) 25%,
+    transparent 89%
+  );
+}
+
+/* Coordinate label colours (chessground.brown.css), matched to the board squares: each label
+   takes the colour opposite its own square, for contrast. The `.ranks` column's DOM order (1-8)
+   never reverses (only its `flex-flow` does, per orientation), so unlike `.files` its odd/even
+   parity flips between the two orientations. */
+.orientation-white .ranks :nth-child(even),
+.orientation-white .files :nth-child(even),
+.orientation-black .ranks :nth-child(odd),
+.orientation-black .files :nth-child(odd),
+coords.squares:nth-of-type(odd) :nth-child(even),
+coords.squares:nth-of-type(even) :nth-child(odd) {
+  color: var(--bd);
+  font-weight: 700;
+}
+
+.orientation-white .ranks :nth-child(odd),
+.orientation-white .files :nth-child(odd),
+.orientation-black .ranks :nth-child(even),
+.orientation-black .files :nth-child(even),
+coords.squares:nth-of-type(odd) :nth-child(odd),
+coords.squares:nth-of-type(even) :nth-child(even) {
+  color: var(--bl);
+  font-weight: 700;
+}
+
+.avatar {
+  --size: 40px;
+  width: var(--size);
+  height: var(--size);
+  border-radius: 50%;
+  color: #fff;
+  font-weight: 700;
+  font-size: calc(var(--size) * 0.42);
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.avatar.bot {
+  object-fit: cover;
+  object-position: 50% 30%;
+}
+
+.avatar.group {
+  border-radius: 30%;
+  font-size: calc(var(--size) * 0.36);
+}
+
+.mini-board {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  grid-template-rows: repeat(8, 1fr);
+  width: 80px;
+  height: 80px;
+  flex: none;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.mini-board .sq {
+  position: relative;
+  background: var(--bd);
+}
+
+.mini-board .sq.l {
+  background: var(--bl);
+}
+
+.mini-board .sq.lm {
+  background-image: linear-gradient(var(--lm), var(--lm));
+}
+
+.mini-board piece {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: none;
+  background-size: cover;
+}
+
+.game-card {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  padding: 12px 14px;
+  border: 0;
+  border-top: 1px solid var(--sep);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.card > .game-card:first-child {
+  border-top: 0;
+}
+
+.game-card .grow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.game-card .who {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.game-card .name {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.game-card .meta {
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--hint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rating {
+  color: var(--hint);
+  font-size: 13px;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.tag {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--page);
+  color: var(--hint);
+  white-space: nowrap;
+}
+
+.pill {
+  align-self: flex-start;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--hint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.pill.yours,
+.pill.urgent {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-weight: 700;
+}
+
+.pill.yours {
+  background: var(--move);
+  color: var(--move-ink);
+}
+
+.pill.urgent {
+  background: var(--urgent);
+  color: #fff;
+}
+
+.game-card.dim .mini-board {
+  opacity: 0.45;
+  filter: grayscale(0.7);
+}
+
+.game-card.dim .avatar {
+  opacity: 0.55;
+}
+
+.game-card.dim .name {
+  color: var(--hint);
+}
+
+.home-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.goat-mark {
+  width: 42px;
+  height: 42px;
+  flex: none;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: 50% 30%;
+  box-shadow: 0 0 0 2px var(--acc);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.group-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 18px;
+  background: var(--card);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.group-row .primary {
+  font-size: 17px;
+}
+
+.count-badge {
+  min-width: 24px;
+  height: 24px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--move);
+  color: var(--move-ink);
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.lobby-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.lobby-head .title {
+  font-size: 26px;
+}
+
+.move-text {
+  color: var(--move-text);
+  font-weight: 600;
+}
+
+.icon-btn {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border: 0;
+  border-radius: 50%;
+  background: var(--card);
+  color: var(--hint);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-btn .icon {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+
+.chip-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--card);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.chip-row .rank {
+  font: 22px/1 var(--display);
+  color: var(--acc-text);
+}
+
+.chip-row .primary {
+  font-size: 15px;
+}
+
+.challenge {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border-top: 1px solid var(--sep);
+}
+
+.card > .challenge:first-child {
+  border-top: 0;
+}
+
+.challenge-who {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1 1 100%;
+  min-width: 0;
+}
+
+.challenge-actions {
+  display: flex;
+  gap: 8px;
+  padding-left: 52px;
+}
+
+.pill-btn {
+  border: 0;
+  padding: 9px 14px;
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.challenge .pill-btn:not(.primary) {
+  background: var(--page);
+}
+
+.pill-btn.primary {
+  background: var(--acc);
+  color: var(--acc-ink);
+  font-weight: 700;
+}
+
+.pill-btn.danger {
+  color: var(--destructive);
+}
+
+.pill-btn:disabled {
+  opacity: 0.5;
+}
+
+.player-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 11px 14px;
+  border: 0;
+  border-top: 1px solid var(--sep);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.card > .player-row:first-child {
+  border-top: 0;
+}
+
+.player-row.you {
+  background: var(--acc-soft);
+}
+
+.player-row .rank {
+  width: 22px;
+  flex: none;
+  text-align: center;
+  font-weight: 700;
+  color: var(--hint);
+}
+
+.player-row .rank.first {
+  color: var(--move-text);
+}
+
+.player-row .hint {
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.option-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 14px;
+  border: 0;
+  border-top: 1px solid var(--sep);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.card > .option-row:first-child {
+  border-top: 0;
+}
+
+.option-row.on {
+  background: var(--acc-soft);
+}
+
+.avatar.open {
+  box-shadow: inset 0 0 0 2px var(--sep-strong);
+  color: var(--hint);
+  font-size: 22px;
+  font-weight: 400;
+}
+
+.radio {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 2px var(--sep-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.radio.on {
+  background: var(--acc);
+  color: var(--acc-ink);
+  box-shadow: none;
+}
+
+.tiles {
+  display: grid;
+  gap: 8px;
+}
+
+.tiles.cols-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.tiles.cols-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.tile {
+  border: 0;
+  padding: 11px 0;
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.tile[aria-pressed='true'] {
+  background: var(--acc);
+  color: var(--acc-ink);
+  font-weight: 700;
+}
+
+.tiles.soft .tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 0;
+  border-radius: 14px;
+  font-size: 14px;
+}
+
+.tiles.soft .tile[aria-pressed='true'] {
+  background: var(--acc-soft);
+  color: var(--acc-text);
+  box-shadow: inset 0 0 0 2px var(--acc);
+}
+
+.kings {
+  display: flex;
+}
+
+.kings piece {
+  position: static;
+  display: block;
+  width: 36px;
+  height: 36px;
+  transform: none;
+  background-size: cover;
+}
+
+.kings piece + piece {
+  margin-left: -12px;
+}
+
+.card.field {
+  padding: 12px 14px;
+}
+
+.inert {
+  opacity: 0.5;
+}
+
+.field.column {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.card .tiles .tile {
+  background: var(--page);
+}
+
+.card .tiles .tile[aria-pressed='true'] {
+  background: var(--acc);
+}
+
+.player-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.status-mark {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: 50% 30%;
 }

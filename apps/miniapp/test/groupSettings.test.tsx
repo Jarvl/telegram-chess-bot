@@ -13,7 +13,9 @@ const dto: GroupSettingsDto = {
     cardTopicMode: 'origin',
     fixedTopicId: null,
   },
-  blocked: [{ id: '3', name: 'Carol', username: null, rating: 1500, provisional: true }],
+  blocked: [
+    { id: '3', name: 'Carol', username: null, rating: 1500, provisional: true, isBot: false },
+  ],
   botIsAdmin: true,
   isForum: true,
 };
@@ -31,6 +33,7 @@ const lobby: LobbyDto = {
       username: null,
       rating: 1500,
       provisional: true,
+      isBot: false,
       gamesPlayed: 1,
       record: { wins: 1, draws: 0, losses: 0 },
     },
@@ -49,8 +52,11 @@ describe('GroupSettings', () => {
   it('saves only the changed fields and refuses a fixed topic without an id', async () => {
     const r = renderApp(() => <GroupSettings groupId="GrOuPiDxYz" />, route);
     await r.flush();
+    expect(r.root.querySelector('.card [data-setting="defaultTimePerMove"] .tile')).not.toBeNull();
     await r.click('[data-setting="ratedDefault"]');
     await r.click('[data-topic="fixed"]');
+    await r.click('[data-setting="defaultTimePerMove"] [data-time="3600"]');
+    expect(window.__tg!.haptics).toContain('selection');
     expect(window.__tg!.mainButton.enabled).toBe(false);
     const input = r.root.querySelector<HTMLInputElement>('[data-setting="fixedTopicId"]')!;
     input.value = '42';
@@ -61,7 +67,12 @@ describe('GroupSettings', () => {
     await r.flush();
     const put = r.calls.find((c) => c.method === 'PUT');
     expect(put?.path).toBe('/api/groups/GrOuPiDxYz/settings');
-    expect(put?.body).toEqual({ ratedDefault: false, cardTopicMode: 'fixed', fixedTopicId: 42 });
+    expect(put?.body).toEqual({
+      defaultTimePerMove: 3600,
+      ratedDefault: false,
+      cardTopicMode: 'fixed',
+      fixedTopicId: 42,
+    });
   });
 
   it('unblocks and blocks players', async () => {
@@ -73,8 +84,9 @@ describe('GroupSettings', () => {
       '/api/groups/GrOuPiDxYz/blocks/3',
     );
     await r.click('[data-block="2"]');
-    expect(document.querySelector('.dialog p')?.textContent).toBe('Block Bob?');
-    await r.click('[data-dialog="confirm"]');
+    expect(window.__tg!.popups.at(-1)?.message).toBe('Block Bob?');
+    window.__tg!.answerPopup('confirm');
+    await r.flush();
     const post = r.calls.find((c) => c.method === 'POST');
     expect(post).toMatchObject({ path: '/api/groups/GrOuPiDxYz/blocks', body: { userId: '2' } });
   });

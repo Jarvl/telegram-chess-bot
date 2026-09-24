@@ -32,7 +32,7 @@ import { toast } from '../toast';
 import { Board } from './Board';
 import { MoveList } from './MoveList';
 import { PlayerBar } from './PlayerBar';
-import { ratingChangeFor, reasonForViewer, resultForViewer } from './result';
+import { resultDetail, resultForViewer } from './result';
 import { useClock } from './useClock';
 
 /** A send answered within this shows nothing; a slower one greys the board under a spinner. */
@@ -370,7 +370,7 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
       {dto.status === 'finished' ? (
         <div class="replay-controls">
           <button
-            class="btn secondary"
+            class="pill-btn"
             data-action="prev"
             onClick={() => store.viewPly(store.position.value.ply - 1)}
           >
@@ -384,7 +384,7 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
             onInput={(event) => store.viewPly(Number(event.currentTarget.value))}
           />
           <button
-            class="btn secondary"
+            class="pill-btn"
             data-action="next"
             onClick={() => store.viewPly(store.position.value.ply + 1)}
           >
@@ -393,22 +393,25 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
         </div>
       ) : null}
       {dto.status === 'finished' ? (
-        <div class="banner result">
-          <span class="grow">
+        <div class="result-card" role="status">
+          <span class="result-title">
             {dto.voided ? t('app.game.voided') : resultForViewer(dto)}
-            {reasonForViewer(dto) ? ` · ${reasonForViewer(dto)}` : ''}
-            {ratingChangeFor(dto) ? ` · ${ratingChangeFor(dto)}` : ''}
           </span>
+          {resultDetail(dto) ? <span class="result-detail">{resultDetail(dto)}</span> : null}
         </div>
       ) : null}
       {offerFromOpponent && dto.status === 'active' ? (
         <div class="banner">
           <span class="grow">{t('app.game.draw_offer_from', { name: dto[offer!.by].name })}</span>
-          <button class="btn" data-action="accept-draw" onClick={() => void action('draw/accept')}>
+          <button
+            class="pill-btn primary"
+            data-action="accept-draw"
+            onClick={() => void action('draw/accept')}
+          >
             {t('button.accept')}
           </button>
           <button
-            class="btn secondary"
+            class="pill-btn"
             data-action="decline-draw"
             onClick={() => void action('draw/decline')}
           >
@@ -417,15 +420,20 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
         </div>
       ) : null}
       {isPlayer && offer && offer.by === myColour && dto.status === 'active' ? (
-        <div class="banner">{t('app.game.draw_offered')}</div>
+        <div class="banner soft">{t('app.game.draw_offered')}</div>
       ) : null}
       <div class="toolbar">
-        <button class="btn secondary" data-action="share" onClick={() => void share()}>
+        {dto.status === 'finished' && isPlayer && !dto.voided ? (
+          <button class="pill-btn primary" data-action="rematch" onClick={() => void rematch()}>
+            {t('app.game.rematch')}
+          </button>
+        ) : null}
+        <button class="pill-btn" data-action="share" onClick={() => void share()}>
           {t('app.game.share')}
         </button>
         {dto.status === 'active' && canOffer ? (
           <button
-            class="btn secondary"
+            class="pill-btn"
             data-action="offer-draw"
             disabled={busy}
             onClick={() => void action('draw/offer')}
@@ -435,7 +443,7 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
         ) : null}
         {claimable ? (
           <button
-            class="btn secondary"
+            class="pill-btn"
             data-action="claim-draw"
             disabled={busy}
             onClick={() => void action('draw/claim')}
@@ -445,7 +453,7 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
         ) : null}
         {isPlayer && dto.status === 'active' && dto.plyCount < 2 ? (
           <button
-            class="btn danger"
+            class="pill-btn danger"
             data-action="abort"
             disabled={busy}
             onClick={() => void abort()}
@@ -455,7 +463,7 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
         ) : null}
         {isPlayer && dto.status === 'active' ? (
           <button
-            class="btn danger"
+            class="pill-btn danger"
             data-action="resign"
             disabled={busy}
             onClick={() => void resign()}
@@ -464,27 +472,22 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
           </button>
         ) : null}
         {!isPlayer ? (
-          <button class="btn secondary" data-action="flip" onClick={() => store.flip()}>
+          <button class="pill-btn" data-action="flip" onClick={() => store.flip()}>
             {t('app.game.flip')}
           </button>
         ) : null}
-        {dto.status === 'finished' && isPlayer && !dto.voided ? (
-          <button class="btn" data-action="rematch" onClick={() => void rematch()}>
-            {t('app.game.rematch')}
-          </button>
-        ) : null}
         {dto.status === 'finished' && (dto.lichessUrl || dto.analysisUrl) ? (
-          <button class="btn secondary" data-action="analyse" onClick={analyse}>
+          <button class="pill-btn" data-action="analyse" onClick={analyse}>
             {t('app.game.analyse')}
           </button>
         ) : null}
         {dto.status === 'finished' ? (
-          <button class="btn secondary" data-action="pgn" onClick={() => void pgn()}>
+          <button class="pill-btn" data-action="pgn" onClick={() => void pgn()}>
             {t('app.game.pgn')}
           </button>
         ) : null}
         {dto.status === 'finished' && session.value?.launchedFrom?.kind === 'game' ? (
-          <button class="btn secondary" data-action="done" onClick={() => tg.close()}>
+          <button class="pill-btn" data-action="done" onClick={() => tg.close()}>
             {t('app.game.done')}
           </button>
         ) : null}

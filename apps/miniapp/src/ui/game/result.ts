@@ -1,4 +1,4 @@
-import { endReasonLabel, ratingLabel, t, type GameDto } from '@group-chess/shared';
+import { endReasonLabel, ratingLabel, resultLabel, t, type GameDto } from '@group-chess/shared';
 
 /** The result banner text from the viewer's side (PRD §8.2). */
 export function resultForViewer(dto: GameDto): string {
@@ -20,4 +20,15 @@ export function ratingChangeFor(dto: GameDto): string | null {
   const player = dto[dto.viewerRole];
   if (player.ratingAfter === null || player.provisionalAfter === null) return null;
   return `${ratingLabel(player.rating, player.provisional)} → ${ratingLabel(player.ratingAfter, player.provisionalAfter)}`;
+}
+
+/** The result card's second line: how it ended, the score, and the viewer's rating change. */
+export function resultDetail(dto: GameDto): string {
+  return [
+    reasonForViewer(dto),
+    dto.result && dto.result !== '*' ? resultLabel(dto.result) : null,
+    ratingChangeFor(dto),
+  ]
+    .filter(Boolean)
+    .join(' · ');
 }

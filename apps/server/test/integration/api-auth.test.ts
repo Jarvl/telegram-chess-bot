@@ -5,7 +5,13 @@ import { challenges, games, groupMembers, users } from '../../src/db/schema';
 import { touchMember } from '../../src/domain/members';
 import { startTestApi, type TestApi } from '../helpers/api';
 import { openTestDb, truncateAll } from '../helpers/db';
-import { insertChallenge, insertGame, insertGroup, insertUser } from '../helpers/fixtures';
+import {
+  insertChallenge,
+  insertGame,
+  insertGroup,
+  insertMove,
+  insertUser,
+} from '../helpers/fixtures';
 import { signInitData } from '../helpers/initData';
 
 const { db, close } = openTestDb();
@@ -78,6 +84,43 @@ describe('GET /api/me/games', () => {
     const token = await api.sessionFor(await insertUser(db));
     const res = await api.request('GET', '/api/me/games', { token });
     expect(MeGamesDtoSchema.parse(await res.json()).items).toEqual([]);
+  });
+
+  it('carries each game’s position, last move and bot flag for the list thumbnails', async () => {
+    const AFTER_E4 = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1';
+    const viewer = await insertUser(db);
+    const [engine] = await db.select().from(users).where(eq(users.isEngine, true));
+    const club = await insertGroup(db, { title: 'Club' });
+    await touchMember(db, club.id, viewer.id);
+    const opened = await insertGame(db, club.id, viewer.id, engine!.id, {
+      fen: AFTER_E4,
+      plyCount: 1,
+      engineLevel: 'club',
+      timePerMove: null,
+    });
+    await insertMove(db, opened.id, 1, 'e2e4', 'e4', AFTER_E4);
+    const fresh = await insertGame(db, club.id, engine!.id, viewer.id, {
+      engineLevel: 'casual',
+      timePerMove: null,
+    });
+
+    const token = await api.sessionFor(viewer);
+    const res = await api.request('GET', '/api/me/games', { token });
+    const body = MeGamesDtoSchema.parse(await res.json());
+    const byId = new Map(body.items.map((game) => [game.id, game]));
+    expect(byId.get(opened.publicId)).toMatchObject({
+      fen: AFTER_E4,
+      lastMove: 'e2e4',
+      engineLevel: 'club',
+      white: { isBot: false },
+      black: { isBot: true },
+    });
+    expect(byId.get(fresh.publicId)).toMatchObject({
+      lastMove: null,
+      engineLevel: 'casual',
+      white: { isBot: true },
+      black: { isBot: false },
+    });
   });
 });
 

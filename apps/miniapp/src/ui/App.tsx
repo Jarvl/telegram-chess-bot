@@ -4,6 +4,7 @@ import { Game } from './screens/Game';
 import { Games } from './screens/Games';
 import { GroupSettings } from './screens/GroupSettings';
 import { Groups } from './screens/Groups';
+import { Leaderboard } from './screens/Leaderboard';
 import { Lobby } from './screens/Lobby';
 import { NewGame } from './screens/NewGame';
 import { Player } from './screens/Player';
@@ -30,6 +31,8 @@ function Screen() {
       return <Groups />;
     case 'lobby':
       return <Lobby key={route.groupId} groupId={route.groupId} />;
+    case 'leaderboard':
+      return <Leaderboard key={route.groupId} groupId={route.groupId} />;
     case 'newGame':
       return <NewGame key={route.groupId} groupId={route.groupId} defaults={route.defaults} />;
     case 'game':

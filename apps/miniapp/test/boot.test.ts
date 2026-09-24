@@ -5,6 +5,7 @@ import { boot } from '../src/boot';
 import { Router } from '../src/router';
 import { prefs, session } from '../src/state/session';
 import { setYourMoveCount, yourMoveCount } from '../src/state/yourMove';
+import { ACCENTS } from '../src/tg/theme';
 import { createTg } from '../src/tg/webapp';
 import type { Prefetched } from '../src/ui/context';
 import { fakeFetch } from './support/fakeFetch';
@@ -63,6 +64,12 @@ describe('boot', () => {
     expect(
       record.calls.filter((c) => c === 'ready' || c === 'expand' || c === 'disableVerticalSwipes'),
     ).toEqual(['ready', 'expand', 'disableVerticalSwipes']);
+    expect(record.chrome).toEqual({
+      header: 'secondary_bg_color',
+      background: 'secondary_bg_color',
+      bottomBar: 'secondary_bg_color',
+    });
+    expect(record.mainButton.color).toBe(ACCENTS.light['--acc']);
     await new Promise((resolve) => setTimeout(resolve, 10));
     expect(record.calls).toContain('requestWriteAccess');
     expect(calls.map((c) => [c.method, c.path])).toEqual([
@@ -70,6 +77,10 @@ describe('boot', () => {
       ['PUT', '/api/me/prefs'],
     ]);
     expect(calls[1]?.body).toEqual({ writeAccess: { allowed: true } });
+    // Telegram's own ⋯ menu gets a Settings entry that opens the Settings tab.
+    expect(record.settingsButton?.visible).toBe(true);
+    record.clickSettings();
+    expect(router.tab.value).toBe('settings');
   });
 
   it('records a declined write-access prompt too', async () => {
@@ -180,5 +191,18 @@ describe('boot', () => {
       name: 'locked',
       group: { id: 'GrOuPiDxYz', title: 'Club' },
     });
+  });
+
+  it('follows Telegram from light to dark without a reload', async () => {
+    const { tg, client, router, prefetched, record } = setup('8.0', undefined, () => ({
+      status: 200,
+      body: launchBody({ kind: 'home', games: { items: [] } }),
+    }));
+    await boot({ tg, client, router, prefetched });
+    expect(document.documentElement.style.getPropertyValue('--acc')).toBe('#2e7d4f');
+    (window.Telegram!.WebApp as { colorScheme: string }).colorScheme = 'dark';
+    record.emit('themeChanged');
+    expect(document.documentElement.style.getPropertyValue('--acc')).toBe('#4cbb7a');
+    expect(record.mainButton.color).toBe('#4cbb7a');
   });
 });

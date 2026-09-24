@@ -1,15 +1,16 @@
 import { PrefsSchema, t, type Prefs } from '@group-chess/shared';
 import { z } from 'zod';
+import { AUTHOR_URL, BRAND, REPO_URL } from '../../brand';
 import { prefs } from '../../state/session';
 import { useApp } from '../context';
 import { Switch } from '../controls';
-import { confirmDialog } from '../dialog';
+import { confirmDialog, infoDialog } from '../dialog';
 import { toast } from '../toast';
 
 const PrefsResponseSchema = z.object({ prefs: PrefsSchema, dmAllowed: z.boolean() });
 const TOGGLES: {
   key: keyof Pick<Prefs, 'closeAfterMove' | 'notifications'>;
-  label: string;
+  label: 'app.settings.close_after_move' | 'app.settings.notifications';
 }[] = [
   { key: 'closeAfterMove', label: 'app.settings.close_after_move' },
   { key: 'notifications', label: 'app.settings.notifications' },
@@ -18,12 +19,19 @@ const TOGGLES: {
 export function Settings() {
   const { client, tg } = useApp();
   const current = prefs.value;
+  // Turn notifications are DMs, which need the user's leave (spec §6.1 step 4).
+  const askToMessage = async () => {
+    const granted = await tg.requestWriteAccess();
+    if (granted === null) return;
+    await client.put('/api/me/prefs', { writeAccess: { allowed: granted } }).catch(() => undefined);
+  };
   const update = async (patch: Partial<Prefs>) => {
     const previous = prefs.value;
     prefs.value = { ...previous, ...patch };
     try {
       const response = await client.put('/api/me/prefs', { prefs: patch }, PrefsResponseSchema);
       prefs.value = response.prefs;
+      if (patch.notifications === true && !response.dmAllowed) await askToMessage();
     } catch {
       prefs.value = previous;
       toast(t('app.common.error'));
@@ -48,23 +56,61 @@ export function Settings() {
   return (
     <div class="screen">
       <h1 class="title">{t('app.settings.title')}</h1>
-      <div class="list">
+      <div class="card">
         {TOGGLES.map(({ key, label }) => (
           <div class="field" key={key}>
-            <span>{t(label as 'app.settings.close_after_move')}</span>
+            <span>{t(label)}</span>
             <Switch
               checked={current[key]}
               onChange={(value) => void update({ [key]: value })}
               data-pref={key}
-              label={t(label as 'app.settings.close_after_move')}
+              label={t(label)}
             />
           </div>
         ))}
       </div>
-      <button class="btn danger block" data-action="delete" onClick={() => void remove()}>
+      <div class="card">
+        <img class="banner-img" src={BRAND.bannerUrl} alt="" loading="lazy" />
+        <button
+          class="link-row"
+          data-action="author"
+          onClick={() => tg.openTelegramLink(AUTHOR_URL)}
+        >
+          <span class="grow">
+            <span class="primary">
+              {t('app.settings.made_by')} <span class="acc-text">@{BRAND.author}</span>
+            </span>
+            <span class="secondary">{t('app.settings.made_by_sub')}</span>
+          </span>
+          <span class="chevron" aria-hidden="true">
+            ›
+          </span>
+        </button>
+        <button class="link-row" data-action="source" onClick={() => tg.openLink(REPO_URL)}>
+          <span class="grow">
+            <span class="primary">{t('app.settings.source')}</span>
+            <span class="secondary">{BRAND.repository}</span>
+          </span>
+          <span class="chevron" aria-hidden="true">
+            ›
+          </span>
+        </button>
+        <button
+          class="link-row"
+          data-action="about"
+          onClick={() => void infoDialog(t('app.settings.about'), t('app.settings.about_title'))}
+        >
+          <span class="grow">
+            <span class="primary">{t('app.settings.about_row')}</span>
+          </span>
+          <span class="chevron" aria-hidden="true">
+            ›
+          </span>
+        </button>
+      </div>
+      <button class="card danger-row" data-action="delete" onClick={() => void remove()}>
         {t('app.settings.delete')}
       </button>
-      <p class="hint">{t('app.settings.about')}</p>
     </div>
   );
 }

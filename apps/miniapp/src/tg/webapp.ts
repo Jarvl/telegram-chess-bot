@@ -1,7 +1,16 @@
 import type { TelegramButton, TelegramWebApp, ThemeParams } from './types';
 
 export type Feature =
-  'haptics' | 'writeAccess' | 'verticalSwipes' | 'secondaryButton' | 'downloadFile';
+  | 'haptics'
+  | 'writeAccess'
+  | 'verticalSwipes'
+  | 'secondaryButton'
+  | 'downloadFile'
+  | 'headerColor'
+  | 'bottomBarColor'
+  | 'popup'
+  | 'closingConfirmation'
+  | 'settingsButton';
 
 /** Spec §6.6: the first Bot API version that has each capability. */
 export const FEATURE_MIN_VERSION: Record<Feature, string> = {
@@ -10,6 +19,11 @@ export const FEATURE_MIN_VERSION: Record<Feature, string> = {
   verticalSwipes: '7.7',
   secondaryButton: '7.10',
   downloadFile: '8.0',
+  headerColor: '6.1',
+  bottomBarColor: '7.10',
+  popup: '6.2',
+  closingConfirmation: '6.2',
+  settingsButton: '7.0',
 };
 
 export function versionAtLeast(version: string, minimum: string): boolean {
@@ -33,6 +47,14 @@ export type ButtonSpec = {
   progress?: boolean;
   enabled?: boolean;
 };
+
+export type PopupButton = {
+  id: string;
+  type: 'default' | 'ok' | 'close' | 'cancel' | 'destructive';
+  text?: string;
+};
+
+export type PopupParams = { title?: string; message: string; buttons: PopupButton[] };
 
 export interface Tg {
   /** False in a plain browser: every capability is off and buttons are rendered in-page. */
@@ -63,6 +85,22 @@ export interface Tg {
   downloadFile(url: string, fileName: string): boolean;
   onViewportChanged(callback: (stableHeight: number) => void): () => void;
   onThemeChanged(callback: () => void): () => void;
+  /** Header and background (6.1) and bottom bar (7.10) take this theme colour; a no-op below. */
+  setChromeColor(key: 'bg_color' | 'secondary_bg_color'): void;
+  /** Colours Telegram's MainButton; the client keeps the colours across show and hide. */
+  setMainButtonColors(color: string, textColor: string): void;
+  /**
+   * Telegram's native alert (6.2+): resolves the pressed button's id, or null when dismissed.
+   * Returns null instead of a promise when the client has none, so the caller renders its own.
+   */
+  showPopup(params: PopupParams): Promise<string | null> | null;
+  /** Asks before a swipe or Close discards the page (6.2+); a no-op below. */
+  setClosingConfirmation(enabled: boolean): void;
+  /** Shows Telegram's Settings menu item (7.0+) and routes its taps here; returns the undo. */
+  onSettingsButton(callback: () => void): () => void;
+  hapticSelection(): void;
+  /** A t.me link, opened inside Telegram. */
+  openTelegramLink(url: string): void;
 }
 
 class ButtonBinding {
@@ -121,6 +159,15 @@ function nullTg(): Tg {
     downloadFile: () => false,
     onViewportChanged: () => () => undefined,
     onThemeChanged: () => () => undefined,
+    setChromeColor: () => undefined,
+    setMainButtonColors: () => undefined,
+    showPopup: () => null,
+    setClosingConfirmation: () => undefined,
+    onSettingsButton: () => () => undefined,
+    hapticSelection: () => undefined,
+    openTelegramLink: (url) => {
+      window.open(url, '_blank', 'noopener');
+    },
   };
 }
 
@@ -204,5 +251,50 @@ export function createTg(
       raw.onEvent('themeChanged', callback);
       return () => raw.offEvent('themeChanged', callback);
     },
+    setChromeColor(key) {
+      if (supports('headerColor')) {
+        raw.setHeaderColor?.(key);
+        raw.setBackgroundColor?.(key);
+      }
+      if (supports('bottomBarColor')) raw.setBottomBarColor?.(key);
+    },
+    setMainButtonColors: (color, textColor) =>
+      raw.MainButton.setParams?.({ color, text_color: textColor }),
+    showPopup(params) {
+      if (!supports('popup') || !raw.showPopup) return null;
+      return new Promise((resolve, reject) => {
+        try {
+          raw.showPopup!(params, (buttonId) => resolve(buttonId ? buttonId : null));
+        } catch (error) {
+          if (error instanceof Error && error.message === 'WebAppPopupOpened') {
+            // A popup is already open: the second caller reads "no".
+            resolve(null);
+          } else {
+            // Any other failure (e.g. WebAppPopupParamInvalid) means the client rejected the
+            // call, not the user declining; let the caller fall back to the in-page sheet.
+            reject(error);
+          }
+        }
+      });
+    },
+    setClosingConfirmation(enabled) {
+      if (!supports('closingConfirmation')) return;
+      if (enabled) raw.enableClosingConfirmation?.();
+      else raw.disableClosingConfirmation?.();
+    },
+    onSettingsButton(callback) {
+      const button = supports('settingsButton') ? raw.SettingsButton : undefined;
+      if (!button) return () => undefined;
+      button.onClick(callback);
+      button.show();
+      return () => {
+        button.offClick(callback);
+        button.hide();
+      };
+    },
+    hapticSelection() {
+      if (supports('haptics')) raw.HapticFeedback?.selectionChanged();
+    },
+    openTelegramLink: (url) => raw.openTelegramLink(url),
   };
 }

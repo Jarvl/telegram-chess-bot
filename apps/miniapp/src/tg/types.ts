@@ -28,6 +28,7 @@ export type TelegramButton = {
   hideProgress(): void;
   enable(): void;
   disable(): void;
+  setParams?(params: { color?: string; text_color?: string }): void;
 };
 
 export type TelegramUser = {
@@ -77,6 +78,25 @@ export type TelegramWebApp = {
     request: { url: string; file_name: string },
     callback?: (accepted: boolean) => void,
   ): void;
+  setHeaderColor?(color: string): void;
+  setBackgroundColor?(color: string): void;
+  setBottomBarColor?(color: string): void;
+  showPopup?(
+    params: {
+      title?: string;
+      message: string;
+      buttons?: { id?: string; type?: string; text?: string }[];
+    },
+    callback?: (buttonId: string) => void,
+  ): void;
+  enableClosingConfirmation?(): void;
+  disableClosingConfirmation?(): void;
+  SettingsButton?: {
+    show(): void;
+    hide(): void;
+    onClick(callback: () => void): void;
+    offClick(callback: () => void): void;
+  };
 };
 
 declare global {

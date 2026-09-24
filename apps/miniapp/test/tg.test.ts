@@ -110,6 +110,58 @@ describe('createTg', () => {
     expect(seen).toEqual([640]);
   });
 
+  it('colours the header and background from 6.1 and the bottom bar from 7.10', () => {
+    tgFor({ version: '6.0' }).setChromeColor('secondary_bg_color');
+    expect(window.__tg!.chrome).toEqual({});
+    tgFor({ version: '7.9' }).setChromeColor('secondary_bg_color');
+    expect(window.__tg!.chrome).toEqual({
+      header: 'secondary_bg_color',
+      background: 'secondary_bg_color',
+    });
+    tgFor({ version: '7.10' }).setChromeColor('secondary_bg_color');
+    expect(window.__tg!.chrome.bottomBar).toBe('secondary_bg_color');
+  });
+
+  it('paints the main button', () => {
+    tgFor({ version: '8.0' }).setMainButtonColors('#2e7d4f', '#ffffff');
+    expect(window.__tg!.mainButton).toMatchObject({ color: '#2e7d4f', textColor: '#ffffff' });
+  });
+
+  it('confirms closing only from 6.2', () => {
+    tgFor({ version: '6.1' }).setClosingConfirmation(true);
+    expect(window.__tg!.calls).not.toContain('enableClosingConfirmation');
+    const tg = tgFor({ version: '6.2' });
+    tg.setClosingConfirmation(true);
+    expect(window.__tg!.closingConfirmation).toBe(true);
+    tg.setClosingConfirmation(false);
+    expect(window.__tg!.closingConfirmation).toBe(false);
+  });
+
+  it('offers no popup below 6.2', () => {
+    expect(tgFor({ version: '6.1' }).showPopup({ message: 'x', buttons: [] })).toBeNull();
+  });
+
+  it('shows the settings button from 7.0 and routes its taps until unsubscribed', () => {
+    let taps = 0;
+    tgFor({ version: '6.9' }).onSettingsButton(() => (taps += 1));
+    expect(window.__tg!.settingsButton).toBeNull();
+    const off = tgFor({ version: '7.0' }).onSettingsButton(() => (taps += 1));
+    expect(window.__tg!.settingsButton?.visible).toBe(true);
+    window.__tg!.clickSettings();
+    off();
+    window.__tg!.clickSettings();
+    expect(taps).toBe(1);
+    expect(window.__tg!.settingsButton?.visible).toBe(false);
+  });
+
+  it('forwards selection haptics from 6.1 and opens Telegram links', () => {
+    const tg = tgFor({ version: '6.1' });
+    tg.hapticSelection();
+    tg.openTelegramLink('https://t.me/Jarvl');
+    expect(window.__tg!.haptics).toEqual(['selection']);
+    expect(window.__tg!.links).toEqual(['https://t.me/Jarvl']);
+  });
+
   it('is a null client outside Telegram', () => {
     const tg = createTg(null);
     expect(tg.available).toBe(false);
@@ -127,5 +179,19 @@ describe('themeVariables', () => {
     const light = themeVariables({}, 'light');
     expect(light['--bg']).toBe('#ffffff');
     expect(light['--button']).toBe('#2481cc');
+  });
+
+  it('lays the Chess Goat accents over Telegram’s neutrals, per scheme', () => {
+    const light = themeVariables({ bg_color: '#fafafa', secondary_bg_color: '#eeeeee' }, 'light');
+    expect(light['--card']).toBe('#fafafa');
+    expect(light['--page']).toBe('#eeeeee');
+    expect(light['--acc']).toBe('#2e7d4f');
+    expect(light['--move']).toBe('#e0b94a');
+    expect(light['--bl']).toBe('#f0ead2');
+    const dark = themeVariables({}, 'dark');
+    expect(dark['--page']).toBe('#131b23');
+    expect(dark['--card']).toBe('#18222d');
+    expect(dark['--acc']).toBe('#4cbb7a');
+    expect(dark['--acc-ink']).toBe('#06200f');
   });
 });
