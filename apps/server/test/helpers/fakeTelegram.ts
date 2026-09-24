@@ -15,6 +15,7 @@ export class FakeTelegram {
   memberError: FakeFailure | null = null;
   url = '';
   private failures = new Map<string, FakeFailure[]>();
+  private held = new Set<string>();
   private nextMessageId = 100;
   private server: Server;
 
@@ -38,6 +39,9 @@ export class FakeTelegram {
           body = JSON.parse(raw.toString('utf8')) as Record<string, unknown>;
         }
         this.calls.push({ method, body, multipart });
+        // Simulates a Telegram that never answers: the socket is left open for the caller's own
+        // timeout to abort, instead of this fake ever writing a response.
+        if (this.held.delete(method)) return;
         const { status, json } = this.respond(method, body);
         res.statusCode = status;
         res.setHeader('content-type', 'application/json');
@@ -62,6 +66,7 @@ export class FakeTelegram {
     this.calls = [];
     this.nextMessageId = 100;
     this.failures.clear();
+    this.held.clear();
     this.admins = [];
     this.members.clear();
     this.memberError = null;
@@ -71,6 +76,11 @@ export class FakeTelegram {
     const queue = this.failures.get(method) ?? [];
     queue.push(failure);
     this.failures.set(method, queue);
+  }
+
+  /** The next call to `method` records the call but hangs forever instead of answering. */
+  holdNext(method: string): void {
+    this.held.add(method);
   }
 
   callsTo(method: string): FakeCall[] {

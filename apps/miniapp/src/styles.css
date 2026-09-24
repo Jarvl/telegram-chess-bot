@@ -536,6 +536,10 @@ button {
   box-shadow: inset 0 0 0 2px transparent;
 }
 
+.tip-input:focus-within {
+  box-shadow: inset 0 0 0 2px var(--hint);
+}
+
 .tip-input.ok {
   box-shadow: inset 0 0 0 2px var(--acc);
 }

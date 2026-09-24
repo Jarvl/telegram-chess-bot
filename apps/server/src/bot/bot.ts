@@ -32,6 +32,7 @@ import {
 import { markLeft, touchMember } from '../domain/members';
 import { ensureUser, setDmAllowed } from '../domain/users';
 import { enqueue } from '../jobs/queue';
+import { createTelegramApi } from '../telegram/client';
 import { miniAppLink } from '../telegram/links';
 import { RateLimiter } from './rateLimit';
 import { registerPayments } from './payments';
@@ -64,6 +65,13 @@ export async function createBot(deps: Deps, config: Config): Promise<Bot> {
   bot.api.config.use(apiThrottler());
   await bot.init();
   const linkLimiter = new RateLimiter(1, 60_000);
+  // Pre-checkout answers get their own client without the message throttler: bot.api's queue is
+  // shared with the job worker's sends, and a backlog there could push the answer past
+  // Telegram's 10-second pre-checkout deadline.
+  const checkoutApi = createTelegramApi(config, {
+    apiRoot: config.TELEGRAM_API_ROOT,
+    throttle: false,
+  });
 
   const sendLine = (
     chatId: number,
@@ -273,7 +281,7 @@ export async function createBot(deps: Deps, config: Config): Promise<Bot> {
     await setDmAllowed(deps.db, user.id, true);
   });
 
-  registerPayments(bot, deps);
+  registerPayments(bot, deps, checkoutApi);
 
   return bot;
 }

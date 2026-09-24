@@ -59,6 +59,38 @@ describe('SupportCard', () => {
     expect(r.root.querySelector('[data-tip="250"]')?.classList.contains('on')).toBe(false);
   });
 
+  it('gives each preset an accessible name in Stars, since the star glyph is aria-hidden', () => {
+    const r = renderApp(() => <SupportCard />, mints);
+    for (const [stars, label] of [
+      [100, 'Tip 100 Stars'],
+      [250, 'Tip 250 Stars'],
+      [500, 'Tip 500 Stars'],
+    ] as const) {
+      expect(r.root.querySelector(`[data-tip="${stars}"]`)?.getAttribute('aria-label')).toBe(label);
+    }
+  });
+
+  it('marks the in-flight preset aria-busy and keeps its accessible name', async () => {
+    let release = (): void => undefined;
+    const r = renderApp(
+      () => <SupportCard />,
+      () =>
+        new Promise((resolve) => {
+          release = () => resolve({ status: 200, body: { url: INVOICE } });
+        }),
+    );
+    const button = r.root.querySelector<HTMLButtonElement>('[data-tip="100"]')!;
+    button.click();
+    await r.flush();
+    expect(button.getAttribute('aria-label')).toBe('Tip 100 Stars');
+    expect(button.getAttribute('aria-busy')).toBe('true');
+    release();
+    await r.flush();
+    window.__tg!.answerInvoice('paid');
+    await r.flush();
+    expect(button.getAttribute('aria-busy')).toBeNull();
+  });
+
   it('says so when the payment fails', async () => {
     const r = renderApp(() => <SupportCard />, mints);
     await r.click('[data-tip="100"]');
@@ -77,6 +109,7 @@ describe('SupportCard', () => {
       await r.flush();
       expect(toast).not.toHaveBeenCalled();
       expect(r.root.querySelector('[data-tip="500"]')?.classList.contains('on')).toBe(true);
+      expect(window.__tg!.haptics.some((h) => h.startsWith('notification:'))).toBe(false);
     },
   );
 
@@ -138,6 +171,21 @@ describe('SupportCard', () => {
     expect(hint().textContent).toBe('Telegram shows the exact total before you pay');
     await r.click('[data-action="tip-submit"]');
     expect(r.calls[0]).toMatchObject({ path: '/api/tips', body: { stars: 123 } });
+  });
+
+  it('marks the custom input invalid and describes it by the hint', async () => {
+    const r = renderApp(() => <SupportCard />, mints);
+    await r.click('[data-action="tip-custom"]');
+    const input = r.root.querySelector<HTMLInputElement>('[data-tip-input]')!;
+    expect(input.getAttribute('aria-describedby')).toBe('tip-hint');
+    expect(r.root.querySelector('#tip-hint')).not.toBeNull();
+    expect(input.getAttribute('aria-invalid')).toBeNull();
+
+    await typeAmount(r, '0');
+    expect(input.getAttribute('aria-invalid')).toBe('true');
+
+    await typeAmount(r, '123');
+    expect(input.getAttribute('aria-invalid')).toBeNull();
   });
 
   it('keeps only digits from pasted text, at most five of them', async () => {

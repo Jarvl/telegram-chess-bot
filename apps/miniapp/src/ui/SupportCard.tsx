@@ -101,6 +101,8 @@ export function SupportCard() {
             key={stars}
             class={`tip${selected === stars ? ' on' : ''}`}
             data-tip={stars}
+            aria-label={t('app.settings.support.preset_label', { stars })}
+            aria-busy={busy === stars ? 'true' : undefined}
             disabled={busy !== null}
             onClick={() => void tip(stars, stars)}
           >
@@ -140,6 +142,8 @@ export function SupportCard() {
                 autoComplete="off"
                 placeholder={t('app.settings.support.placeholder')}
                 aria-label={t('app.settings.support.amount_label')}
+                aria-invalid={state === 'bad' ? 'true' : undefined}
+                aria-describedby="tip-hint"
                 value={raw}
                 onInput={onInput}
                 data-tip-input
@@ -149,6 +153,8 @@ export function SupportCard() {
               type="button"
               class="tip-submit"
               data-action="tip-submit"
+              aria-label={busy === 'custom' ? t('app.settings.support.tip') : undefined}
+              aria-busy={busy === 'custom' ? 'true' : undefined}
               disabled={amount === null || busy !== null}
               onClick={() => {
                 if (amount !== null) void tip(amount, 'custom');
@@ -157,7 +163,9 @@ export function SupportCard() {
               {busy === 'custom' ? <Spinner /> : t('app.settings.support.tip')}
             </button>
           </div>
-          <span class={`tip-hint ${state}`}>{hint}</span>
+          <span class={`tip-hint ${state}`} id="tip-hint">
+            {hint}
+          </span>
         </div>
       )}
     </div>

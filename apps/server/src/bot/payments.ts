@@ -5,15 +5,23 @@ import { tips } from '../db/schema';
 import type { Deps } from '../domain/deps';
 import { ensureUser } from '../domain/users';
 import { enqueue } from '../jobs/queue';
+import type { TelegramApi } from '../telegram/client';
 import { tipCheckoutAccepted } from '../telegram/tips';
 import { userInfo } from './userInfo';
 
 /** Tip jar spec §2.2–2.3: Stars tips from the Mini App's Support card. */
-export function registerPayments(bot: Bot, deps: Deps): void {
-  // Answered inline, not queued: Telegram gives the bot 10 seconds.
+export function registerPayments(bot: Bot, deps: Deps, checkoutApi: TelegramApi): void {
+  // Answered inline, not queued: Telegram gives the bot 10 seconds. Answered through a client
+  // without the message throttler, since bot.api's queue is shared with the job worker's sends
+  // and a backlog there could push the answer past Telegram's deadline.
   bot.on('pre_checkout_query', async (ctx) => {
-    if (tipCheckoutAccepted(ctx.preCheckoutQuery)) await ctx.answerPreCheckoutQuery(true);
-    else await ctx.answerPreCheckoutQuery(false, { error_message: t('payment.tip_invalid') });
+    if (tipCheckoutAccepted(ctx.preCheckoutQuery)) {
+      await checkoutApi.answerPreCheckoutQuery(ctx.preCheckoutQuery.id, true);
+    } else {
+      await checkoutApi.answerPreCheckoutQuery(ctx.preCheckoutQuery.id, false, {
+        error_message: t('payment.tip_invalid'),
+      });
+    }
   });
 
   bot.chatType('private').on('message:successful_payment', async (ctx) => {
@@ -51,7 +59,12 @@ export function registerPayments(bot: Bot, deps: Deps): void {
       .set({ refundedAt: sql`now()` })
       .where(eq(tips.telegramPaymentChargeId, refund.telegram_payment_charge_id))
       .returning({ id: tips.id });
-    if (updated.length === 0) deps.log.warn('a refund arrived for a tip that is not recorded');
+    if (updated.length === 0) {
+      deps.log.warn(
+        { telegramUserId: ctx.from?.id },
+        'a refund arrived for a tip that is not recorded',
+      );
+    }
   });
 
   // Telegram expects every bot that takes payments to answer /paysupport (tip jar spec §2.3).

@@ -258,6 +258,7 @@ export const en = {
   'app.settings.support.body_lead': 'Chess Goat is maintained by',
   'app.settings.support.body':
     'and will always be free without ads. A tip in Telegram Stars shows your appreciation and helps cover the cost of the server.',
+  'app.settings.support.preset_label': 'Tip {stars} Stars',
   'app.settings.support.choose': 'Choose amount',
   'app.settings.support.placeholder': 'Any amount',
   'app.settings.support.amount_label': 'Tip amount in Stars',
