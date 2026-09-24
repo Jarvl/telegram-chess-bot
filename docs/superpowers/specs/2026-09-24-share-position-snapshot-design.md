@@ -86,7 +86,7 @@ Padding 44 px top and bottom, 56 px left and right; 26 px between the blocks bel
   `apps/server/src/images/snapshot.ts`.
 - `board.ts` keeps producing the board as its own SVG (squares, highlights, pieces). The card
   embeds it as one `<img>` data URI; the coordinates are text elements drawn over it by Satori.
-  `renderBoardSvg` changes to the green theme and 128-unit squares.
+  `renderBoardSvg` changes to the green theme; its 800-unit viewBox is scaled to 1024 px.
 - `@resvg/resvg-js` rasterises Satori's SVG to PNG, as today. It needs no fonts, because Satori
   has already turned the text into paths.
 - Satori has no CSS grid; the move list is flex rows with fixed column widths.
@@ -100,19 +100,25 @@ All SIL Open Font License 1.1:
 | File | Role |
 |---|---|
 | Noto Sans Regular, SemiBold, Bold (static TTF) | Latin, Cyrillic, Greek; weights 400 / 600 / 700 |
-| Noto Emoji (monochrome) | Emoji in names and group titles |
+| Noto Emoji (monochrome, static weight-400 instance) | Emoji in names and group titles |
+| Noto Sans Symbols 2 Regular | Chess glyphs (♔–♟) and other symbols chess groups put in titles |
 | Noto Sans CJK SC Regular (OTF) | Chinese, Japanese and Korean names and titles |
 
 Satori is given them in that order and falls back glyph by glyph. CJK has one weight: bold CJK
 text draws in Regular. Scripts none of these cover (Arabic, Hebrew, Devanagari, Thai, …) draw as
-blanks; that is accepted.
+empty boxes; that is accepted.
+
+Noto Emoji is published only as a variable font (`NotoEmoji[wght].ttf`), and Satori's font parser
+throws on its `fvar` table. The static weight-400 instance Google Fonts serves from
+`fonts.gstatic.com` has no `fvar` and parses; that versioned URL is the one pinned.
 
 ### 2.2 Where they come from
 
 Font binaries are **not committed**. `scripts/fetch-fonts.mjs` holds a manifest of
-`{ file, url, sha256 }` entries pointing at pinned releases: `notofonts/latin-greek-cyrillic`,
-`google/fonts` at a fixed commit (Noto Emoji), and `notofonts/noto-cjk` at a fixed tag. The
-exact URLs and hashes are fixed in the implementation plan.
+`{ file, url, sha256 }` entries pointing at pinned sources: `notofonts/notofonts.github.io` at a
+fixed commit (Noto Sans, Noto Sans Symbols 2), a versioned `fonts.gstatic.com` URL (Noto Emoji)
+and `notofonts/noto-cjk` at tag `Sans2.004`. The exact URLs and hashes are in the implementation
+plan.
 
 - It downloads into `apps/server/fonts/`, skips any file already present with the right hash,
   and exits non-zero on a download failure or a checksum mismatch. A changed upstream file
@@ -137,7 +143,7 @@ The three places that need them:
 
 ### 2.3 Loading
 
-`loadFonts()` reads and parses all five files once. `main.ts` calls it at boot, before the job
+`loadFonts()` reads all six files once. `main.ts` calls it at boot, before the job
 worker starts; a missing or unreadable file exits the process with
 `fonts missing in apps/server/fonts, run pnpm fonts`. The loaded fonts are passed to the share
 job handler through its context, not read on each render.
@@ -165,7 +171,8 @@ In this order, first match wins:
 1. The game is finished and `ply === plyCount`: the result.
    - Decisive: `{winner} won · {endReason} · 1-0` (or `0-1`).
    - Draw: `Draw · {endReason} · ½-½`.
-   - Aborted or `*`: `Aborted`.
+   - `*` (aborted or voided): the end reason's label (`Aborted`, `Voided by an admin`), or
+     `Aborted` when there is none.
 2. Otherwise `{White|Black} to move`, where the side is taken from the shared position, then:
    - `· No clock` when `timePerMove` is null;
    - `· {left} left` when the game is active and `ply === plyCount`, with
@@ -194,11 +201,11 @@ keyed the old way are never hit again and can stay.
 | `button.open_live_game` (new) | `♟ Open live game`, on share photos only; other cards keep `♟ Open game` |
 | `image.share.snapshot` (new) | `Snapshot · Move {moveNumber}` (uppercased by the layout) |
 | `image.share.to_move` (new) | `{side} to move` |
-| `image.share.no_clock` (new) | `No clock` |
 | `image.share.time_left` (new) | `{time} left` |
 | `image.share.won` (new) | `{player} won` |
 
-Reused: `colour.*`, `game.rated`, `game.casual`, `timePerMoveLabel`, `resultLabel`,
+Reused: `colour.*`, `game.rated`, `game.casual`, `timePerMoveLabel` (its `No clock` is also the
+status line's), `resultLabel`,
 `endReasonLabel`, `ratingLabel`, `app.level.*`, `app.game.result.draw`,
 `app.game.result.aborted`. `renderShareCaption` drops its `sideToMove` field.
 
@@ -242,11 +249,16 @@ Reused: `colour.*`, `game.rated`, `game.casual`, `timePerMoveLabel`, `resultLabe
 
 ## 8. Risks
 
-- **Satori with a 16 MB CJK font.** Parsing Noto Sans CJK takes time and memory. The first plan
-  task measures boot time and resident memory with all five fonts loaded. If it is too heavy,
-  the fallback is a pinned subset of the CJK font made by the fetch script, decided then.
-- **Emoji through font fallback.** Satori may treat emoji as graphemes to load as images rather
-  than glyphs. The first plan task confirms that Noto Emoji glyphs draw; if not, a
-  `loadAdditionalAsset` hook returns them from the same font.
+A throwaway spike (Satori 0.33.5, resvg-js 2.6.2, the six pinned fonts) settled the two open
+questions before planning:
+
+- **Satori with a 16 MB CJK font.** First render with all fonts about 110 ms, later renders about
+  2 ms; the CJK font adds about 34 MB of heap. Acceptable; no subsetting.
+- **Emoji through font fallback.** Emoji, CJK, Greek, Cyrillic, chess symbols and ellipsis
+  truncation all draw with the font list alone; no `loadAdditionalAsset` hook is needed. Emoji
+  advance widths are generous, so an emoji-heavy title looks loosely spaced.
+
+What remains:
+
 - **Build-time network.** The Docker build and a fresh clone's first test run need to reach
   GitHub. CI is covered by its cache after the first run.
