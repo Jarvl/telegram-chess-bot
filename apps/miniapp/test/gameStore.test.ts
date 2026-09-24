@@ -182,6 +182,17 @@ describe('GameStore premoves', () => {
     expect(store.premoveStep.value).toBeNull();
   });
 
+  it('stays out of premove mode while the player’s own move is still settling', () => {
+    // The stream can show the opponent's turn before the POST /moves answers or while it retries.
+    const store = new GameStore(waiting());
+    store.moveBusy.value = true;
+    expect(store.premoveMode.value).toBe(false);
+    expect(store.canMove.value).toBe(false);
+    expect(store.dests.value.size).toBe(0);
+    store.moveBusy.value = false;
+    expect(store.premoveMode.value).toBe(true);
+  });
+
   it('locks the board while a premove edit is being sent', () => {
     const store = new GameStore(waiting());
     store.premoveSending.value = true;

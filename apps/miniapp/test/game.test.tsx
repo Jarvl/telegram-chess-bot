@@ -861,6 +861,24 @@ describe('Game premoves', () => {
     expect(r.root.querySelector('.move-list [data-premove="1"]')?.textContent).toBe('Kb1');
   });
 
+  it('offers no premove targets while the player’s own move is still sending', async () => {
+    let answer: (response: FakeResponse) => void = () => undefined;
+    const r = mount(
+      gameDto(),
+      okRoute(gameDto(), () => new Promise<FakeResponse>((resolve) => (answer = resolve))),
+    );
+    await r.flush();
+    adapter.drop('e2', 'e4');
+    await r.flush();
+    // The stream shows the move before its POST answers: it is now Black's turn.
+    FakeEventSource.instances[0]!.send('state', afterPlies(1, { viewerRole: 'white' }), '1');
+    await r.flush();
+    expect(adapter.movables.at(-1)?.colour).toBe('none');
+    answer({ status: 200, body: afterPlies(1, { viewerRole: 'white' }) });
+    await r.flush();
+    expect(adapter.movables.at(-1)?.colour).toBe('white');
+  });
+
   it('ignores a second drop while a premove edit is still sending', async () => {
     let resolvePut: (response: FakeResponse) => void = () => undefined;
     const r = mount(

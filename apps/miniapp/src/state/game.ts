@@ -111,6 +111,12 @@ export class GameStore {
   /** null is the end of the chain; 0 the current position; k the position after premove k. */
   readonly premoveStep: Signal<number | null> = signal(null);
   readonly premoveSending: Signal<boolean> = signal(false);
+  /**
+   * True while the player's own move is anywhere short of settled (waiting for Confirm, sending,
+   * retrying). The stream can already show the opponent's turn then, but every drop would be
+   * refused until the move settles, so the board offers no premoves meanwhile.
+   */
+  readonly moveBusy: Signal<boolean> = signal(false);
   readonly premoves: ReadonlySignal<string[]>;
   readonly premoveMode: ReadonlySignal<boolean>;
   readonly shownStep: ReadonlySignal<number>;
@@ -138,7 +144,8 @@ export class GameStore {
         dto.status === 'active' &&
         this.isLatest.value &&
         (dto.viewerRole === 'white' || dto.viewerRole === 'black') &&
-        sideToMove(dto.fen) !== dto.viewerRole
+        sideToMove(dto.fen) !== dto.viewerRole &&
+        !this.moveBusy.value
       );
     });
     this.shownStep = computed(() =>

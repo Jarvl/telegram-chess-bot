@@ -218,6 +218,7 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
       const { state, effects } = reduceMove(moveRef.current, event, { confirm });
       moveRef.current = state;
       setMoveState(state);
+      store.moveBusy.value = state.kind !== 'idle';
       if (state.kind === 'pendingConfirm') {
         setConfirming(true);
         pushPendingPosition(
