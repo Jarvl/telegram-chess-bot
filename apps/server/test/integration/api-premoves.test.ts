@@ -116,6 +116,51 @@ describe('PUT /api/games/:id/premoves', () => {
     expect(await errorCode(bad)).toBe('illegal_move');
   });
 
+  it('checks an edit only from where it changes the stored chain', async () => {
+    const { game, tokens } = await world();
+    // A stored entry the position has since outgrown (here: never on the pattern at all). It is
+    // cancelled when it comes up; until then it must not block the edits made after it.
+    await db
+      .update(games)
+      .set({ premoves: ['e7e4'] })
+      .where(eq(games.id, game.id));
+    const appended = await put(tokens.bob, game.publicId, {
+      base: ['e7e4'],
+      premoves: ['e7e4', 'g8f6'],
+      expectedPly: 0,
+    });
+    expect(appended.status).toBe(200);
+    expect((await stored(game.id)).premoves).toEqual(['e7e4', 'g8f6']);
+    const truncated = await put(tokens.bob, game.publicId, {
+      base: ['e7e4', 'g8f6'],
+      premoves: ['e7e4'],
+      expectedPly: 0,
+    });
+    expect(truncated.status).toBe(200);
+    expect((await stored(game.id)).premoves).toEqual(['e7e4']);
+    // An appended entry is still checked, on the board the unchecked ones left.
+    const badAppend = await put(tokens.bob, game.publicId, {
+      base: ['e7e4'],
+      premoves: ['e7e4', 'e4e2'],
+      expectedPly: 0,
+    });
+    expect(await errorCode(badAppend)).toBe('illegal_move');
+    // So is an early entry the edit changes, and everything after it.
+    const badEdit = await put(tokens.bob, game.publicId, {
+      base: ['e7e4'],
+      premoves: ['e7e3'],
+      expectedPly: 0,
+    });
+    expect(await errorCode(badEdit)).toBe('illegal_move');
+    const removed = await put(tokens.bob, game.publicId, {
+      base: ['e7e4'],
+      premoves: [],
+      expectedPly: 0,
+    });
+    expect(removed.status).toBe(200);
+    expect(await stored(game.id)).toMatchObject({ premoves: [], version: 0 });
+  });
+
   it('refuses spectators and finished games', async () => {
     const { game, tokens } = await world();
     expect(

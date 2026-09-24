@@ -193,6 +193,26 @@ describe('GameStore premoves', () => {
     expect(store.premoveMode.value).toBe(true);
   });
 
+  it('shows a leftover premove the opponent made impossible as raw UCI, moving nothing', () => {
+    // 1.Rxb8+ took the knight Black's queued Nb8-c6 would move, and Black's Kd7 fired. The server
+    // keeps b8c6 until it comes up; White's rook now stands on its from square.
+    const store = new GameStore(
+      gameDto({
+        fen: '1R6/3k4/8/8/8/8/P7/4K3 w - - 1 12',
+        plyCount: 12,
+        version: 12,
+        viewerRole: 'black',
+        premoves: ['b8c6'],
+      }),
+    );
+    expect(store.premoveMode.value).toBe(true);
+    expect(store.premoveLabels.value).toEqual(['b8c6']);
+    expect(store.boardView.value.fen.split(' ')[0]).toBe('1R6/3k4/8/8/8/8/P7/4K3');
+    expect(store.premoveSquares.value).toEqual(['b8', 'c6']);
+    expect(store.dests.value.get('d7')).toEqual(expect.arrayContaining(['c6', 'e8']));
+    expect(store.dests.value.has('b8')).toBe(false);
+  });
+
   it('locks the board while a premove edit is being sent', () => {
     const store = new GameStore(waiting());
     store.premoveSending.value = true;
@@ -212,18 +232,26 @@ describe('diffNotices premoves', () => {
     ).not.toContain('premoves_cancelled');
   });
 
-  it('also flags a played premove that left a trimmed leftover chain behind', () => {
-    // The controller ruling: the first premove fired, but the server trimmed the rest of the
-    // chain at its first pattern-invalid entry, so the owner needs to know it lost more than
-    // just the one that played.
+  it('keeps a fired premove’s leftover quiet, and flags a later cancel across a multi-ply jump', () => {
+    // The server keeps the rest of the chain after a fired premove, so one ply pair later only
+    // the played notice fires.
     const prev = afterPlies(1, { viewerRole: 'white', premoves: ['g2g4', 'a2a3', 'b2b3'] });
-    expect(diffNotices(prev, afterPlies(3, { viewerRole: 'white', premoves: [] }))).toEqual([
-      'premove_played',
-      'premoves_cancelled',
-    ]);
     expect(
       diffNotices(prev, afterPlies(3, { viewerRole: 'white', premoves: ['a2a3', 'b2b3'] })),
     ).toEqual(['premove_played']);
+    // A resumed app sees g4 played and, a reply later, the rest cancelled: both notices.
+    const cancelledLater = gameDto({
+      viewerRole: 'white',
+      plyCount: 4,
+      version: 4,
+      premoves: [],
+      moves: [move(1, 'f2f3'), move(2, 'e7e5'), move(3, 'g2g4'), move(4, 'd8h4')],
+    });
+    expect(diffNotices(prev, cancelledLater)).toEqual([
+      'opponent_moved',
+      'premove_played',
+      'premoves_cancelled',
+    ]);
   });
 
   it('cancels a chain whose first premove never played', () => {

@@ -23,6 +23,15 @@ describe('premoveLabel', () => {
   });
 });
 
+describe('premoveLabel for an entry that no longer fits', () => {
+  it('falls back to the raw UCI when the from square is empty or holds the other side’s piece', () => {
+    const board = imaginedBoard('1R6/3k4/8/8/8/8/P7/4K3 w - - 1 12', []);
+    expect(premoveLabel(board, 'c8c6', 'black')).toBe('c8c6');
+    expect(premoveLabel(board, 'b8c6', 'black')).toBe('b8c6');
+    expect(premoveLabel(board, 'd7d6', 'black')).toBe('Kd6');
+  });
+});
+
 describe('sameList', () => {
   it('compares order and content', () => {
     expect(sameList(['a', 'b'], ['a', 'b'])).toBe(true);

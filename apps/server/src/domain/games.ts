@@ -1,6 +1,5 @@
 import {
   applyMove,
-  checkPremoveChain,
   opposite,
   sideToMove,
   timeoutOutcome,
@@ -280,17 +279,14 @@ async function commitMove(tx: DbOrTx, input: CommitInput): Promise<GameRow> {
       const played = [...history, inserted];
       const trial = applyMove(moved.fen, positionKeys(played), next);
       if (trial.legal) {
-        // The fired move may have captured a piece a later entry in `rest` relied on, or otherwise
-        // changed what the pattern rule allows from that square. An entry that no longer fits the
-        // pattern can never become legal, so it and every one after it are dropped now (premoves
-        // spec: "that premove and every one after it are dropped").
-        const check = checkPremoveChain(trial.fenAfter, opposite(colour), rest);
-        const kept = check.ok ? rest : rest.slice(0, check.index);
+        // `rest` rides along untouched, even an entry the reply has already made impossible: it is
+        // cancelled when it comes up after the opponent's next move, and only then does the
+        // owner's turn DM say "Your premoves were cancelled." (premoves spec, Firing).
         // The premove is the opponent's move: its commit does the card, the turn DM to `colour` (or
         // the engine enqueue) and the clock. The opponent gets no turn DM of their own. It is the
         // only recursive call, and it never fires again (see `firePremoves` above).
         return commitMove(tx, {
-          game: { ...moved, premoves: kept },
+          game: { ...moved, premoves: rest },
           colour: opposite(colour),
           uci: next,
           clientMoveId: `premove:${game.publicId}:${ply + 1}`,

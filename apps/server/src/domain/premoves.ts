@@ -17,6 +17,13 @@ export type SetPremovesInput = {
 const sameList = (a: readonly string[], b: readonly string[]) =>
   a.length === b.length && a.every((value, index) => value === b[index]);
 
+/** The first index where `next` differs from `base`; `next.length` when it is a prefix of it. */
+function firstChange(base: readonly string[], next: readonly string[]): number {
+  let index = 0;
+  while (index < next.length && index < base.length && next[index] === base[index]) index += 1;
+  return index;
+}
+
 /**
  * Compare-and-set of the caller's premove chain (premoves spec, API and Several devices). Never
  * bumps the version; an edit is pushed to the owner's streams only, so nothing reaches the opponent.
@@ -38,7 +45,15 @@ export async function setPremoves(deps: Deps, input: SetPremovesInput): Promise<
         reason: 'premoves_changed',
       });
     }
-    const check = checkPremoveChain(game.fen, colour, input.premoves);
+    // `base` is the stored chain, so its part the edit left alone is already stored; only the
+    // entries from the first change on are checked. The part left alone may no longer fit after the
+    // opponent's reply, and is cancelled when it comes up rather than blocking this edit.
+    const check = checkPremoveChain(
+      game.fen,
+      colour,
+      input.premoves,
+      firstChange(input.base, input.premoves),
+    );
     if (!check.ok) throw new DomainError('illegal_move', 'illegal premove', { index: check.index });
     if (sameList(game.premoves, input.premoves)) return loadGameDto(tx, game, input.userId);
     const [updated] = await tx

@@ -1,14 +1,19 @@
-import { parseUci, pieceColour, type PremoveBoard } from '@group-chess/shared';
+import { parseUci, pieceColour, type Colour, type PremoveBoard } from '@group-chess/shared';
 
 export function sameList(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((value, index) => value === b[index]);
 }
 
-/** A SAN-like chip label for a premove on the board left by the ones before it (premoves spec, Move strip). */
-export function premoveLabel(board: PremoveBoard, uci: string): string {
+/**
+ * A SAN-like chip label for a premove on the board left by the ones before it (premoves spec, Move
+ * strip). An entry the opponent has since made impossible (its from square empty, or holding their
+ * piece) keeps its raw UCI until the server cancels it.
+ */
+export function premoveLabel(board: PremoveBoard, uci: string, owner?: Colour): string {
   const parsed = parseUci(uci);
   const piece = parsed ? board.pieces.get(parsed.from) : undefined;
   if (!parsed || !piece) return uci;
+  if (owner !== undefined && pieceColour(piece) !== owner) return uci;
   const kind = piece.toLowerCase();
   const fromFile = parsed.from.charCodeAt(0);
   const toFile = parsed.to.charCodeAt(0);

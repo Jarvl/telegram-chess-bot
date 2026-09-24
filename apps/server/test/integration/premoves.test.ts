@@ -87,10 +87,11 @@ describe('firing premoves', () => {
     expect(dto.moves.map((m) => m.san)).toEqual(['e4', 'e5', 'Nf3', 'Nf6']);
   });
 
-  it('trims a leftover premove that no longer fits the pattern after the fired move', async () => {
+  it('keeps a leftover premove that no longer fits, and cancels it on the owner’s next turn', async () => {
     // White Rb1 takes the queued knight on b8: Rxb8+, check along the empty rank 8. Black's
-    // Kd7 fires (escaping the check), but the queued Nb8c6 that followed has no knight on b8
-    // to move any more — it, and everything after it, is dropped.
+    // Kd7 fires (escaping the check). The queued Nb8c6 that followed has no knight on b8 to move
+    // any more, but it stays queued: cancelling it now, on White's turn, would leave Black's next
+    // turn DM without "Your premoves were cancelled." (premoves spec, Firing and Notifications).
     const { game, alice, bob } = await setup({
       fen: '1n2k3/8/8/8/8/8/P7/1R2K3 w - - 0 1',
       plyCount: 10,
@@ -98,10 +99,25 @@ describe('firing premoves', () => {
     await queue(game.id, ['e8d7', 'b8c6']);
     const dto = await move(game.publicId, alice.id, 'b1b8', 10);
     expect(dto.plyCount).toBe(12);
-    expect((await requireGameById(db, game.id)).premoves).toEqual([]);
+    expect((await requireGameById(db, game.id)).premoves).toEqual(['b8c6']);
     expect(
       (await getGameDto(deps, { gameId: game.publicId, viewerUserId: bob.id })).premoves,
-    ).toEqual([]);
+    ).toEqual(['b8c6']);
+
+    // White's next move reaches the leftover: b8c6 is illegal, so the chain is cancelled and
+    // Black's turn DM says so.
+    await db.delete(jobs);
+    const after = await move(game.publicId, alice.id, 'a2a3', 12);
+    expect(after.plyCount).toBe(13);
+    expect((await requireGameById(db, game.id)).premoves).toEqual([]);
+    const dm = (await db.select().from(jobs)).find((job) => job.kind === 'send_dm');
+    expect(dm?.dedupKey).toBe(`dm:${bob.id}:g:${game.publicId}:turn:13`);
+    expect(dm?.payload).toEqual({
+      userId: bob.id,
+      template: 'turn',
+      gameId: game.id,
+      premovesCancelled: true,
+    });
   });
 
   it('cancels the whole chain when the first premove is illegal, and flags the turn DM', async () => {

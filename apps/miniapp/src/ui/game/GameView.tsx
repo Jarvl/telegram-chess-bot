@@ -363,7 +363,11 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
         restore();
         return;
       }
-      const board = imaginedBoard(store.dto.value.fen, store.premoves.value);
+      const board = imaginedBoard(
+        store.dto.value.fen,
+        store.premoves.value,
+        store.dto.value.viewerRole as Colour,
+      );
       if (isPremovePromotion(board, orig, dest)) {
         setPromotion({
           orig,

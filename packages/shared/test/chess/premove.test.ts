@@ -14,6 +14,8 @@ import {
 const sorted = (list: string[] | undefined) => [...(list ?? [])].sort();
 /** 1.e4 e5 2.Nf3 Nc6 3.Bc4 Bc5: both sides may still castle short. */
 const ITALIAN = 'r1bqk1nr/pppp1ppp/2n5/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4';
+/** White's rook took Black's knight on b8 with check, and Black's king stepped to d7. */
+const AFTER_RXB8 = '1R6/3k4/8/8/8/8/P7/4K3 w - - 1 12';
 
 describe('placement', () => {
   it('round-trips a FEN placement', () => {
@@ -71,6 +73,16 @@ describe('applyPremove and imaginedBoard', () => {
     expect(castled.castling).toBe('kq');
   });
 
+  it('skips an entry whose from square does not hold the owner’s piece, when told the owner', () => {
+    // After 1.Rxb8+ Kd7 a queued Nb8-d7 finds White's rook on b8. Moving that rook would put it
+    // on top of Black's own king in the imagined position.
+    const board = imaginedBoard(AFTER_RXB8, []);
+    expect(applyPremove(board, 'b8d7', 'black')).toBe(board);
+    expect(imaginedBoard(AFTER_RXB8, ['b8d7'], 'black').pieces.get('d7')).toBe('k');
+    expect(imaginedBoard(AFTER_RXB8, ['b8d7']).pieces.get('d7')).toBe('R');
+    expect(imaginedBoard(AFTER_RXB8, ['d7d6'], 'black').pieces.get('d6')).toBe('k');
+  });
+
   it('does not remove a pawn for an en passant-shaped premove', () => {
     const board = imaginedBoard('4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 1', ['e5d6']);
     expect(board.pieces.get('d5')).toBe('p');
@@ -103,6 +115,31 @@ describe('isPremoveAllowed and checkPremoveChain', () => {
       index: 1,
     });
     expect(checkPremoveChain(INITIAL_FEN, 'black', [])).toEqual({ ok: true });
+  });
+
+  it('checks only from `from` on, walking the entries before it unchecked, with absolute indexes', () => {
+    // d7d4 is off the pattern, but a stored entry before `from` is not the edit's to answer for.
+    expect(checkPremoveChain(INITIAL_FEN, 'black', ['d7d4', 'd4d3'])).toEqual({
+      ok: false,
+      index: 0,
+    });
+    expect(checkPremoveChain(INITIAL_FEN, 'black', ['d7d4', 'd4d3'], 1)).toEqual({ ok: true });
+    // The unchecked entry still moved the pawn: the next one is checked from d4.
+    expect(checkPremoveChain(INITIAL_FEN, 'black', ['d7d4', 'd4d1'], 1)).toEqual({
+      ok: false,
+      index: 1,
+    });
+    expect(checkPremoveChain(INITIAL_FEN, 'black', ['d7d4', 'd4d3', 'e7e1'], 1)).toEqual({
+      ok: false,
+      index: 2,
+    });
+    // A pure truncation or an unchanged chain checks nothing.
+    expect(checkPremoveChain(INITIAL_FEN, 'black', ['d7d4'], 1)).toEqual({ ok: true });
+  });
+
+  it('never moves the opponent’s piece for an unchecked entry', () => {
+    // Black's stored Nb8-d7 now finds White's rook on b8: skipped, so the king is still on d7.
+    expect(checkPremoveChain(AFTER_RXB8, 'black', ['b8d7', 'd7d6'], 1)).toEqual({ ok: true });
   });
 
   it('accepts a long chain', () => {

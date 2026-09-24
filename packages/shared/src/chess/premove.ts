@@ -99,11 +99,17 @@ function dropRights(castling: string, touched: readonly string[]): string {
   return rights === '' ? '-' : rights;
 }
 
-/** Applies one premove to the layout: no legality, no en passant removal (spec). */
-export function applyPremove(board: PremoveBoard, uci: string): PremoveBoard {
+/**
+ * Applies one premove to the layout: no legality, no en passant removal (spec). An entry whose
+ * `from` is empty changes nothing; given the chain's `owner`, neither does one whose `from` holds
+ * the other side's piece. Both happen to a stored entry the opponent has since made impossible,
+ * e.g. by capturing the piece it would move, which then stands on its `from`.
+ */
+export function applyPremove(board: PremoveBoard, uci: string, owner?: Colour): PremoveBoard {
   const parsed = parseUci(uci);
   const piece = parsed ? board.pieces.get(parsed.from) : undefined;
   if (!parsed || !piece) return board;
+  if (owner !== undefined && pieceColour(piece) !== owner) return board;
   const pieces = new Map(board.pieces);
   pieces.delete(parsed.from);
   const white = pieceColour(piece) === 'white';
@@ -123,9 +129,13 @@ export function applyPremove(board: PremoveBoard, uci: string): PremoveBoard {
   return { pieces, castling: dropRights(board.castling, [parsed.from, parsed.to]) };
 }
 
-export function imaginedBoard(fen: string, premoves: readonly string[]): PremoveBoard {
+export function imaginedBoard(
+  fen: string,
+  premoves: readonly string[],
+  owner?: Colour,
+): PremoveBoard {
   let board: PremoveBoard = { pieces: parsePlacement(fen), castling: fen.split(' ')[2] ?? '-' };
-  for (const uci of premoves) board = applyPremove(board, uci);
+  for (const uci of premoves) board = applyPremove(board, uci, owner);
   return board;
 }
 
@@ -205,16 +215,22 @@ export function isPremoveAllowed(board: PremoveBoard, colour: Colour, uci: strin
   return isPremovePromotion(board, parsed.from, parsed.to) === (parsed.promotion !== undefined);
 }
 
-/** Walks a whole chain from the real position; used by the server's `PUT /premoves`. */
+/**
+ * Walks a chain from the real position; used by the server's `PUT /premoves`. The entries before
+ * `from` are applied without being checked: they are the part of the chain an edit left as it was,
+ * which may no longer fit after the opponent's reply and is cancelled when it comes up. Indexes in
+ * the result count from the start of `premoves`.
+ */
 export function checkPremoveChain(
   fen: string,
   colour: Colour,
   premoves: readonly string[],
+  from = 0,
 ): { ok: true } | { ok: false; index: number } {
   let board = imaginedBoard(fen, []);
   for (const [index, uci] of premoves.entries()) {
-    if (!isPremoveAllowed(board, colour, uci)) return { ok: false, index };
-    board = applyPremove(board, uci);
+    if (index >= from && !isPremoveAllowed(board, colour, uci)) return { ok: false, index };
+    board = applyPremove(board, uci, colour);
   }
   return { ok: true };
 }

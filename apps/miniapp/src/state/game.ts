@@ -88,8 +88,9 @@ export function diffNotices(prev: GameDto, next: GameDto): Notice[] {
       fired += 1;
     }
     if (fired >= 1) notices.push('premove_played');
-    // Controller ruling: the server trims a fired premove's leftover chain at its first
-    // pattern-invalid entry, so a chain that lost more than the fired moves needs its own notice.
+    // A chain that lost more than the fired moves was cancelled after them: across a multi-ply
+    // jump, a premove played and a later reply found the next one illegal. The server keeps a
+    // fired premove's leftover chain whole, so this is always a real cancel.
     if (next.premoves.length < prev.premoves.length - fired) notices.push('premoves_cancelled');
   }
   return notices;
@@ -152,8 +153,14 @@ export class GameStore {
       Math.min(this.premoveStep.value ?? Number.POSITIVE_INFINITY, this.premoves.value.length),
     );
     this.atChainEnd = computed(() => this.shownStep.value === this.premoves.value.length);
+    // The queue belongs to the viewer; an entry that would move the other side's piece (one that
+    // captured the piece it was queued for) is skipped, as the server's check skips it.
+    const owner = (): Colour | undefined => {
+      const role = this.dto.value.viewerRole;
+      return role === 'white' || role === 'black' ? role : undefined;
+    };
     const imagined = (count: number) =>
-      imaginedBoard(this.dto.value.fen, this.premoves.value.slice(0, count));
+      imaginedBoard(this.dto.value.fen, this.premoves.value.slice(0, count), owner());
     this.boardView = computed(() => {
       const real = this.position.value;
       if (!this.premoveMode.value || this.shownStep.value === 0) return real;
@@ -170,7 +177,7 @@ export class GameStore {
       return uci ? [uci.slice(0, 2), uci.slice(2, 4)] : [];
     });
     this.premoveLabels = computed(() =>
-      this.premoves.value.map((uci, index) => premoveLabel(imagined(index), uci)),
+      this.premoves.value.map((uci, index) => premoveLabel(imagined(index), uci, owner())),
     );
     this.canMove = computed(() => {
       const dto = this.dto.value;
