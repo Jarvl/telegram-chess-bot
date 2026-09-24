@@ -169,6 +169,18 @@ describe('createTg', () => {
     expect(tg.setMainButton({ text: 'x', onClick: () => undefined })).toBe(false);
     expect(tg.initData).toBe('');
   });
+
+  it('reports deactivation only from 8.0, until unsubscribed', () => {
+    let seen = 0;
+    tgFor({ version: '7.10' }).onDeactivated(() => (seen += 1));
+    window.__tg!.emit('deactivated');
+    expect(seen).toBe(0);
+    const off = tgFor({ version: '8.0' }).onDeactivated(() => (seen += 1));
+    window.__tg!.emit('deactivated');
+    off();
+    window.__tg!.emit('deactivated');
+    expect(seen).toBe(1);
+  });
 });
 
 describe('themeVariables', () => {

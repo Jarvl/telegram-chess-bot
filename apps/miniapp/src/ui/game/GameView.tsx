@@ -80,6 +80,8 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
     },
     [tg],
   );
+  // applyState is defined before dispatch; it reaches the machine through this ref.
+  const dispatchRef = useRef<(event: MoveEvent) => void>(() => undefined);
   const applyState = useCallback(
     (next: GameDto) => {
       const previous = store.dto.value;
@@ -90,6 +92,13 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
       // Spec §6.3: a check buzzes, whichever side gave it.
       if (next.plyCount > previous.plyCount && positionAt(next, next.plyCount).check)
         tg.hapticNotify('warning');
+      // A move waiting for Confirm move is void once the game has moved on (the server would
+      // reject its expectedPly anyway): take it off the board and the buttons.
+      if (
+        moveRef.current.kind === 'pendingConfirm' &&
+        (next.plyCount !== previous.plyCount || next.status !== previous.status)
+      )
+        dispatchRef.current({ type: 'cancel' });
     },
     [store, notify, tg],
   );
@@ -136,6 +145,7 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
     },
     [store],
   );
+  dispatchRef.current = dispatch;
 
   const runEffect = (effect: MoveEffect): void => {
     switch (effect.type) {
@@ -244,12 +254,22 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
         return;
     }
   }, [moveState.kind, confirming, tg, dispatch]);
+  // Telegram's bar takes about the space the tab bar frees, so the board keeps its size while a
+  // move waits; and no tab tap can leave the move unsent (move confirmations spec).
+  useEffect(() => {
+    router.suppressTabs.value = confirming;
+  }, [router, confirming]);
+  // Minimising (Telegram 8.0) is leaving too: a waiting move is dropped. Once sent, cancel is a no-op.
+  useEffect(() => tg.onDeactivated(() => dispatch({ type: 'cancel' })), [tg, dispatch]);
+  // Leaving the screen (a tab, Back, Telegram's Settings item, another game) discards a waiting
+  // move with the component; this puts Telegram's buttons and the tab bar back.
   useEffect(
     () => () => {
       tg.setMainButton(null);
       tg.setSecondaryButton(null);
+      router.suppressTabs.value = false;
     },
-    [tg],
+    [tg, router],
   );
 
   const onDrop = (orig: string, dest: string, meta: { captured: boolean }): void => {

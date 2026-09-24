@@ -10,7 +10,8 @@ export type Feature =
   | 'bottomBarColor'
   | 'popup'
   | 'closingConfirmation'
-  | 'settingsButton';
+  | 'settingsButton'
+  | 'activation';
 
 /** Spec §6.6: the first Bot API version that has each capability. */
 export const FEATURE_MIN_VERSION: Record<Feature, string> = {
@@ -24,6 +25,7 @@ export const FEATURE_MIN_VERSION: Record<Feature, string> = {
   popup: '6.2',
   closingConfirmation: '6.2',
   settingsButton: '7.0',
+  activation: '8.0',
 };
 
 export function versionAtLeast(version: string, minimum: string): boolean {
@@ -98,6 +100,8 @@ export interface Tg {
   setClosingConfirmation(enabled: boolean): void;
   /** Shows Telegram's Settings menu item (7.0+) and routes its taps here; returns the undo. */
   onSettingsButton(callback: () => void): () => void;
+  /** Telegram minimising or backgrounding the app (8.0+); a no-op below. Returns the undo. */
+  onDeactivated(callback: () => void): () => void;
   hapticSelection(): void;
   /** A t.me link, opened inside Telegram. */
   openTelegramLink(url: string): void;
@@ -164,6 +168,7 @@ function nullTg(): Tg {
     showPopup: () => null,
     setClosingConfirmation: () => undefined,
     onSettingsButton: () => () => undefined,
+    onDeactivated: () => () => undefined,
     hapticSelection: () => undefined,
     openTelegramLink: (url) => {
       window.open(url, '_blank', 'noopener');
@@ -291,6 +296,11 @@ export function createTg(
         button.offClick(callback);
         button.hide();
       };
+    },
+    onDeactivated(callback) {
+      if (!supports('activation')) return () => undefined;
+      raw.onEvent('deactivated', callback);
+      return () => raw.offEvent('deactivated', callback);
     },
     hapticSelection() {
       if (supports('haptics')) raw.HapticFeedback?.selectionChanged();
