@@ -12,6 +12,9 @@ export type FakeWebAppOptions = {
   platform?: string;
   /** What `requestWriteAccess` answers; undefined means the client has no such method. */
   writeAccess?: boolean;
+  /** Makes `showPopup` throw this message instead of opening a popup, e.g. a client-side param
+   * rejection (`WebAppPopupParamInvalid`) rather than the "already open" case. */
+  popupError?: string;
 };
 
 export type FakeButton = {
@@ -254,6 +257,7 @@ export function installFakeWebApp(options: FakeWebAppOptions): void {
   }
   if (atLeast(options.version, '6.2')) {
     webApp.showPopup = (params: FakeWebAppRecord['popups'][number], cb?: (id: string) => void) => {
+      if (options.popupError) throw new Error(options.popupError);
       if (pendingPopup !== null) throw new Error('WebAppPopupOpened');
       record.popups.push(params);
       record.calls.push(`showPopup:${params.message}`);

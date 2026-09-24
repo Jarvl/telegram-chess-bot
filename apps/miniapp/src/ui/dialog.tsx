@@ -19,6 +19,14 @@ const pending = signal<Pending | null>(null);
 /** The client of the mounted <Dialogs />: questions go to its native popup when it has one. */
 let host: Tg | null = null;
 
+/** The in-page bottom sheet: Telegram below 6.2, or a client that has no answer for us. */
+function askInPage(request: Request): Promise<boolean> {
+  pending.value?.resolve(false);
+  return new Promise((resolve) => {
+    pending.value = { ...request, resolve };
+  });
+}
+
 function ask(request: Request): Promise<boolean> {
   const native = host?.showPopup({
     ...(request.title ? { title: request.title } : {}),
@@ -34,11 +42,11 @@ function ask(request: Request): Promise<boolean> {
         ]
       : [{ id: 'confirm', type: 'ok' }],
   });
-  if (native) return native.then((id) => id === 'confirm');
-  pending.value?.resolve(false);
-  return new Promise((resolve) => {
-    pending.value = { ...request, resolve };
-  });
+  // A rejection (anything but "another popup is already open") means the client refused the
+  // call rather than the user declining it; fall back to the in-page sheet instead of reading
+  // it as "no".
+  if (native) return native.then((id) => id === 'confirm').catch(() => askInPage(request));
+  return askInPage(request);
 }
 
 /** Cancel and one confirm action: Telegram's popup from 6.2, a bottom sheet below. */

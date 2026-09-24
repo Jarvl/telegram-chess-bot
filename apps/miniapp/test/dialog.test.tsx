@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { confirmDialog, infoDialog } from '../src/ui/dialog';
 import { renderApp } from './support/render';
 
-const mount = (version: string) =>
+const mount = (version: string, options: { popupError?: string } = {}) =>
   renderApp(
     () => null,
     () => ({ status: 200, body: {} }),
-    { version },
+    { version, ...options },
   );
 
 describe('confirmDialog', () => {
@@ -50,6 +50,19 @@ describe('confirmDialog', () => {
     await r.flush();
     const answer = confirmDialog('Delete your data?', { confirmLabel: 'Delete', danger: true });
     await r.flush();
+    expect(document.querySelector('.dialog p')?.textContent).toBe('Delete your data?');
+    await r.click('[data-dialog="confirm"]');
+    expect(await answer).toBe(true);
+  });
+
+  it('falls back to the in-page sheet when the client rejects the popup call itself', async () => {
+    // Unlike WebAppPopupOpened (another popup mid-flight, read as "no"), a param rejection is
+    // the client refusing the call, not the user answering it.
+    const r = mount('8.0', { popupError: 'WebAppPopupParamInvalid' });
+    await r.flush();
+    const answer = confirmDialog('Delete your data?', { confirmLabel: 'Delete', danger: true });
+    await r.flush();
+    expect(window.__tg!.popups).toHaveLength(0);
     expect(document.querySelector('.dialog p')?.textContent).toBe('Delete your data?');
     await r.click('[data-dialog="confirm"]');
     expect(await answer).toBe(true);

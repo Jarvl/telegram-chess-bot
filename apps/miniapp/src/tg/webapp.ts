@@ -262,12 +262,18 @@ export function createTg(
       raw.MainButton.setParams?.({ color, text_color: textColor }),
     showPopup(params) {
       if (!supports('popup') || !raw.showPopup) return null;
-      return new Promise((resolve) => {
+      return new Promise((resolve, reject) => {
         try {
           raw.showPopup!(params, (buttonId) => resolve(buttonId ? buttonId : null));
-        } catch {
-          // A popup is already open (WebAppPopupOpened): the second caller reads "no".
-          resolve(null);
+        } catch (error) {
+          if (error instanceof Error && error.message === 'WebAppPopupOpened') {
+            // A popup is already open: the second caller reads "no".
+            resolve(null);
+          } else {
+            // Any other failure (e.g. WebAppPopupParamInvalid) means the client rejected the
+            // call, not the user declining; let the caller fall back to the in-page sheet.
+            reject(error);
+          }
         }
       });
     },

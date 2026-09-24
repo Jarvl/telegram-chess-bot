@@ -30,12 +30,14 @@ export function renderApp(
     closeFromRoot?: boolean;
     client?: ApiClient;
     writeAccess?: boolean;
+    popupError?: string;
   } = {},
 ): Rendered {
   installFakeWebApp({
     version: options.version ?? '8.0',
     initData: 'user=x&hash=y',
     writeAccess: options.writeAccess,
+    popupError: options.popupError,
   });
   const tg = createTg(window.Telegram!.WebApp);
   const { fetch, calls } = fakeFetch(route);
