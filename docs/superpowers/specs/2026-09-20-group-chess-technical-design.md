@@ -331,7 +331,7 @@ idle ──pick up──▶ dragging ──drop on legal square──▶ [promot
    │                  │ → snap back, send nothing
    │                  ▼ Confirm move (or no confirmation needed)
    │               sending: POST /api/games/:id/moves { uci, expectedPly, clientMoveId }
-   │                  │ 200 → sent: haptic; close_after_move ? show "Sent" 300 ms then close() : stay
+   │                  │ 200 → sent: haptic; the player stays on the board
    │                  │ 409 stale_state / not_your_turn / expired → reload state, snap back, no message
    │                  │ 422 illegal_move (should not happen; client validated) → snap back, no message
    └──────────────────┘ network error → stay in sending with exponential retry (1 s … 30 s) using the same clientMoveId;
@@ -525,7 +525,7 @@ Primary keys are `bigint` identities; `public_id` columns are the 10-character i
 
 | Table | Columns | Notes |
 |---|---|---|
-| `users` | `id`, `telegram_user_id` unique nullable, `first_name`, `username`, `language_code`, `dm_allowed`, `write_access_asked_at`, `prefs jsonb` (`close_after_move` default true, `notifications` default true, `move_confirmations` default `people`, `board_theme`, `piece_set`), `created_at`, `last_seen_at`, `deleted_at` | Anonymisation nulls `telegram_user_id` and `username`, sets `first_name = 'Deleted player'`, clears `prefs` |
+| `users` | `id`, `telegram_user_id` unique nullable, `first_name`, `username`, `language_code`, `dm_allowed`, `write_access_asked_at`, `prefs jsonb` (`notifications` default true, `move_confirmations` default `people`, `board_theme`, `piece_set`), `created_at`, `last_seen_at`, `deleted_at` | Anonymisation nulls `telegram_user_id` and `username`, sets `first_name = 'Deleted player'`, clears `prefs` |
 | `groups` | `id`, `public_id`, `telegram_chat_id` unique, `title`, `type`, `is_forum`, `bot_status`, `bot_is_admin`, `bot_can_pin`, `welcome_message_id`, `settings jsonb` (`default_time_per_move` 86400, `rated_default` true, `allow_open_challenges` true, `max_active_games_per_user` 5, `leaderboard_min_games` 5, `card_topic_mode` `origin`, `fixed_topic_id`), `created_at`, `updated_at` | `telegram_chat_id` changes on migration |
 | `group_members` | `group_id`, `user_id`, `status` (`member`, `left`, `blocked`), `first_seen_at`, `last_seen_at`, `verified_at`, `blocked_by`, primary key (`group_id`, `user_id`) | Feeds the opponent picker and the membership ladder |
 | `challenges` | `id`, `public_id`, `group_id`, `challenger_id`, `opponent_id` nullable, `time_per_move` nullable, `challenger_colour` (`white`, `black`, `random`), `rated`, `status`, `message_id`, `thread_id`, `game_id`, `created_at`, `expires_at`, `resolved_at` | Index on (`status`, `expires_at`) |
@@ -713,7 +713,7 @@ Each is a throwaway probe of half a day to a day, with a go criterion and a fall
 | Spike | Method | Go when | If it fails |
 |---|---|---|---|
 | S1 Drag reliability | A static page with chessground, `expand()` and `disableVerticalSwipes()`, opened as a Mini App on iPhone and Android | 50 drags each without the sheet collapsing or a missed drop | Try `requestFullscreen()`; add a short hold delay before a drag starts; tap-tap remains the guaranteed path |
-| S2 Open and return round trip | A card with a direct-link button in a test group; open, call `close()`, on iOS, Android, Desktop, Web K, Web A | Every client returns to the group chat | Default `close_after_move` to off on the failing client |
+| S2 Open and return round trip | A card with a direct-link button in a test group; open, call `close()`, on iOS, Android, Desktop, Web K, Web A | Every client returns to the group chat | Hide **Done** on the failing client; Telegram's own close remains |
 | S3 SSE inside the WebView | The probe page holds an `EventSource`; background the app for five minutes, resume | Stream resumes or reconnects within 3 s on both platforms | Poll every 3 s on that platform; the transport is isolated |
 | S4 Bot API behaviours | A test bot in a supergroup with and without admin rights | `getChatMember` behaviour for non-admin bots is characterised; General-topic `message_thread_id` handling confirmed; `text_mention` renders for a member without a username; `write_access_allowed` arrives after `requestWriteAccess()` | Adjust the ladder in §5.6 and the topic rule in §5.8 |
 

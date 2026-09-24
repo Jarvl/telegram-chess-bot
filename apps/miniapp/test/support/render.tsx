@@ -52,7 +52,6 @@ export function renderApp(
     launchedFrom: null,
   };
   prefs.value = {
-    closeAfterMove: true,
     notifications: true,
     moveConfirmations: 'people',
     boardTheme: null,

@@ -8,8 +8,7 @@ const response = {
   token: 'jwt',
   user: { id: '7', name: 'Alice', username: 'alice' },
   prefs: {
-    closeAfterMove: false,
-    notifications: true,
+    notifications: false,
     moveConfirmations: 'people',
     boardTheme: null,
     pieceSet: null,
@@ -40,7 +39,7 @@ describe('launch', () => {
       user: { id: '7', name: 'Alice' },
       launchedFrom: { kind: 'game', gameId: 'AbCdEfGhIj' },
     });
-    expect(prefs.value.closeAfterMove).toBe(false);
+    expect(prefs.value.notifications).toBe(false);
     expect(Math.abs(serverNow().getTime() - Date.now() - 5_000)).toBeLessThan(1_000);
   });
 

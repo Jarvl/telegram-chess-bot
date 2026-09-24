@@ -12,7 +12,7 @@ import {
 
 // Move confirmations spec: Alice keeps the default, Only against people, and plays Bob.
 const openAsAlice = async (page: Parameters<typeof openApp>[0]) => {
-  const world = await seed('fresh', { alice: { closeAfterMove: false } });
+  const world = await seed('fresh');
   await openApp(page, {
     user: world.users.alice.telegram,
     startParam: `g_${world.game!.publicId}`,

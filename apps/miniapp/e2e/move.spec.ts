@@ -1,12 +1,10 @@
 import { expect, test } from '@playwright/test';
 import { boardBox, dragMove, harnessGame, openApp, seed, squareCentre, tgState } from './support';
 
-test('drags a move as White, the server records it and the app returns to the chat', async ({
+test('drags a move as White, the server records it and the app stays on the game', async ({
   page,
 }) => {
-  const world = await seed('fresh', {
-    alice: { closeAfterMove: true, moveConfirmations: 'never' },
-  });
+  const world = await seed('fresh', { alice: { moveConfirmations: 'never' } });
   await openApp(page, {
     user: world.users.alice.telegram,
     startParam: `g_${world.game!.publicId}`,
@@ -19,15 +17,16 @@ test('drags a move as White, the server records it and the app returns to the ch
   const state = await tgState(page);
   expect(state.calls).toEqual(expect.arrayContaining(['ready', 'expand', 'disableVerticalSwipes']));
   expect(state.haptics).toContain('impact:light');
-  await expect.poll(async () => (await tgState(page)).closed).toBe(true);
+  // Opened from a chat card, yet the player stays on the board after moving.
+  await page.waitForTimeout(500);
+  expect((await tgState(page)).closed).toBe(false);
+  await expect(page.locator('.cg-wrap')).toBeVisible();
 });
 
 test('taps a move: the piece shows its destinations and the move is sent on the second tap', async ({
   page,
 }) => {
-  const world = await seed('fresh', {
-    alice: { closeAfterMove: false, moveConfirmations: 'never' },
-  });
+  const world = await seed('fresh', { alice: { moveConfirmations: 'never' } });
   await openApp(page, {
     user: world.users.alice.telegram,
     startParam: `g_${world.game!.publicId}`,

@@ -13,15 +13,15 @@ describe('Settings', () => {
         body: { prefs: { ...prefs.value, ...(body as { prefs: object }).prefs }, dmAllowed: false },
       }),
     );
-    await r.click('[data-pref="closeAfterMove"]');
+    await r.click('[data-pref="notifications"]');
     expect(r.calls[0]).toMatchObject({
       method: 'PUT',
       path: '/api/me/prefs',
-      body: { prefs: { closeAfterMove: false } },
+      body: { prefs: { notifications: false } },
     });
     expect(window.__tg!.haptics).toContain('selection');
-    expect(prefs.value.closeAfterMove).toBe(false);
-    expect(r.root.querySelector('[data-pref="closeAfterMove"]')?.getAttribute('aria-checked')).toBe(
+    expect(prefs.value.notifications).toBe(false);
+    expect(r.root.querySelector('[data-pref="notifications"]')?.getAttribute('aria-checked')).toBe(
       'false',
     );
   });
@@ -36,6 +36,7 @@ describe('Settings', () => {
     expect(row?.textContent).toContain('Only against people');
     expect(r.root.querySelector('.card')?.firstElementChild).toBe(row);
     expect(r.root.querySelector('[data-pref="confirmMoves"]')).toBeNull();
+    expect(r.root.querySelector('[data-pref="closeAfterMove"]')).toBeNull();
   });
 
   it("saves a choice picked in Telegram's popup", async () => {

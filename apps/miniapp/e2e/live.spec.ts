@@ -2,9 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { dragMove, dropConnections, openApp, openStreams, seed } from './support';
 
 test('the opponent sees a move without refreshing', async ({ browser }) => {
-  const world = await seed('fresh', {
-    alice: { closeAfterMove: false, moveConfirmations: 'never' },
-  });
+  const world = await seed('fresh', { alice: { moveConfirmations: 'never' } });
   const bobContext = await browser.newContext();
   const bob = await bobContext.newPage();
   await openApp(bob, { user: world.users.bob.telegram, startParam: `g_${world.game!.publicId}` });
@@ -35,9 +33,7 @@ function countRefreshes(page: Page, gameId: string): () => number {
 }
 
 test('shows the latest position after the connection drops and comes back', async ({ browser }) => {
-  const world = await seed('fresh', {
-    alice: { closeAfterMove: false, moveConfirmations: 'never' },
-  });
+  const world = await seed('fresh', { alice: { moveConfirmations: 'never' } });
   const gameId = world.game!.publicId;
   const bobContext = await browser.newContext();
   const bob = await bobContext.newPage();

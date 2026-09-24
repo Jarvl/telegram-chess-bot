@@ -34,8 +34,7 @@ const okRoute =
     return { status: 200, body: { ok: true } };
   };
 
-const wantPrefs: { closeAfterMove: boolean; moveConfirmations: MoveConfirmations } = {
-  closeAfterMove: false,
+const wantPrefs: { moveConfirmations: MoveConfirmations } = {
   // The flows below predate move confirmations; the describe block for them sets its own.
   moveConfirmations: 'never',
 };
@@ -62,7 +61,6 @@ beforeEach(() => {
   adapter = stubAdapter();
   FakeEventSource.reset();
   vi.stubGlobal('EventSource', FakeEventSource);
-  wantPrefs.closeAfterMove = false;
   wantPrefs.moveConfirmations = 'never';
 });
 afterEach(async () => {
@@ -191,18 +189,15 @@ describe('Game', () => {
     expect(window.__tg!.mainButton.visible).toBe(false);
   });
 
-  it('closes after a move when launched from a game link and the setting is on', async () => {
+  it('stays on the game after a move, even when launched from a game link', async () => {
     vi.useFakeTimers();
-    wantPrefs.closeAfterMove = true;
     const r = mount(gameDto());
     session.value = { ...session.value!, launchedFrom: { kind: 'game', gameId: GAME } };
     await vi.advanceTimersByTimeAsync(100); // effects run on the next (faked) frame
     adapter.drop('e2', 'e4');
-    await vi.advanceTimersByTimeAsync(100); // effects run on the next (faked) frame
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(r.calls.some((c) => c.path === `/api/games/${GAME}/moves`)).toBe(true);
     expect(window.__tg!.closed).toBe(false);
-    await vi.advanceTimersByTimeAsync(300);
-    expect(window.__tg!.closed).toBe(true);
-    void r;
   });
 
   it('shows the promotion chooser and sends the chosen piece', async () => {
@@ -642,20 +637,17 @@ describe('Game with move confirmations', () => {
     expect(r.calls.filter((c) => c.method === 'POST')).toHaveLength(0);
   });
 
-  it('closes after a confirmed move when launched from a game card and the setting is on', async () => {
+  it('stays on the game after a confirmed move, even when launched from a game card', async () => {
     vi.useFakeTimers();
-    wantPrefs.closeAfterMove = true;
     const r = mount(gameDto());
     session.value = { ...session.value!, launchedFrom: { kind: 'game', gameId: GAME } };
     await vi.advanceTimersByTimeAsync(100); // effects run on the next (faked) frame
     adapter.drop('e2', 'e4');
     await vi.advanceTimersByTimeAsync(100);
     window.__tg!.clickMain();
-    await vi.advanceTimersByTimeAsync(100);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(posts(r)).toHaveLength(1);
     expect(window.__tg!.closed).toBe(false);
-    await vi.advanceTimersByTimeAsync(300);
-    expect(window.__tg!.closed).toBe(true);
-    void r;
   });
 
   it('restores the board and reloads the state when a confirmed move is answered 409', async () => {

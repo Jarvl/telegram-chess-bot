@@ -127,8 +127,8 @@ Web K, Telegram Web A.
 
 1. **50 drag moves without a missed drop.** Open a game, make 50 moves by dragging. Count any drop
    that does not register or lands on the wrong square. The bar is zero. Tap-tap 10 more.
-2. **Card to move and back.** From the group card, tap through to the game, move, and confirm the
-   app closes back to the chat when "return to chat after moving" is on.
+2. **Card to move.** From the group card, tap through to the game, move, and confirm the app stays
+   on the board with the move shown.
 3. **Background and resume.** Leave the app for five minutes with the opponent moving meanwhile.
    Reopen. The latest position must be there without a manual refresh.
 4. **DM buttons.** Confirm the turn DM arrives, and that both its buttons land in the right place.
