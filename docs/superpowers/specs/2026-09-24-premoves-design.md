@@ -22,6 +22,12 @@ opponent's move lands, even with the app closed.
   the premove.
 - Premoves are stored on the server. Only their owner can see them. The opponent and spectators
   cannot, not even when a premove is queued or removed.
+- The chain belongs to the player, not to a device. Every device the owner has the game open on
+  shows the same chain, and an edit on one shows up on the others straight away. Players often
+  switch between phone and desktop mid-game.
+- An edit made on a device showing an out-of-date chain is refused rather than merged, and that
+  device shows the current chain. A chain can only play if some device showed it exactly as it
+  is (see [Several devices](#several-devices)).
 - When the opponent moves, the server checks the **first** premove against the real position.
   - **Legal:** the server plays it in the same transaction. It counts as a normal move: it resets
     the clock and makes an offer by the opponent lapse. The owner gets no turn DM. The opponent
@@ -30,8 +36,7 @@ opponent's move lands, even with the app closed.
     DM with an extra line, "Your premoves were cancelled." The Mini App shows a toast if it is
     open. Bot games send no DM, as they already don't (engine spec §8).
 - One premove plays per opponent move. The rest of the chain waits for the next reply.
-- The queue is emptied when the game ends for any reason, and at most **10** premoves can be
-  queued at once.
+- The queue is emptied when the game ends for any reason. There is no limit on its length.
 - Premoves work in bot games too. The bot's move triggers them the same way.
 
 ### Which squares a premove may target
@@ -93,29 +98,65 @@ transaction that touches premoves, so no new locking is needed.
 
 ### API
 
-Both routes are for the game's players only. They lock the row with `lockActiveGame`, so a
-deadline that has passed forfeits first, as it does for every other action. Both return the
-caller's `GameDto`.
+`PUT /api/games/:id/premoves` is the one premove route, for the game's players only. Its body is
+`PremovesRequestSchema = { base: string[], premoves: string[], expectedPly }`, where each entry is
+a UCI string:
 
-**Neither route bumps `games.version` or calls `bus.publish`.** A publish would push an event to
-every open stream on the game, including the opponent's. Even with nothing visible in its DTO,
-the event's timing would show when the other player premoves.
+- `base` is the queue the device was showing when the player made the edit.
+- `premoves` is the queue the device wants.
 
-`POST /api/games/:id/premoves` with body `PremoveRequestSchema = { uci, expectedPly }`:
+The device builds `premoves` from `base`. Queuing is `[...base, uci]`, Remove on step k is
+`base.slice(0, k - 1)`, and clearing is `[]`. The server accepts any list that passes the checks,
+so no separate append and truncate routes are needed.
+
+The route locks the row with `lockActiveGame`, so a deadline that has passed forfeits first, as it
+does for every other action. It returns the caller's `GameDto`.
 
 | Check, in order | Error |
 |---|---|
 | The game is over | `stale_state` (from `lockActiveGame`) |
 | It is the caller's turn | `not_your_turn` (they should make the move instead) |
 | `expectedPly !== plyCount` | `stale_state`, `{ plyCount }` |
-| The queue already has 10 | `limit_exceeded`, `{ reason: 'premove_limit' }` |
-| `from` does not hold the caller's piece in the imagined position, the pattern rule does not reach `to`, or the promotion suffix is missing or not allowed | `illegal_move` |
+| The stored queue is not exactly `base` | `stale_state`, `{ reason: 'premoves_changed' }` |
+| Walking `premoves` in order from the real position: some `from` does not hold the caller's piece in the imagined position, the pattern rule does not reach `to`, or the promotion suffix is missing or not allowed | `illegal_move`, `{ index }` |
 
-If every check passes, the premove is appended and the updated DTO is returned.
+If every check passes, the queue is replaced with `premoves`. A request whose `premoves` equals the
+stored queue changes nothing and publishes nothing.
 
-`DELETE /api/games/:id/premoves?from=k&expectedPly=n` keeps the first `k` premoves and drops the
-rest. `from=0` clears the queue. It uses the same turn, ply and game-over checks as above. A `k`
-beyond the queue length is a no-op.
+There is no length limit. The only bound is the API's existing 64 KB body limit, which allows
+thousands of premoves, and it is a transport limit, not a product rule.
+
+**The route never bumps `games.version`, and it publishes to the owner only** (see below). A
+publish to the whole game would push an event to every open stream, the opponent's included. Even
+with nothing visible in its DTO, the event's timing would show when the other player premoves.
+
+### Several devices
+
+The server's queue is the only source of truth. No device owns the chain. Every device shows the
+server's list, and every edit is a compare-and-set against the list that device was showing
+(`base`).
+
+**Why compare-and-set, and not last write wins.** Suppose your phone shows `[Nf6]` and you queue
+`e5` after it. Meanwhile your laptop has removed `Nf6` and queued `d5`. With last write wins, the
+server would store a chain no device ever showed. With compare-and-set, the phone's request is
+refused, and a premove chosen in one imagined position is never played in another.
+
+The comparison uses the list itself, not a revision counter. That needs no extra column. It also
+leaves nothing that could leak to the opponent through a counter that shows how often the other
+player edited.
+
+**Pushes to the owner only.** `Bus.publish(gameId, audience?)` gains an optional
+`{ userId }` audience. Every SSE listener in `routes/events.ts` already knows its `user.id`, and
+skips a publish meant for another user. A premove edit publishes with the owner as the audience,
+so each of the owner's open streams (up to four, spec §7.8) receives the new DTO at once. The
+opponent's and spectators' streams receive nothing. Moves, including premoves that fire, still
+publish to everyone, as now.
+
+**Reconnects.** `routes/events.ts` currently skips the first snapshot when
+`Last-Event-ID ≥ version`. Premove edits don't change `version`, so a device whose stream dropped
+during an edit would keep the old queue. The route now always sends a snapshot on every
+(re)connect, at the cost of one DTO query per connect. A device that opens the game fresh already
+gets the queue from `GET /api/games/:id`.
 
 ### Firing: inside the move transaction
 
@@ -196,8 +237,13 @@ blank line and `t('dm.premoves_cancelled')`. The buttons are unchanged.
 - `canMove`: true in premove mode at the end of the chain, as well as on the viewer's turn.
 
 `apply(next)` also treats a DTO whose `premoves` differ from the current ones as new. The premove
-endpoints return a DTO with the same version, and this is what lets it through. When `plyCount`
-moves on, `premoveStep` resets to `null`.
+route and the owner-only pushes return a DTO with the same version, and this is what lets it
+through. A DTO from the server always replaces the local queue. An optimistic edit only lasts
+until its own request settles or the server's list arrives.
+
+When `plyCount` moves on, `premoveStep` resets to `null`. When a new queue is shorter than the
+step being viewed, for example after Remove on another device, `premoveStep` clamps to the new
+end.
 
 `state/premoves.ts` holds the Mini App's pure helpers: the chip label for each premove, built from
 the imagined position before it (`Nf3`, `Nxf3`, `exd5`, `e8=Q`, `O-O`), and the diff checks used
@@ -229,12 +275,18 @@ On the viewer's turn, a drop goes through the move machine, unchanged. In premov
 
 1. If the drop is a promotion (pawn to the last rank), the existing picker opens. Cancelling it
    restores the board.
-2. The UCI is appended to `store.premoves` optimistically, and `POST /premoves` is sent with
-   `{ uci, expectedPly: plyCount }`. Drops are ignored while a premove request is in flight. The
-   board's `movable` is set to none for that time.
-3. On success, `applyState(dto)` runs. On failure, the optimistic entry is removed and the game
-   reloads. A network failure also shows the offline toast. A `stale_state` usually means the
-   opponent moved first, and the reload shows the result.
+2. With `base` as the queue currently shown, the store's queue becomes `[...base, uci]`
+   optimistically, and `PUT /premoves` is sent with `{ base, premoves: [...base, uci],
+   expectedPly: plyCount }`. Drops are ignored while a premove request is in flight. The board's
+   `movable` is set to none for that time.
+3. On success, `applyState(dto)` runs. On failure, the optimistic edit is dropped and the game
+   reloads.
+   - A network failure also shows the offline toast.
+   - A `stale_state` with `reason: 'premoves_changed'` means another device edited the chain
+     first. It shows `toast(t('app.game.premoves_changed'))`. The reload (usually preceded by the
+     owner push) shows the current chain.
+   - Any other `stale_state` usually means the opponent moved first, and the reload shows the
+     result.
 
 A successful queue plays the light haptic. No Telegram button is shown and no confirmation is
 asked.
@@ -260,8 +312,9 @@ It shows under the move strip only in premove mode with a non-empty queue:
 
 - ◀ and ▶ step through 0…n, and each is dimmed at its end.
 - The label is `--text` at step 0 and `--pm` otherwise.
-- **Remove** shows for k ≥ 1. It sends `DELETE /premoves?from=k-1&expectedPly=…`, truncates the
-  queue optimistically, and moves the view to step k−1. Failures are handled as for queuing.
+- **Remove** shows for k ≥ 1. It sends `PUT /premoves` with `premoves: base.slice(0, k - 1)`,
+  truncates the queue optimistically, and moves the view to step k−1. Failures are handled as
+  for queuing.
 - Stepping plays the selection haptic, and Remove plays the light one.
 
 ### Notices
@@ -292,6 +345,7 @@ The Remove button uses the `--pm-soft` background with `--pm` text.
 |---|---|
 | `dm.premoves_cancelled` | `Your premoves were cancelled.` |
 | `app.game.premoves_cancelled` | `Premoves cancelled` |
+| `app.game.premoves_changed` | `Premoves changed on another device` |
 | `app.game.premove_current` | `Current position` |
 | `app.game.premove_step` | `Premove {k} of {n}` |
 | `app.game.premove_remove` | `Remove` |
@@ -312,9 +366,8 @@ The Remove button uses the `--pm-soft` background with `--pm` text.
 - Premoving while a move waits for Confirm move. That can't happen, because it is then the
   player's own turn.
 - Reordering or editing a premove in the middle of the chain. Remove, then queue it again.
-- Syncing chain edits live to the owner's *other* open devices. Premove edits don't publish, so
-  another device catches up on the next real move or a reload. That is the cost of not leaking
-  timing to the opponent.
+- Merging concurrent edits from two devices. The later edit is refused, and its device shows the
+  current chain.
 - Share Position changes from the same prototype revision.
 - Metrics.
 
@@ -329,26 +382,41 @@ The Remove button uses the `--pm-soft` background with `--pm` text.
   moves.
 
 **Server integration (`apps/server/test/integration/premoves.test.ts`):**
-- Queue, truncate and clear.
-- Each rejection in the POST table, and DELETE's turn and ply checks.
-- The 10-premove limit.
+- Queue, truncate and clear through `PUT`.
+- Each rejection in the table, including a stale `base` and an illegal entry partway through a
+  chain (`index`).
+- A long chain (50 premoves) is accepted.
+- An unchanged `premoves` publishes nothing.
 - A legal premove fires. The owner gets no turn DM and X does. The moves are ordered correctly
   with the right `clientMoveId`.
 - An illegal premove clears the queue and enqueues the flagged DM. A bot game gets no DM.
-- Privacy: the opponent's and a spectator's DTOs show `[]`, and a premove edit neither publishes
-  nor bumps the version.
+- Privacy:
+  - The opponent's and a spectator's DTOs show `[]`.
+  - A premove edit never bumps the version.
+  - A premove edit reaches the owner's SSE streams, and the opponent's and spectators' streams
+    get no event.
+- Several devices:
+  - Two owner streams both receive an edit made through one of them.
+  - A reconnect with `Last-Event-ID` equal to the version still gets a snapshot with the current
+    queue.
+- `LocalBus`: a publish with an audience reaches only that user's listeners, and one without an
+  audience reaches all of them (unit).
 - A premove that checkmates finishes the game. Resign, abort, timeout and void clear the queue.
 - A premove fires after the engine's move. The engine job does not report a stall and the next
   `engine_move` is enqueued. Extend `engine-move-flow.test.ts`.
 
 **Mini App unit:**
-- Store: premove mode, steps, `boardView`, dests at the end of the chain versus earlier steps,
-  and `apply` on a changed `premoves`.
+- Store:
+  - Premove mode, steps and `boardView`.
+  - Dests at the end of the chain versus earlier steps.
+  - `apply` on a changed `premoves`.
+  - A server list replacing an optimistic one.
+  - `premoveStep` clamping when the queue shrinks.
 - `diffNotices` `premoves_cancelled`, fired and cancelled.
 - Chip labels.
 - `MoveList` chips and `…`.
 - `PremoveBar` stepping and Remove.
-- The optimistic append and rollback in `GameView`.
+- The optimistic append and rollback in `GameView`, including the `premoves_changed` toast.
 
 **Playwright (`apps/miniapp/e2e/premove.spec.ts`):**
 - Queue two premoves on the opponent's turn with no confirm buttons, even with confirmations set
@@ -356,6 +424,8 @@ The Remove button uses the `--pm-soft` background with `--pm` text.
 - Step back and forth, and Remove the second.
 - The opponent's move over SSE plays the first.
 - A cancelled chain shows the toast.
+- Two pages as the same player: a premove queued on one appears on the other, and an edit from
+  the stale page is refused with the `premoves_changed` toast.
 
 ## Docs to update in the same change
 
