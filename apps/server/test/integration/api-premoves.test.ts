@@ -1,6 +1,6 @@
 import { GameDtoSchema } from '@group-chess/shared';
 import { eq } from 'drizzle-orm';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { games } from '../../src/db/schema';
 import { touchMember } from '../../src/domain/members';
 import { startTestApi, type TestApi } from '../helpers/api';
@@ -159,4 +159,53 @@ describe('PUT /api/games/:id/premoves', () => {
     await put(tokens.bob, game.publicId, { base: [], premoves: ['e7e5'], expectedPly: 0 });
     expect(await firstState({ 'last-event-id': '0' })).toContain('"premoves":["e7e5"]');
   });
+
+  it('delivers an owner-only push that lands while the first snapshot is being read', async () => {
+    const { game, bob, tokens } = await world();
+    // Fire the push at the exact moment the stream first reaches for the database after opening:
+    // the snapshot's DTO read. Arming on the stream gauge keeps the auth and access reads out of it.
+    const realDb = api.deps.db;
+    let armed = false;
+    const gauge = api.ctx.metrics.sseStreams;
+    const inc = gauge.inc.bind(gauge);
+    const spy = vi.spyOn(gauge, 'inc').mockImplementation((...args) => {
+      armed = true;
+      inc(...args);
+    });
+    Object.defineProperty(api.deps, 'db', {
+      configurable: true,
+      get: () => {
+        if (armed) {
+          armed = false;
+          api.deps.bus.publish(game.publicId, { userId: bob.id });
+        }
+        return realDb;
+      },
+    });
+    const controller = new AbortController();
+    try {
+      const res = await api.request(
+        'GET',
+        `/api/games/${game.publicId}/events?token=${tokens.bob}`,
+        { signal: controller.signal },
+      );
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      let received = '';
+      // A lost push leaves this waiting for a second state that never comes (the test times out).
+      while (received.split('event: state').length - 1 < 2)
+        received += decoder.decode((await reader.read()).value);
+      expect(armed).toBe(false);
+      expect(received.split('event: state').length - 1).toBe(2);
+    } finally {
+      controller.abort();
+      spy.mockRestore();
+      Object.defineProperty(api.deps, 'db', {
+        configurable: true,
+        enumerable: true,
+        writable: true,
+        value: realDb,
+      });
+    }
+  }, 3_000);
 });
