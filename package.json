@@ -19,7 +19,8 @@
     "dev:app": "pnpm --filter @group-chess/miniapp dev",
     "e2e": "pnpm --filter @group-chess/miniapp e2e",
     "check:budget": "node scripts/check-bundle-size.mjs",
-    "check:licences": "node scripts/check-licences.mjs"
+    "check:licences": "node scripts/check-licences.mjs",
+    "fonts": "node scripts/fetch-fonts.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.0",

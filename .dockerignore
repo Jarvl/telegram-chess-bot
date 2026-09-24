@@ -13,3 +13,6 @@ docs
 scripts/local-postgres.sh
 .env
 .env.*
+apps/server/fonts/*.ttf
+apps/server/fonts/*.otf
+apps/server/fonts/*.part

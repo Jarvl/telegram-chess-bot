@@ -13,3 +13,8 @@ playwright-report/
 apps/miniapp/dist/
 apps/miniapp/test-results/
 apps/miniapp/playwright-report/
+
+# The snapshot card's fonts are downloaded by `pnpm fonts` (scripts/fetch-fonts.mjs).
+apps/server/fonts/*.ttf
+apps/server/fonts/*.otf
+apps/server/fonts/*.part

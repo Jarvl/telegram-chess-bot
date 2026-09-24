@@ -12,7 +12,7 @@ export default defineConfig({
     name: 'server',
     include: hasDatabase ? ['test/**/*.test.ts'] : ['test/unit/**/*.test.ts'],
     exclude: ['test/e2e/**', '**/node_modules/**'],
-    globalSetup: hasDatabase ? ['test/helpers/globalSetup.ts'] : [],
+    globalSetup: ['test/helpers/fonts.ts', ...(hasDatabase ? ['test/helpers/globalSetup.ts'] : [])],
     fileParallelism: false,
     testTimeout: 20_000,
     hookTimeout: 30_000,
