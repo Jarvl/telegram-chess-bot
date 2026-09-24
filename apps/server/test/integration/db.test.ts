@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { dbNow } from '../../src/db/client';
 import { runMigrations } from '../../src/db/migrate';
-import { jobs } from '../../src/db/schema';
+import { jobs, tips } from '../../src/db/schema';
 import { openTestDb, truncateAll } from '../helpers/db';
 import { insertGame, insertGroup, insertUser } from '../helpers/fixtures';
 
@@ -29,6 +29,7 @@ describe('database', () => {
       'ratings',
       'shares',
       'telegram_updates',
+      'tips',
       'users',
     ]);
   });
@@ -65,5 +66,27 @@ describe('database', () => {
     );
     expect(row?.passed).toBe(true);
     expect(game.publicId).toHaveLength(10);
+  });
+});
+
+describe('tips table', () => {
+  it('stores a tip once per Telegram charge id', async () => {
+    const user = await insertUser(db, { telegramUserId: 11 });
+    const row = {
+      userId: user.id,
+      telegramUserId: 11,
+      stars: 250,
+      telegramPaymentChargeId: 'charge-1',
+    };
+    await db.insert(tips).values(row);
+    const again = await db
+      .insert(tips)
+      .values(row)
+      .onConflictDoNothing({ target: tips.telegramPaymentChargeId })
+      .returning();
+    expect(again).toHaveLength(0);
+    const [stored] = await db.select().from(tips);
+    expect(stored).toMatchObject({ stars: 250, refundedAt: null });
+    expect(stored?.paidAt).toBeInstanceOf(Date);
   });
 });

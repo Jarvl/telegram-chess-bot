@@ -110,6 +110,7 @@ export async function tgState(
     | 'setStableHeight'
     | 'answerPopup'
     | 'clickSettings'
+    | 'answerInvoice'
   >
 > {
   return page.evaluate(() => {
@@ -125,6 +126,7 @@ export async function tgState(
       closed: record.closed,
       chrome: record.chrome,
       popups: record.popups,
+      invoices: record.invoices,
       closingConfirmation: record.closingConfirmation,
       settingsButton: record.settingsButton,
     };

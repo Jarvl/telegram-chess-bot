@@ -144,3 +144,22 @@ export function serviceUpdate(chat: Chat, from: User, fields: Record<string, unk
     message: { message_id: (messageId += 1), date: 1, chat, from, ...fields },
   } as Update;
 }
+
+export function preCheckoutUpdate(options: {
+  from: User;
+  payload: string;
+  totalAmount: number;
+  currency?: string;
+}): Update {
+  updateId += 1;
+  return {
+    update_id: updateId,
+    pre_checkout_query: {
+      id: `pcq-${updateId}`,
+      from: options.from,
+      currency: options.currency ?? 'XTR',
+      total_amount: options.totalAmount,
+      invoice_payload: options.payload,
+    },
+  } as Update;
+}

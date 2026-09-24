@@ -49,6 +49,12 @@ describe('t', () => {
       }),
     ).toBe('1 day per move · Rated · Move 12 · Bob to move');
   });
+
+  it('renders the tip thank-you with its amount', () => {
+    expect(t('dm.tip_thanks', { stars: 250 })).toBe(
+      'Thank you for the ★250 tip! It helps keep Chess Goat running.',
+    );
+  });
 });
 
 describe('labels', () => {

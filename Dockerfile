@@ -3,6 +3,9 @@
 FROM node:22-bookworm-slim AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
+# A shared cache, not root's home: the runtime runs as `node`, which must find this pnpm already
+# prepared (for `pnpm run refund-tip`) instead of downloading it on first use.
+ENV COREPACK_HOME=/corepack
 RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
 WORKDIR /app
 

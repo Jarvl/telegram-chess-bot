@@ -32,22 +32,26 @@ import { Metrics } from './metrics';
 import { createTelegramApi, instrumentTelegramApi } from './telegram/client';
 import { Membership } from './telegram/membership';
 
-/** Spec §5.1 step 4; `chat_member` only arrives where the bot is an administrator. */
+/** Spec §5.1 step 4; `chat_member` only arrives where the bot is an administrator. Tip jar spec §2.3. */
 export const ALLOWED_UPDATES = [
   'message',
   'callback_query',
   'my_chat_member',
   'chat_member',
+  'pre_checkout_query',
 ] as const;
 
-/** Spec §5.1 step 3: three group commands, one private command, nothing in the default scope. */
+/** Spec §5.1 step 3: three group commands, two private commands, nothing in the default scope. */
 export const BOT_COMMANDS = {
   group: [
     { command: 'play', description: t('command.play.description') },
     { command: 'chess', description: t('command.chess.description') },
     { command: 'settings', description: t('command.settings.description') },
   ],
-  private: [{ command: 'start', description: t('command.start.description') }],
+  private: [
+    { command: 'start', description: t('command.start.description') },
+    { command: 'paysupport', description: t('command.paysupport.description') },
+  ],
 } as const;
 
 export type RunningServer = {
@@ -103,6 +107,8 @@ export async function startServer(
     metrics,
     streams: new StreamGate(),
     rateLimiter: new RateLimiter(120, 60_000),
+    api,
+    tipLimiter: new RateLimiter(10, 60_000),
   };
 
   const app = createApiApp(apiCtx, has('api') ? gameRoutes : []);

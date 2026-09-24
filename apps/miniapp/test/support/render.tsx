@@ -32,6 +32,7 @@ export function renderApp(
     writeAccess?: boolean;
     popupError?: string;
     tg?: Tg;
+    invoiceError?: string;
   } = {},
 ): Rendered {
   installFakeWebApp({
@@ -39,6 +40,7 @@ export function renderApp(
     initData: 'user=x&hash=y',
     writeAccess: options.writeAccess,
     popupError: options.popupError,
+    invoiceError: options.invoiceError,
   });
   const tg = options.tg ?? createTg(window.Telegram!.WebApp);
   const { fetch, calls } = fakeFetch(route);

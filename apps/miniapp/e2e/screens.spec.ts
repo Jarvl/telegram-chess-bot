@@ -60,7 +60,14 @@ for (const colorScheme of ['light', 'dark'] as const) {
 
     await page.locator('[data-nav="settings"]').click();
     await expect(page.locator('[data-action="about"]')).toBeVisible();
+    await expect(page.locator('[data-card="support"]')).toBeVisible();
     await fits(page);
     await shot(page, `${colorScheme}-settings`);
+
+    await page.locator('[data-action="tip-custom"]').click();
+    await page.locator('[data-tip-input]').fill('12345');
+    await expect(page.locator('.tip-hint.bad')).toBeVisible();
+    await fits(page);
+    await shot(page, `${colorScheme}-settings-tip`);
   });
 }

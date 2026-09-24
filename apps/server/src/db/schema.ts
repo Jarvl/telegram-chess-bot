@@ -290,6 +290,20 @@ export const adminActions = pgTable('admin_actions', {
   createdAt: tz().notNull().defaultNow(),
 });
 
+/**
+ * Tip jar spec §1: one row per successful Stars payment. Kept when the payer deletes their data —
+ * the charge id and Telegram user id are what `refundStarPayment` needs.
+ */
+export const tips = pgTable('tips', {
+  id: id(),
+  userId: bigint({ mode: 'number' }).references(() => users.id),
+  telegramUserId: bigint({ mode: 'number' }).notNull(),
+  stars: integer().notNull(),
+  telegramPaymentChargeId: text().notNull().unique(),
+  paidAt: tz().notNull().defaultNow(),
+  refundedAt: tz(),
+});
+
 export type UserRow = typeof users.$inferSelect;
 export type GroupRow = typeof groups.$inferSelect;
 export type GroupMemberRow = typeof groupMembers.$inferSelect;
@@ -298,3 +312,4 @@ export type GameRow = typeof games.$inferSelect;
 export type MoveRow = typeof moves.$inferSelect;
 export type RatingRow = typeof ratings.$inferSelect;
 export type JobRow = typeof jobs.$inferSelect;
+export type TipRow = typeof tips.$inferSelect;

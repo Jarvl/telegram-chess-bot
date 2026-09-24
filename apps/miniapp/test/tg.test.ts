@@ -181,6 +181,24 @@ describe('createTg', () => {
     window.__tg!.emit('deactivated');
     expect(seen).toBe(1);
   });
+
+  it('offers no invoice below 6.1', () => {
+    expect(tgFor({ version: '6.0' }).openInvoice('https://t.me/$x')).toBeNull();
+    expect(tgFor({ version: '6.0' }).supports('invoice')).toBe(false);
+  });
+
+  it('opens an invoice and resolves its final status', async () => {
+    const tg = tgFor({ version: '6.1' });
+    const status = tg.openInvoice('https://t.me/$x');
+    expect(window.__tg!.invoices).toEqual(['https://t.me/$x']);
+    window.__tg!.answerInvoice('paid');
+    expect(await status).toBe('paid');
+  });
+
+  it('rejects when the client refuses to open the invoice', async () => {
+    const tg = tgFor({ version: '8.0', invoiceError: 'WebAppInvoiceUrlInvalid' });
+    await expect(tg.openInvoice('nope')).rejects.toThrow('WebAppInvoiceUrlInvalid');
+  });
 });
 
 describe('themeVariables', () => {
