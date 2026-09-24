@@ -87,6 +87,23 @@ describe('firing premoves', () => {
     expect(dto.moves.map((m) => m.san)).toEqual(['e4', 'e5', 'Nf3', 'Nf6']);
   });
 
+  it('trims a leftover premove that no longer fits the pattern after the fired move', async () => {
+    // White Rb1 takes the queued knight on b8: Rxb8+, check along the empty rank 8. Black's
+    // Kd7 fires (escaping the check), but the queued Nb8c6 that followed has no knight on b8
+    // to move any more — it, and everything after it, is dropped.
+    const { game, alice, bob } = await setup({
+      fen: '1n2k3/8/8/8/8/8/P7/1R2K3 w - - 0 1',
+      plyCount: 10,
+    });
+    await queue(game.id, ['e8d7', 'b8c6']);
+    const dto = await move(game.publicId, alice.id, 'b1b8', 10);
+    expect(dto.plyCount).toBe(12);
+    expect((await requireGameById(db, game.id)).premoves).toEqual([]);
+    expect(
+      (await getGameDto(deps, { gameId: game.publicId, viewerUserId: bob.id })).premoves,
+    ).toEqual([]);
+  });
+
   it('cancels the whole chain when the first premove is illegal, and flags the turn DM', async () => {
     const { game, alice, bob } = await setup();
     await queue(game.id, ['d8h4', 'h4h2']); // the e7 pawn still blocks the queen
