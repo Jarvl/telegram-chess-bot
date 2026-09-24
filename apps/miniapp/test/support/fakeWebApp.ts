@@ -42,6 +42,10 @@ export type FakeWebAppRecord = {
     buttons: { id?: string; type?: string; text?: string }[];
   }[];
   answerPopup(id: string): void;
+  /** Prepared message ids passed to `shareMessage`, in order. */
+  shares: string[];
+  /** Closes the open share sheet: true when the user sent the message. */
+  answerShare(sent: boolean): void;
   closingConfirmation: boolean;
   settingsButton: { visible: boolean } | null;
   clickSettings(): void;
@@ -70,6 +74,7 @@ export function installFakeWebApp(options: FakeWebAppOptions): void {
     return true;
   };
   let pendingPopup: ((id: string) => void) | null = null;
+  let pendingShare: ((sent: boolean) => void) | null = null;
   const record: FakeWebAppRecord = {
     calls: [],
     mainButton: { text: '', visible: false, progress: false, enabled: true },
@@ -85,6 +90,12 @@ export function installFakeWebApp(options: FakeWebAppOptions): void {
     popups: [],
     closingConfirmation: false,
     settingsButton: atLeast(options.version, '7.0') ? { visible: false } : null,
+    shares: [],
+    answerShare: (sent) => {
+      const answer = pendingShare;
+      pendingShare = null;
+      answer?.(sent);
+    },
     answerPopup: (id) => {
       const answer = pendingPopup;
       pendingPopup = null;
@@ -301,6 +312,10 @@ export function installFakeWebApp(options: FakeWebAppOptions): void {
     webApp.enableVerticalSwipes = () => record.calls.push('enableVerticalSwipes');
   }
   if (atLeast(options.version, '8.0')) {
+    webApp.shareMessage = (msgId: string, cb?: (sent: boolean) => void) => {
+      record.shares.push(msgId);
+      pendingShare = cb ?? null;
+    };
     webApp.downloadFile = (
       request: { url: string; file_name: string },
       cb?: (accepted: boolean) => void,

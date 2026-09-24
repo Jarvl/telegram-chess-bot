@@ -1,9 +1,12 @@
 import { sideToMove, type Colour } from '@group-chess/shared';
 import { Resvg } from '@resvg/resvg-js';
+import { encode } from 'jpeg-js';
 import { PIECE_VIEWBOX, PIECES, type PieceCode } from './pieces';
 
 export const BOARD_THEME = 'brown';
 export const IMAGE_SIZE = 1024;
+/** The share sheet's thumbnail (Bot API InlineQueryResultPhoto requires one). */
+export const THUMB_SIZE = 320;
 const SQUARE = 100;
 const LIGHT = '#f0d9b5';
 const DARK = '#b58863';
@@ -108,4 +111,10 @@ export function renderBoardSvg(input: BoardRenderInput): string {
 /** 1024 × 1024 PNG (spec §7.7). */
 export function renderBoardPng(svg: string): Buffer {
   return new Resvg(svg, { fitTo: { mode: 'width', value: IMAGE_SIZE } }).render().asPng();
+}
+
+/** Telegram takes photos by URL only as JPEG (Bot API InlineQueryResultPhoto). */
+export function renderBoardJpeg(svg: string, width: number = IMAGE_SIZE): Buffer {
+  const image = new Resvg(svg, { fitTo: { mode: 'width', value: width } }).render();
+  return encode({ data: image.pixels, width: image.width, height: image.height }, 88).data;
 }

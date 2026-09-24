@@ -1,7 +1,7 @@
 import {
   GameDtoSchema,
   PgnLinkDtoSchema,
-  ShareDtoSchema,
+  PreparedShareDtoSchema,
   t,
   type Colour,
   type EngineGameRequest,
@@ -38,9 +38,6 @@ import { useClock } from './useClock';
 
 /** A send answered within this shows nothing; a slower one greys the board under a spinner. */
 const SLOW_SEND_MS = 1_000;
-/** A share is posted by a job: poll this often, for this long, before taking the user to it. */
-const SHARE_POLL_MS = 750;
-const SHARE_WAIT_MS = 10_000;
 
 const PIECE_CLASS: Record<PromotionPiece, string> = {
   q: 'queen',
@@ -255,15 +252,22 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
           .catch(() => undefined);
     }
   };
+  // Bot API 8.0+: Telegram's share sheet, where the sharer picks the chat and sends it themselves;
+  // once sent, closing returns them to the chat they opened the app from. Older clients have the
+  // bot post the photo to the group instead.
   const share = async (): Promise<void> => {
-    let shareId: number;
+    const body = { ply: store.position.value.ply };
     try {
-      const posted = await client.post(
-        `/api/games/${gameId}/share`,
-        { ply: store.position.value.ply },
-        ShareDtoSchema,
-      );
-      shareId = posted.id;
+      if (tg.supports('shareMessage')) {
+        const prepared = await client.post(
+          `/api/games/${gameId}/share/prepare`,
+          body,
+          PreparedShareDtoSchema,
+        );
+        if (await tg.shareMessage(prepared.preparedMessageId)) tg.close();
+        return;
+      }
+      await client.post(`/api/games/${gameId}/share`, body);
       toast(t('app.game.shared'));
     } catch (error) {
       toast(
@@ -271,20 +275,6 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
           ? t('app.game.share_limit')
           : t('app.common.error'),
       );
-      return;
-    }
-    // Once the photo is in the group, go there: to the message itself where the group has message
-    // links, otherwise just back to the chat the app was opened from. A slow job leaves them here.
-    const deadline = Date.now() + SHARE_WAIT_MS;
-    while (Date.now() < deadline) {
-      await new Promise((resolve) => setTimeout(resolve, SHARE_POLL_MS));
-      const status = await client
-        .get(`/api/games/${gameId}/shares/${shareId}`, ShareDtoSchema)
-        .catch(() => null);
-      if (!status?.sent) continue;
-      if (status.link) tg.openTelegramLink(status.link);
-      setTimeout(() => tg.close(), 300);
-      return;
     }
   };
   const resign = async (): Promise<void> => {

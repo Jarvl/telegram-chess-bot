@@ -28,10 +28,8 @@ const okRoute =
       return { status: 200, body: initial };
     if (call.method === 'POST' && call.path === `/api/games/${GAME}/pgn-link`)
       return { status: 200, body: { url: `/api/games/${GAME}/pgn?token=scoped-link` } };
-    if (call.method === 'POST' && call.path === `/api/games/${GAME}/share`)
-      return { status: 200, body: { id: 5, sent: false, link: null } };
-    if (call.method === 'GET' && call.path === `/api/games/${GAME}/shares/5`)
-      return { status: 200, body: { id: 5, sent: false, link: null } };
+    if (call.method === 'POST' && call.path === `/api/games/${GAME}/share/prepare`)
+      return { status: 200, body: { preparedMessageId: 'prepared-1' } };
     return { status: 200, body: { ok: true } };
   };
 
@@ -288,7 +286,7 @@ describe('Game', () => {
     expect(r.app.router.current.value).toEqual({ name: 'game', gameId: 'NextGameA1' });
   });
 
-  it('lets spectators flip and share the viewed position', async () => {
+  it('lets spectators flip and share the viewed position through the share sheet', async () => {
     const r = mount(afterPlies(3, { viewerRole: 'spectator' }));
     await r.flush();
     expect(adapter.viewOnly).toBe(true);
@@ -298,64 +296,37 @@ describe('Game', () => {
     await r.click('[data-action="share"]');
     expect(r.calls.at(-1)).toMatchObject({
       method: 'POST',
+      path: `/api/games/${GAME}/share/prepare`,
+      body: { ply: 1 },
+    });
+    expect(window.__tg!.shares).toEqual(['prepared-1']);
+    expect(window.__tg!.closed).toBe(false);
+    window.__tg!.answerShare(true);
+    await r.flush();
+    expect(window.__tg!.closed).toBe(true);
+  });
+
+  it('stays in the app when the share sheet is dismissed', async () => {
+    const r = mount(afterPlies(3, { viewerRole: 'white' }));
+    await r.flush();
+    await r.click('[data-action="share"]');
+    window.__tg!.answerShare(false);
+    await r.flush();
+    expect(window.__tg!.closed).toBe(false);
+  });
+
+  it('has the bot post the position on clients without the share sheet', async () => {
+    const r = mount(afterPlies(3, { viewerRole: 'white' }), undefined, '7.10');
+    await r.flush();
+    await r.click('[data-ply="1"]');
+    await r.click('[data-action="share"]');
+    expect(r.calls.at(-1)).toMatchObject({
+      method: 'POST',
       path: `/api/games/${GAME}/share`,
       body: { ply: 1 },
     });
     expect(document.querySelector('.toast')?.textContent).toBe('Shared to the group');
-  });
-
-  it('takes the sharer to the posted photo in the chat once it is sent', async () => {
-    vi.useFakeTimers();
-    const initial = afterPlies(2, { viewerRole: 'white' });
-    const link = 'https://t.me/c/1000000003/77';
-    let polls = 0;
-    const route: FakeRoute = (call) => {
-      if (call.method === 'GET' && call.path === `/api/games/${GAME}/shares/5`) {
-        polls += 1;
-        return { status: 200, body: { id: 5, sent: polls > 1, link: polls > 1 ? link : null } };
-      }
-      return okRoute(initial)(call);
-    };
-    const r = mount(initial, route);
-    await vi.advanceTimersByTimeAsync(100); // effects run on the next (faked) frame
-    r.root.querySelector<HTMLElement>('[data-action="share"]')!.click();
-    await vi.advanceTimersByTimeAsync(800);
-    expect(polls).toBe(1);
-    expect(window.__tg!.links).not.toContain(link);
-    await vi.advanceTimersByTimeAsync(800);
-    expect(polls).toBe(2);
-    expect(window.__tg!.links).toContain(link);
     expect(window.__tg!.closed).toBe(false);
-    await vi.advanceTimersByTimeAsync(300);
-    expect(window.__tg!.closed).toBe(true);
-  });
-
-  it('closes back to the chat when the group has no message links', async () => {
-    vi.useFakeTimers();
-    const initial = afterPlies(2, { viewerRole: 'white' });
-    const route: FakeRoute = (call) =>
-      call.method === 'GET' && call.path === `/api/games/${GAME}/shares/5`
-        ? { status: 200, body: { id: 5, sent: true, link: null } }
-        : okRoute(initial)(call);
-    const r = mount(initial, route);
-    await vi.advanceTimersByTimeAsync(100);
-    r.root.querySelector<HTMLElement>('[data-action="share"]')!.click();
-    await vi.advanceTimersByTimeAsync(1_100);
-    expect(window.__tg!.links).toEqual([]);
-    expect(window.__tg!.closed).toBe(true);
-  });
-
-  it('stays in the app when the share photo is not sent in time', async () => {
-    vi.useFakeTimers();
-    const r = mount(afterPlies(2, { viewerRole: 'white' }));
-    await vi.advanceTimersByTimeAsync(100);
-    r.root.querySelector<HTMLElement>('[data-action="share"]')!.click();
-    await vi.advanceTimersByTimeAsync(15_000);
-    const polls = r.calls.filter((c) => c.path === `/api/games/${GAME}/shares/5`).length;
-    expect(polls).toBeGreaterThan(5);
-    expect(window.__tg!.closed).toBe(false);
-    await vi.advanceTimersByTimeAsync(5_000);
-    expect(r.calls.filter((c) => c.path === `/api/games/${GAME}/shares/5`)).toHaveLength(polls);
   });
 
   it('marks your bar and clock gold on your move, and names the waiting side', async () => {

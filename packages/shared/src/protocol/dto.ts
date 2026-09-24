@@ -320,17 +320,10 @@ export const PgnLinkDtoSchema = z.object({ url: z.string().min(1) });
 
 export type PgnLinkDto = z.infer<typeof PgnLinkDtoSchema>;
 
-/**
- * A shared position. `sent` turns true once the photo is in the group; `link` then jumps to it, and
- * stays null for basic groups, which have no message links (spec §5.7).
- */
-export const ShareDtoSchema = z.object({
-  id: z.number().int(),
-  sent: z.boolean(),
-  link: z.string().nullable(),
-});
+/** A shared position ready for Telegram's share sheet: the id `WebApp.shareMessage` takes. */
+export const PreparedShareDtoSchema = z.object({ preparedMessageId: z.string().min(1) });
 
-export type ShareDto = z.infer<typeof ShareDtoSchema>;
+export type PreparedShareDto = z.infer<typeof PreparedShareDtoSchema>;
 
 export const OkDtoSchema = z.object({ ok: z.literal(true) });
 

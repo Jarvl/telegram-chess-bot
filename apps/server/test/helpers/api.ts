@@ -44,11 +44,13 @@ export async function startTestApi(
   const fake = await FakeTelegram.start();
   const config = testConfig({ TELEGRAM_API_ROOT: fake.url, ...configOverrides });
   const deps = testDeps(db);
-  const membership = new Membership(deps, createTelegramApi(config, { apiRoot: fake.url }));
+  const telegram = createTelegramApi(config, { apiRoot: fake.url, throttle: false });
+  const membership = new Membership(deps, telegram);
   const ctx: ApiContext = {
     deps,
     config,
     membership,
+    telegram,
     metrics: new Metrics(),
     streams: new StreamGate(),
     rateLimiter: new RateLimiter(120, 60_000),

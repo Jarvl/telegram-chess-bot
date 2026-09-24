@@ -367,7 +367,7 @@ Enforced by a bundle-size check in CI and a Lighthouse run against the staging U
 | `SecondaryButton` | 7.10 | In-page Cancel button |
 | `HapticFeedback` | 6.1 | Skip |
 | `downloadFile` | 8.0 | `openLink` to the PGN URL |
-| `shareMessage` + `savePreparedInlineMessage` (P1) | 8.0 | Hide the share-to-chat action |
+| `shareMessage` + `savePreparedInlineMessage` | 8.0 | The bot posts the shared position to the group (`POST /games/:id/share`) |
 
 ### 6.7 Theme and layout
 
@@ -498,6 +498,8 @@ Lichess import runs as a `lichess_import` job when a game with at least one move
 
 Cache: `board_images(key, telegram_file_id)` with `key = sha256(piece placement | side to move | lastMove | check | orientation | theme)`. On a hit the share job calls `sendPhoto` with the `file_id` and no upload; on a miss it uploads and stores the returned `file_id`. The image has White at the bottom when a spectator shares and the sharer's own colour at the bottom when a player shares.
 
+Share sheet (Bot API 8.0+): `POST /games/:id/share/prepare` calls `savePreparedInlineMessage` with an `InlineQueryResultPhoto` (same caption and `Open game` button), and the app passes the returned id to `WebApp.shareMessage`; once the user sends it, the app closes. Telegram takes such photos only by URL and only as JPEG, so `photo_url` and `thumbnail_url` point at `GET /api/board-images/<board>/<signature>/(board|thumb).jpg`: the path carries the FEN, orientation and last move, an HMAC over them keeps it to boards this server issued, and the image is drawn on each request (about 0.1 s) and served as immutable. Nothing is stored, and no `shares` row or job is written.
+
 ### 7.8 Limits
 
 | Limit | Value | Enforced in |
@@ -506,7 +508,7 @@ Cache: `board_images(key, telegram_file_id)` with `key = sha256(piece placement 
 | Active games per user per group | 5, admin-configurable 1–20 | `challenges.create` and `accept` |
 | Concurrent games between the same pair | 2 | same |
 | Challenge lifetime | 24 h | expiry scanner |
-| Position shares | 1 per user per minute | `sharing.share` |
+| Position shares posted by the bot (clients below 8.0) | 1 per user per minute | `sharing.share` |
 | `/chess`, `/settings` | 1 per group per minute | `bot` |
 | API requests | 120 per user per minute | `api` middleware |
 | Open SSE streams | 4 per user | `api` |
@@ -555,8 +557,9 @@ All routes are under `/api`, JSON in and out, validated with the zod schemas in 
 | `POST /games/:id/moves` | player | `{ uci, expectedPly, clientMoveId }` → game DTO |
 | `POST /games/:id/draw/offer`, `/accept`, `/decline`, `/claim` | player | |
 | `POST /games/:id/resign`, `/abort` | player | |
-| `POST /games/:id/share` | player or member | `{ ply }` → `ShareDto` (`{ id, sent: false, link: null }`); enqueues the photo job |
-| `GET /games/:id/shares/:shareId` | the sharer | `ShareDto`; `sent` once the photo is posted, `link` to it in supergroups. The app polls this, then opens the link and closes |
+| `POST /games/:id/share` | player or member | `{ ply }` → `{ ok }`; enqueues the photo job (clients below 8.0) |
+| `POST /games/:id/share/prepare` | player or member | `{ ply }` → `{ preparedMessageId }` for `WebApp.shareMessage` (§7.7) |
+| `GET /board-images/:board/:signature/(board\|thumb).jpg` | none; the signature is the authorisation | JPEG of a signed board, fetched by Telegram (§7.7) |
 | `POST /games/:id/rematch` | player | Creates the reversed-colour challenge |
 | `GET /games/:id/pgn` | player or member | `application/x-chess-pgn` |
 | `GET /groups/:g/settings`, `PUT /groups/:g/settings` | admin | |

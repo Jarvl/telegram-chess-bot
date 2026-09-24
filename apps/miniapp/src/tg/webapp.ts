@@ -6,6 +6,7 @@ export type Feature =
   | 'verticalSwipes'
   | 'secondaryButton'
   | 'downloadFile'
+  | 'shareMessage'
   | 'headerColor'
   | 'bottomBarColor'
   | 'popup'
@@ -19,6 +20,7 @@ export const FEATURE_MIN_VERSION: Record<Feature, string> = {
   verticalSwipes: '7.7',
   secondaryButton: '7.10',
   downloadFile: '8.0',
+  shareMessage: '8.0',
   headerColor: '6.1',
   bottomBarColor: '7.10',
   popup: '6.2',
@@ -83,6 +85,11 @@ export interface Tg {
   openLink(url: string): void;
   /** False when the client cannot download (below 8.0); the caller opens the link instead. */
   downloadFile(url: string, fileName: string): boolean;
+  /**
+   * Telegram's share sheet for a prepared message (8.0+): resolves whether the user sent it.
+   * Returns null instead of a promise when the client has none.
+   */
+  shareMessage(preparedMessageId: string): Promise<boolean> | null;
   onViewportChanged(callback: (stableHeight: number) => void): () => void;
   onThemeChanged(callback: () => void): () => void;
   /** Header and background (6.1) and bottom bar (7.10) take this theme colour; a no-op below. */
@@ -157,6 +164,7 @@ function nullTg(): Tg {
       window.open(url, '_blank', 'noopener');
     },
     downloadFile: () => false,
+    shareMessage: () => null,
     onViewportChanged: () => () => undefined,
     onThemeChanged: () => () => undefined,
     setChromeColor: () => undefined,
@@ -241,6 +249,12 @@ export function createTg(
       if (!supports('downloadFile') || !raw.downloadFile) return false;
       raw.downloadFile({ url, file_name: fileName });
       return true;
+    },
+    shareMessage(preparedMessageId) {
+      if (!supports('shareMessage') || !raw.shareMessage) return null;
+      return new Promise((resolve) => {
+        raw.shareMessage!(preparedMessageId, (sent) => resolve(sent));
+      });
     },
     onViewportChanged(callback) {
       const handler = (): void => callback(raw.viewportStableHeight || window.innerHeight);

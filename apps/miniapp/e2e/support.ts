@@ -109,6 +109,7 @@ export async function tgState(
     | 'emit'
     | 'setStableHeight'
     | 'answerPopup'
+    | 'answerShare'
     | 'clickSettings'
   >
 > {
@@ -122,6 +123,7 @@ export async function tgState(
       haptics: record.haptics,
       links: record.links,
       downloads: record.downloads,
+      shares: record.shares,
       closed: record.closed,
       chrome: record.chrome,
       popups: record.popups,

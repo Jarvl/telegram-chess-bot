@@ -1,9 +1,4 @@
-import {
-  MoveRequestSchema,
-  ShareRequestSchema,
-  type PgnLinkDto,
-  type ShareDto,
-} from '@group-chess/shared';
+import { MoveRequestSchema, ShareRequestSchema, type PgnLinkDto } from '@group-chess/shared';
 import { eq } from 'drizzle-orm';
 import type { Context, Hono } from 'hono';
 import { challenges } from '../../db/schema';
@@ -17,11 +12,12 @@ import {
   resign,
 } from '../../domain/games';
 import { buildGamePgn } from '../../domain/pgn';
-import { loadShare, sharePosition } from '../../domain/sharing';
+import { sharePosition } from '../../domain/sharing';
 import { challengeDtoRows, challengeToDto } from '../../domain/summaries';
+import { prepareShare } from '../../telegram/share';
 import { requireGameAccess } from '../access';
 import type { ApiContext, ApiEnv } from '../context';
-import { publicIdParam, rowIdParam } from '../middleware';
+import { publicIdParam } from '../middleware';
 import { issueScopedToken } from '../session';
 import { validate } from '../validate';
 
@@ -77,19 +73,24 @@ export function gamesRoutes(api: Hono<ApiEnv>, ctx: ApiContext): void {
 
   api.post('/games/:id/share', validate('json', ShareRequestSchema), async (c) => {
     const game = await accessible(c);
-    const { shareId } = await sharePosition(ctx.deps, {
+    await sharePosition(ctx.deps, {
       gameId: game.publicId,
       userId: userId(c),
       ply: c.req.valid('json').ply,
     });
-    const dto: ShareDto = { id: shareId, sent: false, link: null };
-    return c.json(dto);
+    return c.json({ ok: true });
   });
 
-  api.get('/games/:id/shares/:shareId', async (c) => {
+  // Bot API 8.0 clients share through Telegram's share sheet instead of the bot posting.
+  api.post('/games/:id/share/prepare', validate('json', ShareRequestSchema), async (c) => {
     const game = await accessible(c);
     return c.json(
-      await loadShare(db, game, { shareId: rowIdParam(c, 'shareId'), userId: userId(c) }),
+      await prepareShare(
+        { db, config: ctx.config, telegram: ctx.telegram },
+        game,
+        c.get('user'),
+        c.req.valid('json').ply,
+      ),
     );
   });
 

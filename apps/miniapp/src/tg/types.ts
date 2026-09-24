@@ -78,6 +78,7 @@ export type TelegramWebApp = {
     request: { url: string; file_name: string },
     callback?: (accepted: boolean) => void,
   ): void;
+  shareMessage?(msgId: string, callback?: (sent: boolean) => void): void;
   setHeaderColor?(color: string): void;
   setBackgroundColor?(color: string): void;
   setBottomBarColor?(color: string): void;

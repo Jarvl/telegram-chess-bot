@@ -89,7 +89,8 @@ export async function startServer(
   const bot: Bot | null = has('bot') ? await createBot(deps, config) : null;
   const api = bot ? bot.api : createTelegramApi(config, { apiRoot: config.TELEGRAM_API_ROOT });
   instrumentTelegramApi(api, metrics);
-  // Membership lookups get their own client without the message throttler (spec §4.3, §5.8).
+  // Membership lookups get their own client without the message throttler (spec §4.3, §5.8), and
+  // so does preparing a share: neither posts to a chat, and the user is waiting on both.
   const lookupApi = createTelegramApi(config, {
     apiRoot: config.TELEGRAM_API_ROOT,
     throttle: false,
@@ -100,6 +101,7 @@ export async function startServer(
     deps,
     config,
     membership,
+    telegram: lookupApi,
     metrics,
     streams: new StreamGate(),
     rateLimiter: new RateLimiter(120, 60_000),

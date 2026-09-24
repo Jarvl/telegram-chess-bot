@@ -20,6 +20,7 @@
     "drizzle-orm": "^0.45.2",
     "grammy": "^1.46.0",
     "hono": "^4.13.8",
+    "jpeg-js": "^0.4.4",
     "pino": "^10.3.1",
     "postgres": "^3.4.9",
     "prom-client": "^15.1.3",
