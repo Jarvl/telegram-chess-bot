@@ -32,12 +32,13 @@ import { Metrics } from './metrics';
 import { createTelegramApi, instrumentTelegramApi } from './telegram/client';
 import { Membership } from './telegram/membership';
 
-/** Spec §5.1 step 4; `chat_member` only arrives where the bot is an administrator. */
+/** Spec §5.1 step 4; `chat_member` only arrives where the bot is an administrator. Tip jar spec §2.3. */
 export const ALLOWED_UPDATES = [
   'message',
   'callback_query',
   'my_chat_member',
   'chat_member',
+  'pre_checkout_query',
 ] as const;
 
 /** Spec §5.1 step 3: three group commands, one private command, nothing in the default scope. */

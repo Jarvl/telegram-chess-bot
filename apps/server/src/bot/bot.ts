@@ -7,7 +7,7 @@ import {
 } from '@group-chess/shared';
 import { apiThrottler } from '@grammyjs/transformer-throttler';
 import { Bot, type Context } from 'grammy';
-import type { Chat, User } from 'grammy/types';
+import type { Chat } from 'grammy/types';
 import type { Config } from '../config';
 import {
   acceptChallenge,
@@ -30,20 +30,15 @@ import {
   type TelegramChatInfo,
 } from '../domain/groups';
 import { markLeft, touchMember } from '../domain/members';
-import { ensureUser, setDmAllowed, type TelegramUserInfo } from '../domain/users';
+import { ensureUser, setDmAllowed } from '../domain/users';
 import { enqueue } from '../jobs/queue';
 import { miniAppLink } from '../telegram/links';
 import { RateLimiter } from './rateLimit';
+import { registerPayments } from './payments';
 import { alertFor, replyFor } from './replies';
+import { userInfo } from './userInfo';
 
 type GroupChat = Chat.GroupChat | Chat.SupergroupChat;
-
-const userInfo = (user: User): TelegramUserInfo => ({
-  telegramUserId: user.id,
-  firstName: user.first_name,
-  username: user.username ?? null,
-  languageCode: user.language_code ?? null,
-});
 
 const chatInfo = (chat: GroupChat): TelegramChatInfo => ({
   telegramChatId: chat.id,
@@ -277,6 +272,8 @@ export async function createBot(deps: Deps, config: Config): Promise<Bot> {
     const user = await ensureUser(deps.db, userInfo(ctx.from));
     await setDmAllowed(deps.db, user.id, true);
   });
+
+  registerPayments(bot, deps);
 
   return bot;
 }
