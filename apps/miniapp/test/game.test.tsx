@@ -219,6 +219,9 @@ describe('Game', () => {
     const r = mount(afterPlies(2, { viewerRole: 'white' }));
     await r.flush();
     await r.click('[data-action="offer-draw"]');
+    expect(window.__tg!.popups.at(-1)?.message).toBe('Offer a draw?');
+    window.__tg!.answerPopup('confirm');
+    await r.flush();
     expect(r.calls.at(-1)?.path).toBe(`/api/games/${GAME}/draw/offer`);
     FakeEventSource.instances[0]!.send(
       'state',
@@ -301,7 +304,58 @@ describe('Game', () => {
       path: `/api/games/${GAME}/share`,
       body: { ply: 1 },
     });
-    expect(document.querySelector('.toast')?.textContent).toBe('Shared to the group');
+    expect(document.querySelector('.toast')?.textContent).toBe('Shared to Chess Club');
+    expect(r.root.querySelector('.icon-bar')).toBeNull();
+  });
+
+  it('gives a player four fixed slots: share to group, flip, draw and resign', async () => {
+    const r = mount(afterPlies(2, { viewerRole: 'white' }));
+    await r.flush();
+    const labels = [...r.root.querySelectorAll('.icon-bar button')].map((b) => [
+      b.getAttribute('data-action'),
+      b.textContent,
+    ]);
+    expect(labels).toEqual([
+      ['share', 'Share to group'],
+      ['flip', 'Flip'],
+      ['offer-draw', '½Draw'],
+      ['resign', 'Resign'],
+    ]);
+    await r.click('[data-action="flip"]');
+    expect(adapter.positions.at(-1)?.orientation).toBe('black');
+    await r.click('[data-action="resign"]');
+    expect(window.__tg!.popups.at(-1)?.message).toBe('Resign this game?');
+  });
+
+  it('dims Draw to Offered after your offer, leaving the slots in place', async () => {
+    const r = mount(afterPlies(2, { viewerRole: 'white', drawOffer: { by: 'white', atPly: 2 } }));
+    await r.flush();
+    const draw = r.root.querySelector<HTMLButtonElement>('[data-action="offer-draw"]')!;
+    expect(draw.textContent).toBe('½Offered');
+    expect(draw.disabled).toBe(true);
+    expect(r.root.querySelectorAll('.icon-bar button')).toHaveLength(4);
+  });
+
+  it('dims Draw against the bot', async () => {
+    const r = mount(afterPlies(2, { viewerRole: 'white', engineLevel: 'club' }));
+    await r.flush();
+    expect(r.root.querySelector<HTMLButtonElement>('[data-action="offer-draw"]')?.disabled).toBe(
+      true,
+    );
+  });
+
+  it('reads Abort in the last slot before the second move, with Draw dimmed', async () => {
+    const r = mount(gameDto({ viewerRole: 'white' }));
+    await r.flush();
+    expect(r.root.querySelector('[data-action="resign"]')).toBeNull();
+    expect(r.root.querySelector<HTMLButtonElement>('[data-action="offer-draw"]')?.disabled).toBe(
+      true,
+    );
+    await r.click('[data-action="abort"]');
+    expect(window.__tg!.popups.at(-1)?.message).toBe('Abort this game?');
+    window.__tg!.answerPopup('confirm');
+    await r.flush();
+    expect(r.calls.at(-1)?.path).toBe(`/api/games/${GAME}/abort`);
   });
 
   it('marks your bar and clock gold on your move, and names the waiting side', async () => {
@@ -344,7 +398,7 @@ describe('Game with move confirmations', () => {
     expect(posts(r)).toHaveLength(0);
     expect(window.__tg!.mainButton).toMatchObject({ text: 'Confirm move', visible: true });
     expect(window.__tg!.secondaryButton).toMatchObject({ text: 'Cancel', visible: true });
-    expect(r.root.querySelector('[data-action="resign"]')?.hasAttribute('disabled')).toBe(true);
+    expect(r.root.querySelector('[data-action="abort"]')?.hasAttribute('disabled')).toBe(true);
     // Two taps before the screen re-renders still send one move.
     window.__tg!.clickMain();
     window.__tg!.clickMain();

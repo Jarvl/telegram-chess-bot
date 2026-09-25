@@ -1035,6 +1035,50 @@ button {
   padding: 6px 16px;
 }
 
+/* Share gets the wider slot: its label is the longest, and it is the most used. */
+.icon-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  margin: 6px 12px 0;
+  padding: 4px;
+  border-radius: 18px;
+  background: var(--card);
+}
+
+.icon-btn {
+  border: 0;
+  background: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 8px 0 6px;
+  border-radius: 14px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.icon-btn.danger {
+  color: var(--destructive);
+}
+
+.icon-btn:disabled {
+  opacity: 0.4;
+}
+
+.icon-glyph {
+  height: 22px;
+  font-size: 19px;
+  line-height: 22px;
+  font-weight: 700;
+}
+
 .board-veil {
   position: absolute;
   inset: 0;

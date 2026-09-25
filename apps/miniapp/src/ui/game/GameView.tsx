@@ -449,7 +449,7 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
   const share = async (): Promise<void> => {
     try {
       await client.post(`/api/games/${gameId}/share`, { ply: store.position.value.ply });
-      toast(t('app.game.shared'));
+      toast(t('app.game.shared', { group: dto.group.title }));
     } catch (error) {
       toast(
         error instanceof ApiError && error.code === 'rate_limited'
@@ -466,6 +466,14 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
       })
     )
       await action('resign');
+  };
+  const offerDraw = async (): Promise<void> => {
+    if (
+      await confirmDialog(t('app.game.offer_draw_confirm'), {
+        confirmLabel: t('app.game.offer_draw'),
+      })
+    )
+      await action('draw/offer');
   };
   const abort = async (): Promise<void> => {
     if (
@@ -520,6 +528,12 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
   const claimable =
     isPlayer && dto.status === 'active' && (dto.claims.threefold || dto.claims.fiftyMove);
   const busy = moveState.kind !== 'idle';
+  const playing = isPlayer && dto.status === 'active';
+  // Draw waits for the second move, when the last slot turns from Abort to Resign, and the bot
+  // never takes one (spec §8).
+  const early = dto.plyCount < 2;
+  const drawOpen = canOffer && !early && dto.engineLevel === null;
+  const moveButtons = moveState.kind === 'pendingConfirm' && (inPage.confirm || inPage.cancel);
 
   return (
     <div class="game">
@@ -626,94 +640,151 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
       {isPlayer && offer && offer.by === myColour && dto.status === 'active' ? (
         <div class="banner soft">{t('app.game.draw_offered')}</div>
       ) : null}
-      <div class="toolbar">
-        {moveState.kind === 'pendingConfirm' && inPage.confirm ? (
-          <button
-            class="pill-btn primary"
-            data-action="confirm-move"
-            onClick={() => dispatch({ type: 'confirm' })}
-          >
-            {t('app.game.confirm_move')}
+      {moveButtons || claimable ? (
+        <div class="toolbar">
+          {moveState.kind === 'pendingConfirm' && inPage.confirm ? (
+            <button
+              class="pill-btn primary"
+              data-action="confirm-move"
+              onClick={() => dispatch({ type: 'confirm' })}
+            >
+              {t('app.game.confirm_move')}
+            </button>
+          ) : null}
+          {moveState.kind === 'pendingConfirm' && inPage.cancel ? (
+            <button
+              class="pill-btn"
+              data-action="cancel-move"
+              onClick={() => dispatch({ type: 'cancel' })}
+            >
+              {t('app.game.cancel')}
+            </button>
+          ) : null}
+          {claimable ? (
+            <button
+              class="pill-btn"
+              data-action="claim-draw"
+              disabled={busy}
+              onClick={() => void action('draw/claim')}
+            >
+              {t('app.game.claim_draw')}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+      {playing ? (
+        // Four fixed slots, so the row never wraps or changes height: the Draw slot dims once an
+        // offer is out, and the last one reads Abort until the second move, then Resign.
+        <div class="icon-bar">
+          <button class="icon-btn" data-action="share" onClick={() => void share()}>
+            <ShareIcon />
+            {t('app.game.share_to_group')}
           </button>
-        ) : null}
-        {moveState.kind === 'pendingConfirm' && inPage.cancel ? (
-          <button
-            class="pill-btn"
-            data-action="cancel-move"
-            onClick={() => dispatch({ type: 'cancel' })}
-          >
-            {t('app.game.cancel')}
-          </button>
-        ) : null}
-        {dto.status === 'finished' && isPlayer && !dto.voided ? (
-          <button class="pill-btn primary" data-action="rematch" onClick={() => void rematch()}>
-            {t('app.game.rematch')}
-          </button>
-        ) : null}
-        <button class="pill-btn" data-action="share" onClick={() => void share()}>
-          {t('app.game.share')}
-        </button>
-        {dto.status === 'active' && canOffer ? (
-          <button
-            class="pill-btn"
-            data-action="offer-draw"
-            disabled={busy}
-            onClick={() => void action('draw/offer')}
-          >
-            {t('app.game.offer_draw')}
-          </button>
-        ) : null}
-        {claimable ? (
-          <button
-            class="pill-btn"
-            data-action="claim-draw"
-            disabled={busy}
-            onClick={() => void action('draw/claim')}
-          >
-            {t('app.game.claim_draw')}
-          </button>
-        ) : null}
-        {isPlayer && dto.status === 'active' && dto.plyCount < 2 ? (
-          <button
-            class="pill-btn danger"
-            data-action="abort"
-            disabled={busy}
-            onClick={() => void abort()}
-          >
-            {t('app.game.abort')}
-          </button>
-        ) : null}
-        {isPlayer && dto.status === 'active' ? (
-          <button
-            class="pill-btn danger"
-            data-action="resign"
-            disabled={busy}
-            onClick={() => void resign()}
-          >
-            {t('app.game.resign')}
-          </button>
-        ) : null}
-        {!isPlayer ? (
-          <button class="pill-btn" data-action="flip" onClick={() => store.flip()}>
+          <button class="icon-btn" data-action="flip" onClick={() => store.flip()}>
+            <FlipIcon />
             {t('app.game.flip')}
           </button>
-        ) : null}
-        {dto.status === 'finished' && (dto.lichessUrl || dto.analysisUrl) ? (
-          <button class="pill-btn" data-action="analyse" onClick={analyse}>
-            {t('app.game.analyse')}
+          <button
+            class="icon-btn"
+            data-action="offer-draw"
+            disabled={busy || !drawOpen}
+            onClick={() => void offerDraw()}
+          >
+            <span class="icon-glyph" aria-hidden="true">
+              ½
+            </span>
+            {offer?.by === myColour ? t('app.game.draw_sent') : t('app.game.draw')}
           </button>
-        ) : null}
-        {dto.status === 'finished' ? (
-          <button class="pill-btn" data-action="pgn" onClick={() => void pgn()}>
-            {t('app.game.pgn')}
+          {early ? (
+            <button
+              class="icon-btn danger"
+              data-action="abort"
+              disabled={busy}
+              onClick={() => void abort()}
+            >
+              <FlagIcon />
+              {t('app.game.abort')}
+            </button>
+          ) : (
+            <button
+              class="icon-btn danger"
+              data-action="resign"
+              disabled={busy}
+              onClick={() => void resign()}
+            >
+              <FlagIcon />
+              {t('app.game.resign')}
+            </button>
+          )}
+        </div>
+      ) : (
+        <div class="toolbar">
+          {dto.status === 'finished' && isPlayer && !dto.voided ? (
+            <button class="pill-btn primary" data-action="rematch" onClick={() => void rematch()}>
+              {t('app.game.rematch')}
+            </button>
+          ) : null}
+          <button class="pill-btn" data-action="share" onClick={() => void share()}>
+            {t('app.game.share')}
           </button>
-        ) : null}
-        {dto.status === 'finished' && session.value?.launchedFrom?.kind === 'game' ? (
-          <button class="pill-btn" data-action="done" onClick={() => tg.close()}>
-            {t('app.game.done')}
-          </button>
-        ) : null}
-      </div>
+          {!isPlayer ? (
+            <button class="pill-btn" data-action="flip" onClick={() => store.flip()}>
+              {t('app.game.flip')}
+            </button>
+          ) : null}
+          {dto.status === 'finished' && (dto.lichessUrl || dto.analysisUrl) ? (
+            <button class="pill-btn" data-action="analyse" onClick={analyse}>
+              {t('app.game.analyse')}
+            </button>
+          ) : null}
+          {dto.status === 'finished' ? (
+            <button class="pill-btn" data-action="pgn" onClick={() => void pgn()}>
+              {t('app.game.pgn')}
+            </button>
+          ) : null}
+          {dto.status === 'finished' && session.value?.launchedFrom?.kind === 'game' ? (
+            <button class="pill-btn" data-action="done" onClick={() => tg.close()}>
+              {t('app.game.done')}
+            </button>
+          ) : null}
+        </div>
+      )}
     </div>
+  );
+}
+
+const ICON = {
+  width: 22,
+  height: 22,
+  viewBox: '0 0 24 24',
+  fill: 'none',
+  stroke: 'currentColor',
+  'stroke-width': 2,
+  'stroke-linecap': 'round',
+  'stroke-linejoin': 'round',
+  'aria-hidden': 'true',
+} as const;
+
+function ShareIcon() {
+  return (
+    <svg {...ICON}>
+      <path d="M12 3v12M7 8l5-5 5 5M5 13v7h14v-7" />
+    </svg>
+  );
+}
+
+function FlipIcon() {
+  return (
+    <svg {...ICON}>
+      <path d="M7 20V4M3 8l4-4 4 4M17 4v16M13 16l4 4 4-4" />
+    </svg>
+  );
+}
+
+function FlagIcon() {
+  return (
+    <svg {...ICON}>
+      <path d="M5 21V4M5 4h11l-2 4 2 4H5" />
+    </svg>
   );
 }
