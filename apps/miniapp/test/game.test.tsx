@@ -306,6 +306,7 @@ describe('Game', () => {
     });
     expect(document.querySelector('.toast')?.textContent).toBe('Shared to Chess Club');
     expect(r.root.querySelector('.icon-bar')).toBeNull();
+    expect(r.root.querySelector('.game')?.classList.contains('with-icon-bar')).toBe(false);
   });
 
   it('gives a player four fixed slots: share to group, flip, draw and resign', async () => {
@@ -321,6 +322,8 @@ describe('Game', () => {
       ['offer-draw', '½Draw'],
       ['resign', 'Resign'],
     ]);
+    // The board gives up the bar's extra height, so the bar clears the tab bar.
+    expect(r.root.querySelector('.game')?.classList.contains('with-icon-bar')).toBe(true);
     await r.click('[data-action="flip"]');
     expect(adapter.positions.at(-1)?.orientation).toBe('black');
     await r.click('[data-action="resign"]');

@@ -536,7 +536,7 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
   const moveButtons = moveState.kind === 'pendingConfirm' && (inPage.confirm || inPage.cancel);
 
   return (
-    <div class="game">
+    <div class={playing ? 'game with-icon-bar' : 'game'}>
       <PlayerBar dto={dto} colour={top} now={now} />
       <Board
         store={store}
@@ -676,16 +676,16 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
         // Four fixed slots, so the row never wraps or changes height: the Draw slot dims once an
         // offer is out, and the last one reads Abort until the second move, then Resign.
         <div class="icon-bar">
-          <button class="icon-btn" data-action="share" onClick={() => void share()}>
+          <button class="bar-btn" data-action="share" onClick={() => void share()}>
             <ShareIcon />
             {t('app.game.share_to_group')}
           </button>
-          <button class="icon-btn" data-action="flip" onClick={() => store.flip()}>
+          <button class="bar-btn" data-action="flip" onClick={() => store.flip()}>
             <FlipIcon />
             {t('app.game.flip')}
           </button>
           <button
-            class="icon-btn"
+            class="bar-btn"
             data-action="offer-draw"
             disabled={busy || !drawOpen}
             onClick={() => void offerDraw()}
@@ -697,7 +697,7 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
           </button>
           {early ? (
             <button
-              class="icon-btn danger"
+              class="bar-btn danger"
               data-action="abort"
               disabled={busy}
               onClick={() => void abort()}
@@ -707,7 +707,7 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
             </button>
           ) : (
             <button
-              class="icon-btn danger"
+              class="bar-btn danger"
               data-action="resign"
               disabled={busy}
               onClick={() => void resign()}

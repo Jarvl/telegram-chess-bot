@@ -757,7 +757,10 @@ button {
 
 .board-wrap {
   position: relative;
-  width: min(100vw, calc(var(--stable-height) - 200px - var(--board-reserve)));
+  width: min(
+    100vw,
+    calc(var(--stable-height) - 200px - var(--board-reserve) - var(--icon-bar-extra, 0px))
+  );
   max-width: 640px;
   min-width: 280px;
   aspect-ratio: 1;
@@ -1035,6 +1038,12 @@ button {
   padding: 6px 16px;
 }
 
+/* The icon bar stands 20px taller than the pill row the board's 200px budget was set for, so the
+   board gives that back rather than pushing the bar under the tab bar. */
+.game.with-icon-bar {
+  --icon-bar-extra: 20px;
+}
+
 /* Share gets the wider slot: its label is the longest, and it is the most used. */
 .icon-bar {
   display: grid;
@@ -1046,7 +1055,7 @@ button {
   background: var(--card);
 }
 
-.icon-btn {
+.bar-btn {
   border: 0;
   background: none;
   display: flex;
@@ -1064,11 +1073,11 @@ button {
   text-align: center;
 }
 
-.icon-btn.danger {
+.bar-btn.danger {
   color: var(--destructive);
 }
 
-.icon-btn:disabled {
+.bar-btn:disabled {
   opacity: 0.4;
 }
 
