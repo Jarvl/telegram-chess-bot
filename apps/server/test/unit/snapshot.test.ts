@@ -1,7 +1,12 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { snapshotImageKey } from '../../src/images/cache';
 import { loadFonts, type SnapshotFonts } from '../../src/images/fonts';
-import { renderSnapshotPng, renderSnapshotSvg } from '../../src/images/snapshot';
+import {
+  groupFontSize,
+  nameFontSize,
+  renderSnapshotPng,
+  renderSnapshotSvg,
+} from '../../src/images/snapshot';
 import { buildSnapshotModel, type SnapshotInput } from '../../src/images/snapshotModel';
 import { snapshotInput } from '../helpers/snapshotFixtures';
 
@@ -51,7 +56,7 @@ describe('renderSnapshotSvg', () => {
     expect(() => renderSnapshotPng(svg)).not.toThrow();
   });
 
-  it('renders a long game with faded rows and a finished result', async () => {
+  it('renders a long game cut to its last rows, with a finished result', async () => {
     const sans = Array.from({ length: 61 }, (_, i) => (i % 2 ? 'Nxe5+' : 'Qxd8#'));
     const svg = await render({
       ply: 61,
@@ -60,9 +65,29 @@ describe('renderSnapshotSvg', () => {
       status: 'finished',
       result: '1-0',
       endReason: 'checkmate',
-      deadlineAt: null,
     });
     expect(() => renderSnapshotPng(svg)).not.toThrow();
+  });
+});
+
+describe('nameFontSize', () => {
+  it('shrinks both names together as the longer one grows', () => {
+    const size = (white: string, black: string) =>
+      nameFontSize([
+        { colour: 'black', name: black, rating: null },
+        { colour: 'white', name: white, rating: null },
+      ]);
+    expect(size('x'.repeat(16), 'Bob')).toBe(40);
+    expect(size('Bob', 'x'.repeat(17))).toBe(34);
+    expect(size('x'.repeat(22), 'Bob')).toBe(34);
+    expect(size('x'.repeat(23), 'Bob')).toBe(30);
+  });
+});
+
+describe('groupFontSize', () => {
+  it('drops a size above 60 characters', () => {
+    expect(groupFontSize('x'.repeat(60))).toBe(34);
+    expect(groupFontSize('x'.repeat(61))).toBe(30);
   });
 });
 

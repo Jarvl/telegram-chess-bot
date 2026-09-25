@@ -1,7 +1,6 @@
 import { INITIAL_FEN } from '@group-chess/shared';
 import type { SnapshotInput } from '../../src/images/snapshotModel';
 
-export const SHARED_AT = new Date('2026-09-24T12:00:00Z');
 export const AFTER_E4 = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1';
 
 /** An active, rated, one-day game at its start, shared by White; override what a test needs. */
@@ -19,8 +18,6 @@ export function snapshotInput(overrides: Partial<SnapshotInput> = {}): SnapshotI
     result: null,
     endReason: null,
     plyCount: 0,
-    deadlineAt: new Date(SHARED_AT.getTime() + 86_400_000),
-    sharedAt: SHARED_AT,
     voided: false,
     ...overrides,
   };
