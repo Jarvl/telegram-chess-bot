@@ -114,7 +114,7 @@ Acceptance: from tapping the card to being back in the chat, no more than three 
 
 1. From the lobby's **Finished** tab for the group, Carol opens any past game.
 2. She scrubs through the moves with a slider or arrows, and can share any position to the chat.
-3. **Analyse on Lichess** opens the game on Lichess for engine analysis.
+3. **Analyze on Lichess** opens the game on Lichess for engine analysis.
 
 ## 7. Functional requirements
 
@@ -176,7 +176,7 @@ Edits to the game card are silent (no notification). There are no per-move messa
 
 - Available from the live board and from replays, for players and spectators alike.
 - Posts a rendered board image (with last-move highlight) to the game's group. The image is static; it is a talking point, not a board.
-- While the game is running the share carries no analysis link. Once the game is over, shares and the game card carry **Analyse on Lichess**.
+- While the game is running the share carries no analysis link. Once the game is over, shares and the game card carry **Analyze on Lichess**.
 - P1: share to any chat via Telegram's share sheet from the app (prepared inline message).
 
 ### 7.7 Notifications — P0
@@ -189,7 +189,7 @@ Edits to the game card are silent (no notification). There are no per-move messa
 ### 7.8 Spectating and history — P0
 
 - The lobby, opened from any game card or from the bot profile, is scoped to a group and has **Active** and **Finished** tabs. From the profile it first lists the user's groups.
-- Active games open on the live board in view-only mode. Finished games open in the replay view (slider and arrows, move list, share position, Analyse on Lichess, download PGN).
+- Active games open on the live board in view-only mode. Finished games open in the replay view (slider and arrows, move list, share position, Analyze on Lichess, download PGN).
 - Search and filter finished games by player (P1).
 - No engine evaluation, hints or annotations anywhere in the app, at any time.
 
@@ -254,7 +254,7 @@ Game card when finished:
 ```
 ♟ Alice (1520 → 1534) vs Bob (1498 → 1484)
 Checkmate · 1-0 · 34 moves · 1 day per move
-[ 🔁 Rematch ] [ 🔍 Analyse on Lichess ]
+[ 🔁 Rematch ] [ 🔍 Analyze on Lichess ]
 ```
 
 Shared position:
@@ -269,8 +269,8 @@ Carol shared move 23 of Alice vs Bob
 
 - **Lobby (group)**: header with group name; tabs Active · Finished · Players; **New game** button. "Your move" games pinned to the top of Active.
 - **Game**: board fills the width; above it the opponent's name, rating and clock; below it yours; a compact move list; for players, an icon bar with four fixed slots: Share to group, Flip, Draw (dimmed to Offered once you offer, and before the second move) and Resign (Abort before the second move); Draw, Abort and Resign each ask to confirm. Spectators get Share position and Flip.
-- **Game end**: result banner, rating change, **Analyse on Lichess**, **Rematch**, **Share final position**, **Done** (closes the app).
-- **Replay**: board, slider and arrow controls, move list, Share position, Analyse on Lichess, PGN.
+- **Game end**: result banner, rating change, **Analyze on Lichess**, **Rematch**, **Share final position**, **Done** (closes the app).
+- **Replay**: board, slider and arrow controls, move list, Share position, Analyze on Lichess, PGN.
 - **New game**: opponent (list of group players, or Open challenge), time per move, colour, rated toggle, **Send challenge**.
 - **Settings**: move confirmations, return to chat after moving, notifications, board theme and piece set (P1). Group settings for admins.
 
