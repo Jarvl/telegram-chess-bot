@@ -250,7 +250,7 @@ Rules for cards:
 | `/challenge @name` | Direct challenge to a current member the bot has seen here (handles compare without case), or to the person picked from Telegram's mention list (`text_mention`). A mention wins over a reply | Mentioning the bot or yourself; "I haven't seen @name in this group yet", since the Bot API cannot look a user up by username; limits as below |
 | `/challenge` as a reply | Direct challenge to the author of the replied-to message using group defaults. Card posted in the same topic (or the fixed topic, per settings) | Reply to yourself; reply to a bot; reply to an anonymous admin or channel post (`sender_chat` set); opponent or you blocked; you have 3 pending challenges |
 | `/challenge` alone | Open challenge, if the group allows them | Open challenges are off in this group; limits as above |
-| `/chess` | Posts `⚔️ Challenge someone` (`n_<groupId>`) and `♟ Group lobby` (`l_<groupId>`) URL buttons, one per row. Rate-limited to one per group per minute; excess is ignored silently | none |
+| `/chess` | Posts `⚔️ Challenge someone` (`n_<groupId>`) and `♟ Group lobby` (`l_<groupId>`) URL buttons, one per row. Rate-limited to 20 per person per group per minute; excess is ignored silently | none |
 | `/settings` | Posts an `Open settings` URL button (`s_<groupId>`). Same rate limit. Anyone can see the button; the app enforces admin rights | none |
 | `/start` in a private chat | Marks `dm_allowed = true` (the user started the chat), replies with an `♟ Open Chess` button. In private chats this may be a `web_app` inline button | none |
 | Anything else | Ignored, including commands addressed to other bots and `/challenge@otherbot` | none |
@@ -525,7 +525,7 @@ the bottom when a player shares.
 | Concurrent games between the same pair | 2 | same |
 | Challenge lifetime | 24 h | expiry scanner |
 | Position shares | 20 per user per minute | `sharing.share` |
-| `/chess`, `/settings` | 1 per group per minute | `bot` |
+| `/chess`, `/settings` | 20 per person per group per minute | `bot` |
 | API requests | 120 per user per minute | `api` middleware |
 | Open SSE streams | 4 per user | `api` |
 | Draw offers | 1 per player per own move | `games.offerDraw` |

@@ -267,10 +267,8 @@ describe('/challenge', () => {
 });
 
 describe('/chess, /settings and /start', () => {
-  it('posts Challenge and lobby buttons once per group per minute, sharing the budget with /settings', async () => {
+  it('posts Challenge and lobby buttons', async () => {
     await post(commandUpdate({ chat, from: alice, text: '/chess' }));
-    await post(commandUpdate({ chat, from: bob, text: '/chess' }));
-    await post(commandUpdate({ chat, from: bob, text: '/settings' }));
     const [group] = await db.select().from(groups);
     const sent = await messagesSent();
     expect(sent).toHaveLength(1);
@@ -288,6 +286,17 @@ describe('/chess, /settings and /start', () => {
         },
       ],
     });
+  });
+
+  it('allows 20 links per person per group per minute, shared with /settings', async () => {
+    const other = supergroup(-1001000000079);
+    for (let i = 0; i < 20; i += 1) {
+      await post(commandUpdate({ chat: other, from: alice, text: i % 2 ? '/settings' : '/chess' }));
+    }
+    await post(commandUpdate({ chat: other, from: alice, text: '/chess' }));
+    await post(commandUpdate({ chat: other, from: bob, text: '/chess' }));
+    await post(commandUpdate({ chat, from: alice, text: '/chess' }));
+    expect(await messagesSent()).toHaveLength(22);
   });
 
   it('answers an anonymous admin without recording the anonymous bot as a member', async () => {
