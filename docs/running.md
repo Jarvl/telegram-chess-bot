@@ -78,11 +78,13 @@ Still in BotFather:
   including the trailing slash.
 - Last it asks for a **short name**. Whatever you choose becomes `MINI_APP_SHORT_NAME`. Deep links
   are built as `https://t.me/<BOT_USERNAME>/<MINI_APP_SHORT_NAME>?startapp=…`.
-- Optional but nicer: `/mybots` → your bot → *Bot Settings* → *Menu Button* / *Main Mini App*, set to
-  the same `<PUBLIC_URL>/app/`, so the bot's profile button opens the lobby.
+- Optional but nicer: `/mybots` → your bot → *Bot Settings* → *Configure Mini App* → *Main App*, set
+  to the same `<PUBLIC_URL>/app/`, so the bot's profile and its entry in chat lists get an
+  **Open App** button. It opens your games across all groups.
 
-Do **not** add commands in BotFather. The server registers `/play`, `/chess` and `/settings` itself
-on every start.
+Do **not** add commands or a menu button in BotFather. On every start the server registers `/play`,
+`/chess` and `/settings`, and sets the DM's **Open** menu button to `<PUBLIC_URL>/app/`, so a new
+tunnel URL is picked up by a restart.
 
 ## 5. Configure
 
@@ -121,7 +123,7 @@ pnpm dev:server
 ```
 
 On start it runs the migrations, registers the webhook against `PUBLIC_URL`, and sets the command
-menu. You should see a line ending `server started`.
+menu and the DM's **Open** button. You should see a line ending `server started`.
 
 Check it from outside:
 

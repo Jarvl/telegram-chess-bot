@@ -3,10 +3,10 @@
 ## BotFather checklist (spec §5.1)
 
 1. Create the bot; keep privacy mode on (the default). The bot only ever sees its commands, replies to its own messages, button taps and Mini App requests.
-2. `/newapp`: choose the bot, a title, a short description, an image, and the short name that becomes `MINI_APP_SHORT_NAME`. Web App URL: `<PUBLIC_URL>/app/`. In the bot's settings enable the same URL as the **Main Mini App**, so the profile button opens the lobby.
+2. `/newapp`: choose the bot, a title, a short description, an image, and the short name that becomes `MINI_APP_SHORT_NAME`. Web App URL: `<PUBLIC_URL>/app/`. In the bot's settings enable the same URL as the **Main App**, so the profile and chat-list **Open App** button opens the user's games.
 3. Commands: the server registers them itself at every boot (`/play`, `/chess`, `/settings` for group chats; `/start` and `/paysupport` for private chats; nothing in the default scope). Do not add commands in BotFather.
 4. Webhook: the server calls `setWebhook` at boot with `WEBHOOK_SECRET` and `allowed_updates` `message, callback_query, my_chat_member, chat_member, pre_checkout_query`. With `TELEGRAM_POLLING=true` it deletes the webhook and long-polls instead.
-5. Leave the menu button on its default (opens the Main Mini App).
+5. Menu button: the server sets it at boot (`setChatMenuButton`, default scope) to a web app button labelled **Open** at `<PUBLIC_URL>/app/`. It shows only in the bot's DM; Telegram does not offer web app menu buttons in groups, where every card carries a **♟ Group lobby** link instead. Do not set it in BotFather: the next boot overwrites it.
 6. Payments: nothing to set up. Tips are paid in Telegram Stars (`XTR`), which needs no payment provider in BotFather.
 7. Add the bot to a group. It posts a welcome card with an **♟ Open Chess** button; promote it to administrator so it can pin the card and see joins and leaves.
 

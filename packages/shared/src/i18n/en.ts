@@ -70,6 +70,8 @@ export const en = {
   'button.rematch': '🔁 Rematch',
   'button.analyse': '🔍 Analyse on Lichess',
   'button.go_to_group': 'Go to group',
+  'button.group_lobby': '♟ Group lobby',
+  'button.menu': 'Open',
   'dm.turn': 'Your move vs {opponent} · {lastMove} · {timeLeft} left',
   'dm.turn.no_clock': 'Your move vs {opponent} · {lastMove}',
   'dm.turn.first': 'Your move vs {opponent} · {timeLeft} left',

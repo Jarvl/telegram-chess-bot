@@ -38,6 +38,7 @@ export type ChallengeCardView = {
   timePerMove: TimePerMove;
   rated: boolean;
   challengerColour: ColourChoice;
+  lobbyLink: string;
 };
 
 export type GameCardView = {
@@ -59,6 +60,7 @@ export type GameCardView = {
   analysisUrl: string | null;
   lichessUrl: string | null;
   openLink: string;
+  lobbyLink: string;
 };
 
 const MENTION_MARK = '\u0000';
@@ -93,6 +95,11 @@ function withMention(
 function keyboard(rows: InlineKeyboardButton[][]): InlineKeyboardMarkup | undefined {
   const nonEmpty = rows.filter((row) => row.length > 0);
   return nonEmpty.length > 0 ? { inline_keyboard: nonEmpty } : undefined;
+}
+
+/** The last row of every group card: the way into the group's page without knowing /chess. */
+function lobbyRow(view: { lobbyLink: string }): InlineKeyboardButton[] {
+  return [{ text: t('button.group_lobby'), url: view.lobbyLink }];
 }
 
 function urlButton(text: string, url: string | null): InlineKeyboardButton | null {
@@ -130,7 +137,7 @@ export function renderChallengeCard(view: ChallengeCardView): RenderedMessage {
     return {
       text: `${line1.text}\n${terms(view)}`,
       entities: line1.entities,
-      reply_markup: keyboard([[accept, declineOrCancel]]),
+      reply_markup: keyboard([[accept, declineOrCancel], lobbyRow(view)]),
     };
   }
   const params = { challenger, opponent: view.opponent?.name ?? '' };
@@ -143,7 +150,7 @@ export function renderChallengeCard(view: ChallengeCardView): RenderedMessage {
     : view.status === 'expired'
       ? 'card.challenge.open_expired'
       : 'card.challenge.open_withdrawn';
-  return { text: t(key, params), entities: [] };
+  return { text: t(key, params), entities: [], reply_markup: keyboard([lobbyRow(view)]) };
 }
 
 export function renderGameCard(view: GameCardView): RenderedMessage {
@@ -166,7 +173,11 @@ export function renderGameCard(view: GameCardView): RenderedMessage {
       );
     }
     const buttons = view.plyCount > 0 && analyse ? [analyse] : [];
-    return { text: lines.join('\n'), entities: [], reply_markup: keyboard([buttons]) };
+    return {
+      text: lines.join('\n'),
+      entities: [],
+      reply_markup: keyboard([buttons, lobbyRow(view)]),
+    };
   }
 
   if (view.status === 'active') {
@@ -188,7 +199,10 @@ export function renderGameCard(view: GameCardView): RenderedMessage {
     return {
       text: `${title}\n${status}`,
       entities: [],
-      reply_markup: keyboard([[{ text: t('button.open_game'), url: view.openLink }]]),
+      reply_markup: keyboard([
+        [{ text: t('button.open_game'), url: view.openLink }],
+        lobbyRow(view),
+      ]),
     };
   }
 
@@ -201,7 +215,11 @@ export function renderGameCard(view: GameCardView): RenderedMessage {
           : null;
     const lines = [t('card.aborted.title', { white, black })];
     if (reason) lines.push(reason);
-    return { text: lines.join('\n'), entities: [], reply_markup: keyboard([[rematch]]) };
+    return {
+      text: lines.join('\n'),
+      entities: [],
+      reply_markup: keyboard([[rematch], lobbyRow(view)]),
+    };
   }
 
   const title =
@@ -222,7 +240,11 @@ export function renderGameCard(view: GameCardView): RenderedMessage {
     timePerMove: timePerMoveLabel(view.timePerMove),
   });
   const buttons = analyse ? [rematch, analyse] : [rematch];
-  return { text: `${title}\n${status}`, entities: [], reply_markup: keyboard([buttons]) };
+  return {
+    text: `${title}\n${status}`,
+    entities: [],
+    reply_markup: keyboard([buttons, lobbyRow(view)]),
+  };
 }
 
 export function renderWelcomeCard(openChessLink: string): RenderedMessage {

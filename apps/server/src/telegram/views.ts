@@ -7,7 +7,7 @@ import {
 } from '@group-chess/shared';
 import type { Config } from '../config';
 import type { DbOrTx } from '../db/client';
-import type { ChallengeRow, GameRow, UserRow } from '../db/schema';
+import type { ChallengeRow, GameRow, GroupRow, UserRow } from '../db/schema';
 import { listMoves } from '../domain/games';
 import { getPlayerRating } from '../domain/ratings';
 import { displayName, requireUser } from '../domain/users';
@@ -22,9 +22,18 @@ export function personView(user: UserRow): PersonView {
   };
 }
 
+/** Cards name their group by its row, which every caller has already loaded to find the chat. */
+type CardGroup = Pick<GroupRow, 'publicId'>;
+
+function lobbyLink(config: Config, group: CardGroup): string {
+  return miniAppLink(config, { kind: 'lobby', groupId: group.publicId });
+}
+
 export async function challengeCardView(
   tx: DbOrTx,
   challenge: ChallengeRow,
+  group: CardGroup,
+  config: Config,
 ): Promise<ChallengeCardView> {
   const challenger = await requireUser(tx, challenge.challengerId);
   const opponent =
@@ -37,6 +46,7 @@ export async function challengeCardView(
     timePerMove: challenge.timePerMove as TimePerMove,
     rated: challenge.rated,
     challengerColour: challenge.challengerColour,
+    lobbyLink: lobbyLink(config, group),
   };
 }
 
@@ -72,6 +82,7 @@ async function ratingView(
 export async function gameCardView(
   tx: DbOrTx,
   game: GameRow,
+  group: CardGroup,
   config: Config,
 ): Promise<GameCardView> {
   const [white, black] = await Promise.all([
@@ -113,5 +124,6 @@ export async function gameCardView(
     analysisUrl: moves.length > 0 ? analysisUrl(moves.map((move) => move.san)) : null,
     lichessUrl: game.lichessUrl,
     openLink: miniAppLink(config, { kind: 'game', gameId: game.publicId }),
+    lobbyLink: lobbyLink(config, group),
   };
 }

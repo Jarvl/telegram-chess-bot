@@ -84,6 +84,15 @@ describe('send_challenge_card', () => {
       length: 3,
     });
     expect((await db.select().from(challenges))[0]?.messageId).toBe(101);
+    expect(
+      (call?.body.reply_markup as { inline_keyboard: { text: string; url?: string }[][] })
+        .inline_keyboard[1],
+    ).toEqual([
+      {
+        text: '♟ Group lobby',
+        url: `https://t.me/TestChessBot/chess?startapp=l_${group.publicId}`,
+      },
+    ]);
   });
 
   it('hands the message id to a game accepted before the card was sent', async () => {
@@ -123,6 +132,15 @@ describe('edit_card', () => {
       message_id: 900,
       text: '♟ @alice (1500?) vs Bob (1500?)\n1 day per move · Rated · Move 1 · Bob to move',
     });
+    expect(
+      (call?.body.reply_markup as { inline_keyboard: { text: string; url?: string }[][] })
+        .inline_keyboard[1],
+    ).toEqual([
+      {
+        text: '♟ Group lobby',
+        url: `https://t.me/TestChessBot/chess?startapp=l_${group.publicId}`,
+      },
+    ]);
   });
 
   it('retries an edit for a card that has no message id yet', async () => {

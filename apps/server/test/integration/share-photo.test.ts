@@ -72,7 +72,7 @@ const pendingJobs = () =>
 
 describe('send_share_photo', () => {
   it('uploads the rendered board with caption, topic and button, then stores the message and file ids', async () => {
-    const { alice, game } = await table();
+    const { group, alice, game } = await table();
     const row = await share(game.id, alice.id, 2);
     await worker.runOnce();
     const [call] = fake.callsTo('sendPhoto');
@@ -88,6 +88,12 @@ describe('send_share_photo', () => {
       text: '♟ Open live game',
       url: `https://t.me/TestChessBot/chess?startapp=g_${game.publicId}`,
     });
+    expect(markup.inline_keyboard[1]).toEqual([
+      {
+        text: '♟ Group lobby',
+        url: `https://t.me/TestChessBot/chess?startapp=l_${group.publicId}`,
+      },
+    ]);
     const [stored] = await db.select().from(shares);
     expect(stored?.id).toBe(row.id);
     expect(stored?.messageId).toBe(101);

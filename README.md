@@ -80,7 +80,7 @@ Everything is an environment variable, validated at boot (`apps/server/src/confi
 
 ## Deployment in one paragraph
 
-Build the image (`docker build -t group-chess .` or take `ghcr.io/<owner>/<repo>:<version>` from a release), run it with the variables above and a PostgreSQL 18 database, put an HTTPS reverse proxy in front that does not buffer `/api/games/*/events`, register the Mini App in BotFather with `<PUBLIC_URL>/app/`, and open the bot. Migrations, the webhook and the command menu are set up by the server at boot. The full checklist, the metrics and the alerts are in [docs/operations.md](docs/operations.md).
+Build the image (`docker build -t group-chess .` or take `ghcr.io/<owner>/<repo>:<version>` from a release), run it with the variables above and a PostgreSQL 18 database, put an HTTPS reverse proxy in front that does not buffer `/api/games/*/events`, register the Mini App in BotFather with `<PUBLIC_URL>/app/`, and open the bot. Migrations, the webhook, the command menu and the DM's Open button are set up by the server at boot. The full checklist, the metrics and the alerts are in [docs/operations.md](docs/operations.md).
 
 ## Licence
 

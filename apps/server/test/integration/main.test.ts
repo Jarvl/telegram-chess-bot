@@ -53,9 +53,18 @@ describe('startServer', () => {
     });
   });
 
-  it('still starts when Telegram refuses the webhook or the command registration', async () => {
+  it('makes the private-chat menu button open the Mini App', () => {
+    const calls = fake.callsTo('setChatMenuButton');
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.body).toEqual({
+      menu_button: { type: 'web_app', text: 'Open', web_app: { url: 'https://chess.test/app/' } },
+    });
+  });
+
+  it('still starts when Telegram refuses the webhook, the commands or the menu button', async () => {
     fake.failNext('setWebhook', { error_code: 429, description: 'Too Many Requests' });
     fake.failNext('setMyCommands', { error_code: 500, description: 'Internal Server Error' });
+    fake.failNext('setChatMenuButton', { error_code: 500, description: 'Internal Server Error' });
     const second = await startServer(
       testConfig({ TELEGRAM_API_ROOT: fake.url, PORT: 0, ENGINE_ENABLED: false }),
     );

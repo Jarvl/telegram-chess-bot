@@ -100,6 +100,12 @@ const sendSharePhoto =
                 url: miniAppLink(ctx.config, { kind: 'game', gameId: game.publicId }),
               },
             ],
+            [
+              {
+                text: t('button.group_lobby'),
+                url: miniAppLink(ctx.config, { kind: 'lobby', groupId: group.publicId }),
+              },
+            ],
           ],
         },
       }),

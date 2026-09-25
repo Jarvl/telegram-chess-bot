@@ -11,6 +11,8 @@ import {
 const alice = { name: 'Alice', username: 'alice', telegramUserId: 1 };
 const bob = { name: 'Bob', username: 'bob', telegramUserId: 2 };
 const bobNoHandle = { name: 'Bob', username: null, telegramUserId: 2 };
+const lobbyLink = 'https://t.me/GroupChessBot/chess?startapp=l_grp0000001';
+const lobbyRow = [{ text: '♟ Group lobby', url: lobbyLink }];
 
 const challenge = (over: Partial<ChallengeCardView> = {}): ChallengeCardView => ({
   publicId: 'chal000001',
@@ -20,6 +22,7 @@ const challenge = (over: Partial<ChallengeCardView> = {}): ChallengeCardView => 
   timePerMove: 86400,
   rated: true,
   challengerColour: 'random',
+  lobbyLink,
   ...over,
 });
 
@@ -41,6 +44,7 @@ const game = (over: Partial<GameCardView> = {}): GameCardView => ({
   analysisUrl: null,
   lichessUrl: null,
   openLink: 'https://t.me/GroupChessBot/chess?startapp=g_game000001',
+  lobbyLink,
   ...over,
 });
 
@@ -55,6 +59,7 @@ describe('renderChallengeCard', () => {
           { text: 'Accept', callback_data: 'ch/acc/chal000001' },
           { text: 'Decline', callback_data: 'ch/dec/chal000001' },
         ],
+        lobbyRow,
       ],
     });
   });
@@ -86,10 +91,10 @@ describe('renderChallengeCard', () => {
     ['expired', bob, '♟ Alice vs Bob · Challenge expired'],
     ['cancelled', null, '♟ Alice · Challenge withdrawn'],
     ['expired', null, '♟ Alice · Challenge expired'],
-  ] as const)('renders a %s challenge without buttons', (status, opponent, text) => {
+  ] as const)('renders a %s challenge with only the lobby button', (status, opponent, text) => {
     const card = renderChallengeCard(challenge({ status, opponent }));
     expect(card.text).toBe(text);
-    expect(card.reply_markup).toBeUndefined();
+    expect(card.reply_markup).toEqual({ inline_keyboard: [lobbyRow] });
   });
 });
 
@@ -102,6 +107,7 @@ describe('renderGameCard', () => {
     expect(card.reply_markup).toEqual({
       inline_keyboard: [
         [{ text: '♟ Open game', url: 'https://t.me/GroupChessBot/chess?startapp=g_game000001' }],
+        lobbyRow,
       ],
     });
   });
@@ -141,6 +147,7 @@ describe('renderGameCard', () => {
           { text: '🔁 Rematch', callback_data: 'gm/rem/game000001' },
           { text: '🔍 Analyse on Lichess', url: 'https://lichess.org/abcdefgh' },
         ],
+        lobbyRow,
       ],
     });
   });
@@ -182,6 +189,7 @@ describe('renderGameCard', () => {
       game({ status: 'finished', result: '*', endReason: 'abort', abortedBy: 'Bob' }),
     );
     expect(byPlayer.text).toBe('♟ Alice vs Bob · Aborted\naborted by Bob');
+    expect(byPlayer.reply_markup?.inline_keyboard[1]).toEqual(lobbyRow);
   });
 
   it('renders a voided game with its former result and Analyse when it had moves', () => {
@@ -203,7 +211,7 @@ describe('renderGameCard', () => {
       game({ status: 'finished', result: '*', endReason: 'voided', voided: true, plyCount: 0 }),
     );
     expect(noMoves.text).toBe('♟ Alice vs Bob · Voided by an admin');
-    expect(noMoves.reply_markup).toBeUndefined();
+    expect(noMoves.reply_markup).toEqual({ inline_keyboard: [lobbyRow] });
   });
 });
 
