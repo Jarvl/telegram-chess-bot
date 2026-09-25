@@ -32,6 +32,8 @@ export function commandUpdate(options: {
   threadId?: number;
   /** Entities after the command's own, such as an @mention of the opponent. */
   entities?: MessageEntity[];
+  /** Posted as an anonymous admin: Telegram sets sender_chat to the group itself. */
+  senderChat?: boolean;
 }): Update {
   const command = options.text.split(' ')[0] ?? options.text;
   const base = { date: 1, chat: options.chat };
@@ -41,6 +43,7 @@ export function commandUpdate(options: {
       ...base,
       message_id: (messageId += 1),
       from: options.from,
+      ...(options.senderChat ? { sender_chat: options.chat } : {}),
       text: options.text,
       entities: [
         { type: 'bot_command', offset: 0, length: command.length },

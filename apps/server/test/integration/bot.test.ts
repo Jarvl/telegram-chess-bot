@@ -290,6 +290,16 @@ describe('/chess, /settings and /start', () => {
     });
   });
 
+  it('answers an anonymous admin without recording the anonymous bot as a member', async () => {
+    const other = supergroup(-1001000000078);
+    const anonymousBot = { ...tgUser(1087968824, 'Group', 'GroupAnonymousBot'), is_bot: true };
+    await post(
+      commandUpdate({ chat: other, from: anonymousBot, text: '/chess', senderChat: true }),
+    );
+    expect(await messagesSent()).toHaveLength(1);
+    expect(await db.select().from(users).where(eq(users.isEngine, false))).toHaveLength(0);
+  });
+
   it('posts an Open settings button', async () => {
     const other = supergroup(-1001000000077);
     await post(commandUpdate({ chat: other, from: alice, text: '/settings' }));
