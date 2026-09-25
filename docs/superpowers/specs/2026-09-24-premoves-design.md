@@ -285,9 +285,16 @@ On the viewer's turn, a drop goes through the move machine, unchanged. In premov
    restores the board.
 2. With `base` as the queue currently shown, the store's queue becomes `[...base, uci]`
    optimistically, and `PUT /premoves` is sent with `{ base, premoves: [...base, uci],
-   expectedPly: plyCount }`. Drops are ignored while a premove request is in flight. The board's
-   `movable` is set to none for that time.
-3. On success, `applyState(dto)` runs. On failure, the optimistic edit is dropped and the game
+   expectedPly: plyCount }`.
+   - **Saves run one at a time, and the board stays live during one.** A premove or Remove made
+     while a save is running goes on screen at once. When the save settles, the next `PUT` sends
+     the chain the player now wants, with `base` set to the chain the previous save confirmed,
+     which is the chain that edit was made on. A change from another device in between is still
+     refused, never overwritten.
+   - While a save runs, a same-ply state from the server (such as the save's own echo) leaves the
+     unsaved chain on screen. A new ply or a game end clears it.
+   - A player can make premoves back to back; none waits on the network, and none is dropped.
+3. On success, `applyState(dto)` runs. On failure, every unsaved edit is dropped and the game
    reloads.
    - A network failure also shows the offline toast.
    - A `stale_state` with `reason: 'premoves_changed'` means another device edited the chain

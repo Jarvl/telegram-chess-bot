@@ -3,11 +3,7 @@ import type { GameStore } from '../../state/game';
 import { useApp } from '../context';
 
 /** The premove stepper under the move strip (premoves spec, Stepper). */
-export function PremoveBar(props: {
-  store: GameStore;
-  onRemove: (step: number) => void;
-  busy?: boolean;
-}) {
+export function PremoveBar(props: { store: GameStore; onRemove: (step: number) => void }) {
   const { store } = props;
   const { tg } = useApp();
   const length = store.premoves.value.length;
@@ -33,12 +29,7 @@ export function PremoveBar(props: {
           : t('app.game.premove_step', { k: step, n: length })}
       </span>
       {step > 0 ? (
-        <button
-          class="pill-btn"
-          data-action="premove-remove"
-          disabled={props.busy}
-          onClick={() => props.onRemove(step)}
-        >
+        <button class="pill-btn" data-action="premove-remove" onClick={() => props.onRemove(step)}>
           {t('app.game.premove_remove')}
         </button>
       ) : null}

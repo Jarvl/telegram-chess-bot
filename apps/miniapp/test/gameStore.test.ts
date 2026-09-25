@@ -213,10 +213,20 @@ describe('GameStore premoves', () => {
     expect(store.dests.value.has('b8')).toBe(false);
   });
 
-  it('locks the board while a premove edit is being sent', () => {
+  it('keeps the board live while a premove edit is being saved', () => {
     const store = new GameStore(waiting());
     store.premoveSending.value = true;
-    expect(store.canMove.value).toBe(false);
+    expect(store.canMove.value).toBe(true);
+  });
+
+  it('keeps an unsaved chain through a same-ply state while saving, and drops it on a new ply', () => {
+    const store = new GameStore(waiting());
+    store.premoveSending.value = true;
+    store.optimisticPremoves.value = ['g1h3', 'h3g5'];
+    store.apply(waiting(['g1h3']));
+    expect(store.premoves.value).toEqual(['g1h3', 'h3g5']);
+    store.apply(afterPlies(2, { viewerRole: 'white' }));
+    expect(store.optimisticPremoves.value).toBeNull();
   });
 });
 

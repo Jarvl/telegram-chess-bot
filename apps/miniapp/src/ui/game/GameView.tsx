@@ -169,19 +169,33 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
     });
   }, [store]);
 
-  // Premoves spec, Queuing: an optimistic compare-and-set; the server's list always wins.
+  // Premoves spec, Queuing: optimistic compare-and-set edits, saved one at a time. An edit made
+  // while a save runs goes on screen at once and is saved as soon as that one settles.
+  const wantedPremovesRef = useRef<string[] | null>(null);
   const editPremoves = async (next: string[], step: number | null): Promise<void> => {
-    const base = store.premoves.value;
-    const expectedPly = store.dto.value.plyCount;
     const previousStep = store.premoveStep.value;
     store.optimisticPremoves.value = next;
     store.premoveStep.value = step;
+    wantedPremovesRef.current = next;
+    if (store.premoveSending.value) return;
+    // Every edit made from here until the loop ends builds on the chain the previous save
+    // confirmed, so that is what each save compares against.
+    let confirmed = store.dto.value.premoves;
+    const expectedPly = store.dto.value.plyCount;
     store.premoveSending.value = true;
     try {
-      const body = { base, premoves: next, expectedPly };
-      applyState(await client.put(`/api/games/${gameId}/premoves`, body, GameDtoSchema));
-      tg.haptic('light');
+      while (wantedPremovesRef.current && !sameList(wantedPremovesRef.current, confirmed)) {
+        const target = wantedPremovesRef.current;
+        const body = { base: confirmed, premoves: target, expectedPly };
+        const saved = await client.put(`/api/games/${gameId}/premoves`, body, GameDtoSchema);
+        confirmed = saved.premoves;
+        applyState(saved);
+        tg.haptic('light');
+      }
+      wantedPremovesRef.current = null;
+      store.optimisticPremoves.value = null;
     } catch (error) {
+      wantedPremovesRef.current = null;
       store.optimisticPremoves.value = null;
       store.premoveStep.value = previousStep;
       restore();
@@ -357,12 +371,6 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
       return;
     }
     if (store.premoveMode.value) {
-      // A drop that arrives while an edit is still in flight would build on an optimistic base the
-      // server hasn't confirmed yet; drop it and put the piece back (fix round 1).
-      if (store.premoveSending.value) {
-        restore();
-        return;
-      }
       const board = imaginedBoard(
         store.dto.value.fen,
         store.premoves.value,
@@ -412,7 +420,7 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
     if (pending.premove) {
       // Likewise a chain changed by another device while the picker was open: the pawn was dropped
       // onto the old one, so appending to the new chain would queue a premove nobody chose.
-      if (store.premoveSending.value || !sameList(store.premoves.value, pending.base)) {
+      if (!sameList(store.premoves.value, pending.base)) {
         restore();
         return;
       }
@@ -561,7 +569,6 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
       <MoveList store={store} locked={moveState.kind === 'pendingConfirm'} />
       <PremoveBar
         store={store}
-        busy={store.premoveSending.value}
         onRemove={(step) => void editPremoves(store.premoves.value.slice(0, step - 1), step - 1)}
       />
       {dto.status === 'finished' ? (

@@ -892,21 +892,66 @@ describe('Game premoves', () => {
     expect(adapter.movables.at(-1)?.colour).toBe('white');
   });
 
-  it('ignores a second drop while a premove edit is still sending', async () => {
-    let resolvePut: (response: FakeResponse) => void = () => undefined;
+  it('queues a premove made while the previous one is still saving, and saves it next', async () => {
+    const answers: ((response: FakeResponse) => void)[] = [];
     const r = mount(
       waiting(),
-      echoPut(waiting(), () => new Promise<FakeResponse>((resolve) => (resolvePut = resolve))),
+      echoPut(waiting(), () => new Promise<FakeResponse>((resolve) => answers.push(resolve))),
     );
     await r.flush();
     adapter.drop('g1', 'h3');
     await r.flush();
-    expect(r.calls.filter((c) => c.method === 'PUT')).toHaveLength(1);
-    adapter.drop('g1', 'f3');
+    // The board stays live while the first premove saves, on the imagined board after Nh3.
+    expect(adapter.movables.at(-1)?.colour).toBe('white');
+    expect(adapter.movables.at(-1)?.dests.get('h3')).toContain('g5');
+    adapter.drop('h3', 'g5');
     await r.flush();
-    expect(r.calls.filter((c) => c.method === 'PUT')).toHaveLength(1);
-    resolvePut({ status: 200, body: { ...waiting(), premoves: ['g1h3'] } });
+    const labels = () =>
+      [...r.root.querySelectorAll('.move-list [data-premove]')].map((b) => b.textContent);
+    expect(labels()).toEqual(['Nh3', 'Ng5']);
+    const puts = () => r.calls.filter((c) => c.method === 'PUT').map((c) => c.body);
+    // One save at a time: the second waits for the first.
+    expect(puts()).toEqual([{ base: [], premoves: ['g1h3'], expectedPly: 1 }]);
+    answers[0]!({ status: 200, body: waiting(['g1h3']) });
     await r.flush();
+    // Its echo doesn't drop the queued premove from the screen.
+    expect(labels()).toEqual(['Nh3', 'Ng5']);
+    // The next save compares against the chain the first one confirmed, which it was made on.
+    expect(puts()).toEqual([
+      { base: [], premoves: ['g1h3'], expectedPly: 1 },
+      { base: ['g1h3'], premoves: ['g1h3', 'h3g5'], expectedPly: 1 },
+    ]);
+    answers[1]!({ status: 200, body: waiting(['g1h3', 'h3g5']) });
+    await r.flush();
+    expect(labels()).toEqual(['Nh3', 'Ng5']);
+    expect(r.calls.filter((c) => c.method === 'PUT')).toHaveLength(2);
+  });
+
+  it('refuses a queued premove when another device changed the chain between saves', async () => {
+    const answers: ((response: FakeResponse) => void)[] = [];
+    const r = mount(waiting(), (call) => {
+      if (call.method === 'PUT')
+        return new Promise<FakeResponse>((resolve) => answers.push(resolve));
+      if (call.method === 'GET') return { status: 200, body: waiting(['b1c3']) };
+      return okRoute(waiting())(call);
+    });
+    await r.flush();
+    adapter.drop('g1', 'h3');
+    await r.flush();
+    adapter.drop('h3', 'g5');
+    await r.flush();
+    answers[0]!({ status: 200, body: waiting(['g1h3']) });
+    await r.flush();
+    answers[1]!({
+      status: 409,
+      body: { error: { code: 'stale_state', message: 'the premoves have changed' } },
+    });
+    await r.flush();
+    expect(document.querySelector('.toast')?.textContent).toContain(
+      'Premoves changed on another device',
+    );
+    expect(r.root.querySelector('.move-list [data-premove="1"]')?.textContent).toBe('Nc3');
+    expect(r.root.querySelectorAll('.move-list [data-premove]')).toHaveLength(1);
   });
 
   it('rolls back the shown step along with the chain, and shows offline, when Remove fails on the network', async () => {

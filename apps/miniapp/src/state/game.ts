@@ -107,10 +107,15 @@ export class GameStore {
   readonly sideToMove: ReadonlySignal<Colour>;
   readonly canMove: ReadonlySignal<boolean>;
   readonly dests: ReadonlySignal<Map<string, string[]>>;
-  /** An edit waiting for the server; any state from the server replaces it (premoves spec, State). */
+  /**
+   * The chain the player has made but the server hasn't confirmed yet. A state from the server
+   * replaces it, except a same-ply one while a save is running: the save owns it until it settles
+   * (premoves spec, Queuing).
+   */
   readonly optimisticPremoves: Signal<string[] | null> = signal(null);
   /** null is the end of the chain; 0 the current position; k the position after premove k. */
   readonly premoveStep: Signal<number | null> = signal(null);
+  /** A premove save is running. The board stays live; further edits wait their turn. */
   readonly premoveSending: Signal<boolean> = signal(false);
   /**
    * True while the player's own move is anywhere short of settled (waiting for Confirm, sending,
@@ -181,7 +186,7 @@ export class GameStore {
     );
     this.canMove = computed(() => {
       const dto = this.dto.value;
-      if (this.premoveMode.value) return this.atChainEnd.value && !this.premoveSending.value;
+      if (this.premoveMode.value) return this.atChainEnd.value;
       return (
         dto.status === 'active' &&
         this.isLatest.value &&
@@ -217,7 +222,8 @@ export class GameStore {
     }
     const viewing = this.viewingPly.value;
     this.dto.value = next;
-    this.optimisticPremoves.value = null;
+    const samePly = next.plyCount === current.plyCount && next.status === current.status;
+    if (!(this.premoveSending.value && samePly)) this.optimisticPremoves.value = null;
     // The step clamps to the end when the game moves on, or when the chain shrinks to at or
     // below it — otherwise a later append would jump the view back to a stale step (fix round 1).
     if (
