@@ -57,6 +57,9 @@ function mount(
   return r;
 }
 
+const slider = (r: ReturnType<typeof mount>) =>
+  r.root.querySelector<HTMLInputElement>('.replay-controls input[type="range"]')!;
+
 beforeEach(() => {
   adapter = stubAdapter();
   FakeEventSource.reset();
@@ -859,7 +862,7 @@ describe('Game premoves and Share position', () => {
     const r = mount(afterPlies(1, { viewerRole: 'white', premoves: ['g1h3', 'h3g5'] }));
     await r.flush();
     await r.click('[data-action="share"]');
-    await r.click('[data-action="premove-prev"]');
+    await r.click('[data-action="prev"]');
     await r.click('[data-action="share"]');
     const shares = r.calls.filter((c) => c.path === `/api/games/${GAME}/share`);
     expect(shares.map((c) => c.body)).toEqual([{ ply: 1 }, { ply: 1 }]);
@@ -899,7 +902,8 @@ describe('Game premoves', () => {
     });
     expect(window.__tg!.calls).not.toContain('MainButton.show');
     expect(r.root.querySelector('.move-list [data-premove="1"]')?.textContent).toBe('Nh3');
-    expect(r.root.querySelector('.premove-label')?.textContent).toBe('Premove 1 of 1');
+    expect(slider(r)).toMatchObject({ value: '2', max: '2' });
+    expect(slider(r).classList.contains('premove')).toBe(true);
     expect(adapter.highlights.at(-1)).toEqual(['g1', 'h3']);
     expect(r.root.querySelector('.board-wrap')?.classList.contains('premove')).toBe(true);
   });
@@ -915,26 +919,91 @@ describe('Game premoves', () => {
     expect(r.calls.find((c) => c.method === 'PUT')?.body).toMatchObject({ premoves: ['e7e8n'] });
   });
 
-  it('steps back through the chain, returns to the end on a board tap, and removes', async () => {
+  it('steps back through the chain on the slider, returns to the end on a board tap, and removes', async () => {
     const r = mount(waiting(['g1h3', 'h3g5']), echoPut(waiting(['g1h3', 'h3g5'])));
     await r.flush();
-    await r.click('[data-action="premove-prev"]');
-    expect(r.root.querySelector('.premove-label')?.textContent).toBe('Premove 1 of 2');
+    // One slider: the real move, then both premoves, standing at the chain's end.
+    expect(slider(r)).toMatchObject({ value: '3', max: '3' });
+    await r.click('[data-action="prev"]');
+    expect(slider(r).value).toBe('2');
+    expect(r.root.querySelector('[data-premove="1"]')?.getAttribute('aria-current')).toBe('true');
     expect(adapter.positions.at(-1)?.fen.split(' ')[0]).toBe(
       'rnbqkbnr/pppppppp/8/8/8/5P1N/PPPPP1PP/RNBQKB1R',
     );
     expect(adapter.movables.at(-1)?.colour).toBe('none');
     adapter.select('a4');
     await r.flush();
-    expect(r.root.querySelector('.premove-label')?.textContent).toBe('Premove 2 of 2');
+    expect(slider(r).value).toBe('3');
     await r.click('[data-action="premove-remove"]');
+    expect(window.__tg!.popups.at(-1)?.message).toBe('Remove this premove?');
+    window.__tg!.answerPopup('confirm');
+    await r.flush();
     expect(r.calls.find((c) => c.method === 'PUT')?.body).toEqual({
       base: ['g1h3', 'h3g5'],
       premoves: ['g1h3'],
       expectedPly: 1,
     });
     expect(r.root.querySelectorAll('.move-list [data-premove]')).toHaveLength(1);
-    expect(r.root.querySelector('.premove-label')?.textContent).toBe('Premove 1 of 1');
+    expect(slider(r)).toMatchObject({ value: '2', max: '2' });
+  });
+
+  it('asks before removing a premove with more after it, and Cancel keeps the chain', async () => {
+    const r = mount(waiting(['g1h3', 'h3g5', 'g5e6']), echoPut(waiting(['g1h3', 'h3g5', 'g5e6'])));
+    await r.flush();
+    await r.click('[data-premove="1"]');
+    await r.click('[data-action="premove-remove"]');
+    expect(window.__tg!.popups.at(-1)?.message).toBe('Remove this premove and the 2 after it?');
+    window.__tg!.answerPopup('cancel');
+    await r.flush();
+    expect(r.calls.filter((c) => c.method === 'PUT')).toHaveLength(0);
+    await r.click('[data-premove="2"]');
+    await r.click('[data-action="premove-remove"]');
+    expect(window.__tg!.popups.at(-1)?.message).toBe('Remove this premove and the next one?');
+  });
+
+  it('drops a confirmed Remove when the chain changed while the popup was open', async () => {
+    const r = mount(waiting(['g1h3', 'h3g5']), echoPut(waiting(['g1h3', 'h3g5'])));
+    await r.flush();
+    await r.click('[data-premove="1"]');
+    await r.click('[data-action="premove-remove"]');
+    // Another device replaces the chain; confirming must not remove from the new one.
+    FakeEventSource.instances[0]!.send('state', waiting(['b1c3', 'c3d5']), '1');
+    await r.flush();
+    window.__tg!.answerPopup('confirm');
+    await r.flush();
+    expect(r.calls.filter((c) => c.method === 'PUT')).toHaveLength(0);
+    expect(r.root.querySelectorAll('.move-list [data-premove]')).toHaveLength(2);
+  });
+
+  it('fills the slider green up to the real position and blue on through the shown premove', async () => {
+    const r = mount(waiting(['g1h3', 'h3g5']));
+    await r.flush();
+    // 1 real ply of 3: green to a third, blue to the knob at the end.
+    expect(slider(r).style.getPropertyValue('--real')).toBe('33.333%');
+    expect(slider(r).style.getPropertyValue('--at')).toBe('100%');
+    await r.click('[data-action="prev"]');
+    await r.click('[data-action="prev"]');
+    expect(slider(r).value).toBe('1');
+    expect(slider(r).classList.contains('premove')).toBe(false);
+    expect(slider(r).style.getPropertyValue('--at')).toBe('33.333%');
+  });
+
+  it('slides from an earlier move straight back into the chain', async () => {
+    const r = mount(waiting(['g1h3', 'h3g5']));
+    await r.flush();
+    const input = slider(r);
+    input.value = '0';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    await r.flush();
+    expect(adapter.positions.at(-1)?.lastMove).toBeNull();
+    // The premove stretch stays, so the track keeps its scale while you look back.
+    expect(slider(r).max).toBe('3');
+    expect(r.root.querySelectorAll('.move-list [data-premove]')).toHaveLength(2);
+    input.value = '2';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    await r.flush();
+    expect(r.root.querySelector('[data-premove="1"]')?.getAttribute('aria-current')).toBe('true');
+    expect(adapter.highlights.at(-1)).toEqual(['g1', 'h3']);
   });
 
   it('shows the chain from another device when it arrives over the stream', async () => {
@@ -1124,10 +1193,12 @@ describe('Game premoves', () => {
       return okRoute(waiting(['g1h3', 'h3g5']))(call);
     });
     await r.flush();
-    expect(r.root.querySelector('.premove-label')?.textContent).toBe('Premove 2 of 2');
+    expect(slider(r).value).toBe('3');
     await r.click('[data-action="premove-remove"]');
+    window.__tg!.answerPopup('confirm');
+    await r.flush();
     expect(document.querySelector('.toast')?.textContent).toContain("You're offline");
     expect(r.root.querySelectorAll('.move-list [data-premove]')).toHaveLength(2);
-    expect(r.root.querySelector('.premove-label')?.textContent).toBe('Premove 2 of 2');
+    expect(slider(r).value).toBe('3');
   });
 });

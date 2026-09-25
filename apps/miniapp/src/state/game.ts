@@ -124,7 +124,14 @@ export class GameStore {
    */
   readonly moveBusy: Signal<boolean> = signal(false);
   readonly premoves: ReadonlySignal<string[]>;
+  /** Premoves are possible: the player waits on the opponent. True while an earlier move is shown. */
+  readonly premoveOpen: ReadonlySignal<boolean>;
+  /** Premoves are possible and the latest position is shown, so the board shows the chain. */
   readonly premoveMode: ReadonlySignal<boolean>;
+  /** The slider's last index: the real plies, then the premoves while they are possible. */
+  readonly timelineEnd: ReadonlySignal<number>;
+  /** Where the slider stands: a ply, or past the last one, a premove step. */
+  readonly timelineAt: ReadonlySignal<number>;
   readonly shownStep: ReadonlySignal<number>;
   readonly atChainEnd: ReadonlySignal<boolean>;
   readonly boardView: ReadonlySignal<Position>;
@@ -144,20 +151,28 @@ export class GameStore {
     });
     this.sideToMove = computed(() => sideToMove(this.position.value.fen));
     this.premoves = computed(() => this.optimisticPremoves.value ?? this.dto.value.premoves);
-    this.premoveMode = computed(() => {
+    this.premoveOpen = computed(() => {
       const dto = this.dto.value;
       return (
         dto.status === 'active' &&
-        this.isLatest.value &&
         (dto.viewerRole === 'white' || dto.viewerRole === 'black') &&
         sideToMove(dto.fen) !== dto.viewerRole &&
         !this.moveBusy.value
       );
     });
+    this.premoveMode = computed(() => this.premoveOpen.value && this.isLatest.value);
     this.shownStep = computed(() =>
       Math.min(this.premoveStep.value ?? Number.POSITIVE_INFINITY, this.premoves.value.length),
     );
     this.atChainEnd = computed(() => this.shownStep.value === this.premoves.value.length);
+    this.timelineEnd = computed(
+      () => this.dto.value.plyCount + (this.premoveOpen.value ? this.premoves.value.length : 0),
+    );
+    this.timelineAt = computed(() =>
+      this.premoveMode.value
+        ? this.dto.value.plyCount + this.shownStep.value
+        : this.position.value.ply,
+    );
     // The queue belongs to the viewer; an entry that would move the other side's piece (one that
     // captured the piece it was queued for) is skipped, as the server's check skips it.
     const owner = (): Colour | undefined => {
@@ -242,6 +257,23 @@ export class GameStore {
   viewPly(ply: number | null): void {
     const max = this.dto.value.plyCount;
     this.viewingPly.value = ply === null || ply >= max ? null : Math.max(0, ply);
+  }
+
+  /**
+   * Shows index `at` on the slider: a ply up to the last real move, a premove step past it. The
+   * last real move with a chain queued is step 0, the real position. Returns whether the view changed.
+   */
+  viewTimeline(at: number): boolean {
+    const plies = this.dto.value.plyCount;
+    const k = Math.max(0, Math.min(this.timelineEnd.value, at));
+    if (k === this.timelineAt.value) return false;
+    if (k < plies) {
+      this.viewPly(k);
+      return true;
+    }
+    this.viewPly(null);
+    if (this.premoveOpen.value) this.viewPremove(k - plies);
+    return true;
   }
 
   flip(): void {

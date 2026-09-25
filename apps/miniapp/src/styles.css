@@ -974,31 +974,15 @@ button {
   box-shadow: none;
 }
 
-.premove-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 2px 16px 4px;
-}
-
-.premove-bar .premove-label {
-  flex: 1;
-  min-width: 0;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.premove-bar .premove-label.pending {
-  color: var(--pm);
-}
-
-.premove-bar .pill-btn[data-action='premove-remove'] {
+/* Removes the shown premove and the ones after it, after asking. */
+.move-list button.premove-remove {
+  margin-left: 2px;
+  padding: 3px 8px;
+  border-radius: 999px;
   background: var(--pm-soft);
   color: var(--pm);
-}
-
-.premove-bar .pill-btn:disabled {
-  opacity: 0.35;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .replay-controls {
@@ -1008,9 +992,56 @@ button {
   padding: 0 12px;
 }
 
+/* One slider for the real moves and the queued premoves. A native range can only fill in one
+   colour, so the track is drawn here: green up to the real position (--real), premove blue from
+   there to the knob (--at), and the empty track after it. */
 .replay-controls input[type='range'] {
   flex: 1;
-  accent-color: var(--acc);
+  min-width: 0;
+  height: 6px;
+  margin: 0;
+  border-radius: 3px;
+  appearance: none;
+  -webkit-appearance: none;
+  background: linear-gradient(
+    to right,
+    var(--acc) 0 var(--real),
+    var(--pm) var(--real) var(--at),
+    var(--sep-strong) var(--at) 100%
+  );
+  --knob: var(--acc);
+}
+
+.replay-controls input[type='range'].premove {
+  --knob: var(--pm);
+}
+
+.replay-controls input[type='range']:disabled {
+  opacity: 0.4;
+}
+
+.replay-controls input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--knob);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 30%);
+}
+
+.replay-controls input[type='range']::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--knob);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 30%);
+}
+
+.replay-controls input[type='range']::-moz-range-track {
+  background: transparent;
 }
 
 .banner {

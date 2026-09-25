@@ -38,7 +38,6 @@ import { toast } from '../toast';
 import { Board } from './Board';
 import { MoveList } from './MoveList';
 import { PlayerBar } from './PlayerBar';
-import { PremoveBar } from './PremoveBar';
 import { useClock } from './useClock';
 
 /** A send answered within this shows nothing; a slower one greys the board under a spinner. */
@@ -483,6 +482,25 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
     )
       await action('abort');
   };
+  const removePremove = async (step: number): Promise<void> => {
+    const chain = store.premoves.value;
+    const ply = store.dto.value.plyCount;
+    const after = chain.length - step;
+    const message =
+      after === 0
+        ? t('app.game.premove_remove_confirm')
+        : after === 1
+          ? t('app.game.premove_remove_confirm_next')
+          : t('app.game.premove_remove_confirm_rest', { n: after });
+    if (
+      !(await confirmDialog(message, { confirmLabel: t('app.game.premove_remove'), danger: true }))
+    )
+      return;
+    // The chain can fire or change on another device while the popup is open; step k of that
+    // chain is not the premove that was asked about, so the answer no longer applies.
+    if (!sameList(store.premoves.value, chain) || store.dto.value.plyCount !== ply) return;
+    await editPremoves(chain.slice(0, step - 1), step - 1);
+  };
   const rematch = async (): Promise<void> => {
     try {
       if (dto.engineLevel !== null) {
@@ -535,6 +553,14 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
   const drawOpen = canOffer && !early && dto.engineLevel === null;
   const moveButtons = moveState.kind === 'pendingConfirm' && (inPage.confirm || inPage.cancel);
 
+  const end = store.timelineEnd.value;
+  const at = store.timelineAt.value;
+  const view = (index: number): void => {
+    if (store.viewTimeline(index)) tg.hapticSelection();
+  };
+  // The fill runs green to the real position, then blue through a shown premove (see styles.css).
+  const percent = (index: number): string => `${end ? +((index / end) * 100).toFixed(3) : 0}%`;
+
   return (
     <div class="game">
       <PlayerBar dto={dto} colour={top} now={now} />
@@ -580,34 +606,36 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
         ) : null}
       </Board>
       <PlayerBar dto={dto} colour={orientation} now={now} />
-      <MoveList store={store} locked={moveState.kind === 'pendingConfirm'} />
-      <PremoveBar
+      <MoveList
         store={store}
-        onRemove={(step) => void editPremoves(store.premoves.value.slice(0, step - 1), step - 1)}
+        locked={moveState.kind === 'pendingConfirm'}
+        onRemove={(step) => void removePremove(step)}
       />
-      {/* The slider shows in every game, so the row is there before the first move too. */}
+      {/* One slider in every game: the real moves, then on through the queued premoves. */}
       <div class="replay-controls">
         <button
           class="pill-btn"
           data-action="prev"
-          disabled={dto.plyCount === 0}
-          onClick={() => store.viewPly(store.position.value.ply - 1)}
+          disabled={end === 0}
+          onClick={() => view(at - 1)}
         >
           ◀
         </button>
         <input
           type="range"
+          class={at > dto.plyCount ? 'premove' : undefined}
           min={0}
-          max={dto.plyCount}
-          value={store.position.value.ply}
-          disabled={dto.plyCount === 0}
-          onInput={(event) => store.viewPly(Number(event.currentTarget.value))}
+          max={end}
+          value={at}
+          disabled={end === 0}
+          style={{ '--real': percent(Math.min(at, dto.plyCount)), '--at': percent(at) }}
+          onInput={(event) => view(Number(event.currentTarget.value))}
         />
         <button
           class="pill-btn"
           data-action="next"
-          disabled={dto.plyCount === 0}
-          onClick={() => store.viewPly(store.position.value.ply + 1)}
+          disabled={end === 0}
+          onClick={() => view(at + 1)}
         >
           ▶
         </button>
