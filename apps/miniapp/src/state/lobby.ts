@@ -1,7 +1,7 @@
 import type { GameSummary, LeaderboardEntry, LobbyDto } from '@group-chess/shared';
 
-/** The lobby's two views: the viewer's own games, or everything in the group. */
-export type LobbyScope = 'mine' | 'all';
+/** The lobby's two views: the viewer's own games, or the games they are not in. */
+export type LobbyScope = 'mine' | 'others';
 
 export function plays(game: GameSummary, viewerId: string | null): boolean {
   return viewerId !== null && (game.white.id === viewerId || game.black.id === viewerId);
@@ -13,7 +13,7 @@ export function scopedGames(
   scope: LobbyScope,
   viewerId: string | null,
 ): { active: GameSummary[]; finished: GameSummary[] } {
-  const keep = (game: GameSummary) => scope === 'all' || plays(game, viewerId);
+  const keep = (game: GameSummary) => plays(game, viewerId) === (scope === 'mine');
   const active = data.active.filter(keep).sort((a, b) => Number(b.yourTurn) - Number(a.yourTurn));
   return { active, finished: data.finished.items.filter(keep) };
 }

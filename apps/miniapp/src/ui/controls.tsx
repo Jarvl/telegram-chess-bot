@@ -36,10 +36,12 @@ export function Segmented<V extends string>(props: {
   options: Option<V>[];
   value: V;
   onChange: (value: V) => void;
+  /** Sized to its labels, for a heading row, instead of spanning the screen. */
+  compact?: boolean;
 }) {
   const { tg } = useApp();
   return (
-    <div class="segmented" role="group">
+    <div class={props.compact ? 'segmented compact' : 'segmented'} role="group">
       {props.options.map(({ value, label, ...data }) => (
         <button
           type="button"
