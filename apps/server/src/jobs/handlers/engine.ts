@@ -3,7 +3,6 @@ import { z } from 'zod';
 import type { Config } from '../../config';
 import type { Deps } from '../../domain/deps';
 import { isDomainError } from '../../domain/errors';
-import { declineDraw } from '../../domain/draws';
 import { getEngineUser } from '../../domain/engineGames';
 import { finishGame, lockActiveGame, playMove, requireGameById } from '../../domain/games';
 import type { DbOrTx } from '../../db/client';
@@ -121,11 +120,6 @@ export function engineJobHandlers(ctx: EngineHandlerContext): JobHandlers {
         }
         const engineUser = await getEngineUser(deps.db);
         const engineColour = game.whiteId === engineUser.id ? 'white' : 'black';
-        // Spec §8: decline first, whosever turn it is, so an offer made on the human's turn is not
-        // left pending until they happen to move.
-        if (game.drawOfferBy !== null && game.drawOfferBy !== engineColour) {
-          await declineDraw(deps, { gameId: game.publicId, userId: engineUser.id });
-        }
         if (sideToMove(game.fen) !== engineColour) return null;
 
         const started = process.hrtime.bigint();
