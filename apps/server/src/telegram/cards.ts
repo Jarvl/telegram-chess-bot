@@ -263,3 +263,31 @@ export function renderShareCaption(view: {
 }): string {
   return t('card.share.caption', view);
 }
+
+/** A side's rating before and after the game, already worded. */
+export type RatingChange = { before: string; after: string };
+
+export function renderResultCaption(view: {
+  white: string;
+  black: string;
+  result: GameResult;
+  endReason: EndReason;
+  ratings: { white: RatingChange; black: RatingChange } | null;
+}): string {
+  // A `*` result (a game voided while running) has no score worth naming, only the reason.
+  const outcome =
+    view.result === '*'
+      ? endReasonLabel(view.endReason)
+      : `${resultLabel(view.result)} · ${endReasonLabel(view.endReason)}`;
+  const caption = t('card.result.caption', { white: view.white, black: view.black, outcome });
+  if (!view.ratings) return caption;
+  const ratings = t('card.result.ratings', {
+    white: view.white,
+    whiteBefore: view.ratings.white.before,
+    whiteAfter: view.ratings.white.after,
+    black: view.black,
+    blackBefore: view.ratings.black.before,
+    blackAfter: view.ratings.black.after,
+  });
+  return `${caption}\n${ratings}`;
+}

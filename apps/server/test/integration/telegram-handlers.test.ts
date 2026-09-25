@@ -220,7 +220,7 @@ describe('send_dm', () => {
       .where(eq(users.id, alice.id));
     const game = await insertGame(db, group.id, bob.id, alice.id, { fen: AFTER_E4, plyCount: 1 });
     await insertMove(db, game.id, 1, 'e2e4', 'e4', AFTER_E4);
-    for (const template of ['turn', 'reminder', 'game_end'] as const)
+    for (const template of ['turn', 'reminder'] as const)
       await enqueue(db, {
         kind: 'send_dm',
         payload: { userId: alice.id, template, gameId: game.id },
@@ -290,39 +290,6 @@ describe('send_dm', () => {
     await worker.runOnce();
     expect((await db.select().from(users).where(eq(users.id, alice.id)))[0]?.dmAllowed).toBe(false);
     expect((await jobRows()).every((job) => job.doneAt !== null)).toBe(true);
-  });
-
-  it('sends the game-end DM with the rating change and the analysis link', async () => {
-    const { group, alice, bob } = await people();
-    const game = await insertGame(db, group.id, alice.id, bob.id, {
-      status: 'finished',
-      result: '1-0',
-      endReason: 'resignation',
-      finishedAt: new Date(),
-      plyCount: 1,
-      fen: AFTER_E4,
-      whiteRatingBefore: 1500,
-      whiteRatingAfter: 1534.4,
-      whiteRdBefore: 350,
-      whiteRdAfter: 290,
-      blackRatingBefore: 1500,
-      blackRatingAfter: 1465.6,
-      blackRdBefore: 350,
-      blackRdAfter: 290,
-    });
-    await insertMove(db, game.id, 1, 'e2e4', 'e4', AFTER_E4);
-    await enqueue(db, {
-      kind: 'send_dm',
-      payload: { userId: alice.id, template: 'game_end', gameId: game.id },
-    });
-    await worker.runOnce();
-    const [call] = fake.callsTo('sendMessage');
-    expect(call?.body.text).toBe('1-0 vs Bob · Resignation · 1500? → 1534?');
-    expect(
-      (call?.body.reply_markup as { inline_keyboard: { text: string }[][] }).inline_keyboard
-        .flat()
-        .map((b) => b.text),
-    ).toEqual(['♟ Open game', '🔍 Analyse on Lichess']);
   });
 
   it('adds the cancelled line to the turn DM when the premoves were cancelled', async () => {

@@ -278,7 +278,7 @@ The known-players list for the opponent picker is `group_members` with `status =
 - Turn DM: `Your move vs Alice · 12. Nf3 · 23 h left` with `♟ Open game` (direct link) and `Go to group`. `Go to group` is `https://t.me/c/<supergroup id without the -100 prefix>/<card message id>` and is omitted for basic groups, which have no message links.
 - Challenge DM: `Alice challenges you · 1 day per move · Rated` with `♟ Open` (direct link to the lobby, where Accept and Decline are also available).
 - Reminder DM: once per turn, when 10 % of the time control remains, only for controls of 8 h or more, only when the player has not moved since the turn started (§7.3).
-- Game-end DM to both players with the result and rating change; the buttons are `♟ Open game` and, once available, `🔍 Analyse on Lichess`.
+- No game-end DM. When a human game ends by anything but an abort (`abort`, `timeout_abort`), the group gets one result photo in the game's topic instead: the share card of the final position, drawn from the winner's side (White's for a draw or void), captioned `{white} vs {black} · {result} · {endReason}` plus a rating-change line when rated; buttons `♟ Open game` and `🔍 Analyze on Lichess`. Engine games post nothing at game end. The job is `send_result_photo` (dedup `result:g:<id>`), guarded by `games.result_message_id`.
 
 ### 5.8 Group lifecycle, forums, limits
 
@@ -307,7 +307,7 @@ The known-players list for the opponent picker is `group_members` with `status =
 | Lobby `l_<groupId>` | `GET /api/groups/:g` (Active with "your move" first, Finished page 1, Players, pending challenges, admin flag) | New game, Accept or Decline pending challenges, open any game, Players tab, Settings if admin |
 | New game | `GET /api/groups/:g/players` | Pick opponent or Open challenge, time per move, colour, rated → `POST /api/groups/:g/challenges` |
 | Game `g_<gameId>` (active) | `GET /api/games/:id` + SSE | Move, Draw offer, Accept or Decline draw, Claim draw, Resign (with confirmation), Abort while allowed, Share position, Flip (spectators), view earlier positions |
-| Game end (same route, `status = finished`) | same | Rematch, Analyse on Lichess (`openLink`), Share final position, Done (`close()`) |
+| Game end (same route, `status = finished`) | same | Rematch, Analyze on Lichess (`openLink`), Share final position, Done (`close()`) |
 | Replay (finished game) | `GET /api/games/:id` | Slider and arrows, move list, Share position, Analyse on Lichess, Download PGN (`downloadFile` on 8.0+, else `openLink`) |
 | Player page | `GET /api/groups/:g/players/:u` | Record, head-to-head, recent games |
 | Settings (user), a tab of its own | prefs from launch | Move confirmations, return to chat after moving, notifications, board theme and piece set (P1) |
@@ -465,7 +465,7 @@ BEGIN
   UPDATE games SET fen, ply_count + 1, deadline_at, reminder_at, version + 1,
                    draw_offer = NULL when the mover is not the offerer
   if r.outcome ends the game: status, result, end_reason, finished_at; ratings for both players (§7.5)
-  INSERT jobs: edit_card(dedup card:g:<id>), send_dm(turn → opponent) or send_dm(game_end → both), lichess_import when finished
+  INSERT jobs: edit_card(dedup card:g:<id>), send_dm(turn → opponent) or send_result_photo(dedup result:g:<id>, human games not aborted), lichess_import when finished
 COMMIT
 bus.publish(gameId)   → SSE streams fetch and push the new state
 return state

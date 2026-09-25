@@ -149,6 +149,8 @@ export const games = pgTable(
     cardMessageId: bigint({ mode: 'number' }),
     cardThreadId: bigint({ mode: 'number' }),
     cardMissing: boolean().notNull().default(false),
+    /** The result photo posted to the group when the game ended; set once it is sent. */
+    resultMessageId: bigint({ mode: 'number' }),
     lichessUrl: text(),
     lichessImportStatus: text().$type<'pending' | 'done' | 'failed'>(),
     whiteRatingBefore: doublePrecision(),

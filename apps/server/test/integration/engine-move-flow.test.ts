@@ -176,6 +176,9 @@ describe('playMove and finishGame with an engine opponent', () => {
     const kinds = await jobKinds();
     expect(kinds).not.toContain('lichess_import');
     expect(kinds).not.toContain('edit_card');
+    // Bot games announce nothing when they end: no result photo in the group, no DM to the human.
+    expect(kinds).not.toContain('send_result_photo');
+    expect(kinds).not.toContain('send_dm');
   });
 
   it('voids an engine game without enqueueing a card', async () => {
@@ -196,6 +199,8 @@ describe('playMove and finishGame with an engine opponent', () => {
     const kinds = await jobKinds();
     expect(kinds).not.toContain('edit_card');
     expect(kinds).not.toContain('rebuild_ratings');
+    expect(kinds).not.toContain('send_result_photo');
+    expect(kinds).not.toContain('send_dm');
   });
 });
 

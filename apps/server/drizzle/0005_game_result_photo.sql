@@ -1,0 +1,1 @@
+ALTER TABLE "games" ADD COLUMN "result_message_id" bigint;
