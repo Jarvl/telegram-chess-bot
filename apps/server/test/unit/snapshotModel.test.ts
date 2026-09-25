@@ -1,15 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildSnapshotModel,
-  formatSnapshotTimeLeft,
   shareMoveNumber,
+  snapshotRowLimit,
 } from '../../src/images/snapshotModel';
-import { AFTER_E4, SHARED_AT, snapshotInput } from '../helpers/snapshotFixtures';
+import { AFTER_E4, snapshotInput } from '../helpers/snapshotFixtures';
 
 const sans = (count: number): string[] => Array.from({ length: count }, (_, i) => `m${i + 1}`);
-const at = (ms: number): Date => new Date(SHARED_AT.getTime() + ms);
-const HOUR = 3_600_000;
-const MINUTE = 60_000;
 
 describe('shareMoveNumber', () => {
   it('counts the initial position as move 1 and rounds half-moves up', () => {
@@ -17,22 +14,11 @@ describe('shareMoveNumber', () => {
   });
 });
 
-describe('formatSnapshotTimeLeft', () => {
-  it('uses days and hours from a day up, hours and minutes below, and never goes negative', () => {
-    expect(formatSnapshotTimeLeft(14 * HOUR + 32 * MINUTE + 59_000)).toBe('14h 32m');
-    expect(formatSnapshotTimeLeft(26 * HOUR + 5 * MINUTE)).toBe('1d 2h');
-    expect(formatSnapshotTimeLeft(24 * HOUR)).toBe('1d 0h');
-    expect(formatSnapshotTimeLeft(59_999)).toBe('0h 0m');
-    expect(formatSnapshotTimeLeft(-5 * MINUTE)).toBe('0h 0m');
-  });
-});
-
 describe('buildSnapshotModel', () => {
-  it('labels the pill with the move number', () => {
-    expect(buildSnapshotModel(snapshotInput()).pill).toBe('Snapshot · Move 1');
-    expect(buildSnapshotModel(snapshotInput({ ply: 59, plyCount: 59, sans: sans(59) })).pill).toBe(
-      'Snapshot · Move 30',
-    );
+  it('heads the panel with the group and the terms', () => {
+    const model = buildSnapshotModel(snapshotInput());
+    expect(model.group).toBe('Friday Chess Club');
+    expect(model.meta).toBe('1 day per move · Rated');
   });
 
   it('lists the player at the top of the board first', () => {
@@ -62,48 +48,44 @@ describe('buildSnapshotModel', () => {
       snapshotInput({
         timePerMove: null,
         rated: false,
-        deadlineAt: null,
         black: { name: 'Chess Goat', rating: { rating: 1500, rd: 350 }, engineLevel: 'strong' },
       }),
     );
     expect(model.players[0]).toEqual({ colour: 'black', name: 'Chess Goat', rating: 'Strong' });
     expect(model.players[1]).toEqual({ colour: 'white', name: '@sam_k', rating: '1512' });
-    expect(model.terms).toBe('No clock · Casual');
+    expect(model.meta).toBe('No clock · Casual');
   });
 
-  it('shows every row up to 8, with the shared move highlighted', () => {
-    const even = buildSnapshotModel(snapshotInput({ ply: 16, plyCount: 16, sans: sans(16) }));
-    expect(even.rows).toHaveLength(8);
-    expect(even.rows.some((row) => row.faded)).toBe(false);
-    expect(even.rows[7]).toEqual({
-      number: 8,
-      white: { san: 'm15', current: false },
-      black: { san: 'm16', current: true },
-      faded: false,
+  it('shows every row up to the limit, with the shared move highlighted', () => {
+    const even = buildSnapshotModel(snapshotInput({ ply: 12, plyCount: 12, sans: sans(12) }));
+    expect(even.rows).toHaveLength(6);
+    expect(even.rows[5]).toEqual({
+      number: 6,
+      white: { san: 'm11', current: false },
+      black: { san: 'm12', current: true },
     });
-    const odd = buildSnapshotModel(snapshotInput({ ply: 15, plyCount: 15, sans: sans(15) }));
-    expect(odd.rows[7]).toEqual({
-      number: 8,
-      white: { san: 'm15', current: true },
+    const odd = buildSnapshotModel(snapshotInput({ ply: 11, plyCount: 11, sans: sans(11) }));
+    expect(odd.rows[5]).toEqual({
+      number: 6,
+      white: { san: 'm11', current: true },
       black: null,
-      faded: false,
     });
   });
 
-  it('keeps the last 8 rows and fades the top one once earlier moves are cut', () => {
+  it('keeps only the last rows once earlier moves are cut', () => {
     const model = buildSnapshotModel(snapshotInput({ ply: 17, plyCount: 17, sans: sans(17) }));
-    expect(model.rows.map((row) => row.number)).toEqual([2, 3, 4, 5, 6, 7, 8, 9]);
-    expect(model.rows.map((row) => row.faded)).toEqual([
-      true,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-    ]);
-    expect(model.rows[7]?.white).toEqual({ san: 'm17', current: true });
+    expect(model.rows.map((row) => row.number)).toEqual([4, 5, 6, 7, 8, 9]);
+    expect(model.rows[5]?.white).toEqual({ san: 'm17', current: true });
+  });
+
+  it('shows fewer rows under a longer group title, which takes more lines', () => {
+    const rows = (groupTitle: string) =>
+      buildSnapshotModel(snapshotInput({ ply: 40, plyCount: 40, sans: sans(40), groupTitle })).rows
+        .length;
+    expect(rows('x'.repeat(30))).toBe(6);
+    expect(rows('x'.repeat(31))).toBe(5);
+    expect(rows('x'.repeat(60))).toBe(5);
+    expect(rows('x'.repeat(61))).toBe(4);
   });
 
   it('has no rows at the initial position', () => {
@@ -114,18 +96,9 @@ describe('buildSnapshotModel', () => {
     const status = (overrides: Parameters<typeof snapshotInput>[0]) =>
       buildSnapshotModel(snapshotInput(overrides)).status;
 
-    it('gives the time left at the moment of sharing for the latest position', () => {
-      expect(status({ deadlineAt: at(14 * HOUR + 32 * MINUTE) })).toBe(
-        'White to move · 14h 32m left',
-      );
-      expect(status({ deadlineAt: at(26 * HOUR) })).toBe('White to move · 1d 2h left');
-    });
-
-    it('never shows a negative time when the deadline has already passed', () => {
-      expect(status({ deadlineAt: at(-3 * MINUTE) })).toBe('White to move · 0h 0m left');
-    });
-
-    it('leaves the clock out of an earlier position', () => {
+    it('is left out while the game is running, at any position', () => {
+      expect(status({})).toBeNull();
+      expect(status({ timePerMove: null })).toBeNull();
       expect(
         status({
           ply: 1,
@@ -133,15 +106,11 @@ describe('buildSnapshotModel', () => {
           sans: ['e4'],
           board: { fen: AFTER_E4, lastMove: 'e2e4', check: false, orientation: 'white' },
         }),
-      ).toBe('Black to move');
-    });
-
-    it('says there is no clock in an untimed game', () => {
-      expect(status({ timePerMove: null, deadlineAt: null })).toBe('White to move · No clock');
+      ).toBeNull();
     });
 
     it('names the winner, the reason and the score of a finished game', () => {
-      const finished = { status: 'finished' as const, deadlineAt: null };
+      const finished = { status: 'finished' as const };
       expect(status({ ...finished, result: '1-0', endReason: 'checkmate' })).toBe(
         '@sam_k won · Checkmate · 1-0',
       );
@@ -154,7 +123,7 @@ describe('buildSnapshotModel', () => {
     });
 
     it('says how an unfinished game ended', () => {
-      const finished = { status: 'finished' as const, deadlineAt: null, result: '*' as const };
+      const finished = { status: 'finished' as const, result: '*' as const };
       expect(status({ ...finished, endReason: 'abort' })).toBe('Aborted');
       expect(status({ ...finished, endReason: 'voided' })).toBe('Voided by an admin');
       expect(status({ ...finished, endReason: null })).toBe('Aborted');
@@ -166,47 +135,44 @@ describe('buildSnapshotModel', () => {
           status: 'finished',
           result: '1-0',
           endReason: 'checkmate',
-          deadlineAt: null,
           voided: true,
         }),
       ).toBe('Voided by an admin');
     });
 
-    it('shows whose move it was for an earlier position of a voided game', () => {
+    it('is left out for an earlier position of a voided game', () => {
       expect(
         status({
           status: 'finished',
           result: '1-0',
           endReason: 'checkmate',
-          deadlineAt: null,
           voided: true,
           ply: 1,
           plyCount: 40,
           sans: ['e4'],
           board: { fen: AFTER_E4, lastMove: 'e2e4', check: false, orientation: 'white' },
         }),
-      ).toBe('Black to move');
+      ).toBeNull();
     });
 
-    it('shows whose move it was for an earlier position of a finished game', () => {
+    it('is left out for an earlier position of a finished game', () => {
       expect(
         status({
           status: 'finished',
           result: '1-0',
           endReason: 'resignation',
-          deadlineAt: null,
           ply: 1,
           plyCount: 40,
           sans: ['e4'],
           board: { fen: AFTER_E4, lastMove: 'e2e4', check: false, orientation: 'white' },
         }),
-      ).toBe('Black to move');
+      ).toBeNull();
     });
   });
+});
 
-  it('passes the group through and joins the terms', () => {
-    const model = buildSnapshotModel(snapshotInput());
-    expect(model.group).toBe('Friday Chess Club');
-    expect(model.terms).toBe('1 day per move · Rated');
+describe('snapshotRowLimit', () => {
+  it('counts characters, not UTF-16 units, so emoji titles are not cut early', () => {
+    expect(snapshotRowLimit('🐐'.repeat(30))).toBe(6);
   });
 });

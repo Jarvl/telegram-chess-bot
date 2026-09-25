@@ -4,7 +4,6 @@ import {
   ratedLabel,
   ratingLabel,
   resultLabel,
-  sideToMove,
   t,
   timePerMoveLabel,
   type Colour,
@@ -16,8 +15,14 @@ import {
 } from '@group-chess/shared';
 import type { BoardRenderInput } from './board';
 
-/** Snapshot spec §1.2: rows the panel shows before it cuts the oldest. */
-export const SNAPSHOT_MAX_ROWS = 8;
+/**
+ * Move rows the panel shows before it cuts the oldest: fewer under a longer group title, which
+ * wraps onto more lines above them.
+ */
+export function snapshotRowLimit(groupTitle: string): number {
+  const length = [...groupTitle].length;
+  return length > 60 ? 4 : length > 30 ? 5 : 6;
+}
 
 export type SnapshotSide = {
   name: string;
@@ -40,9 +45,6 @@ export type SnapshotInput = {
   result: GameResult | null;
   endReason: EndReason | null;
   plyCount: number;
-  deadlineAt: Date | null;
-  /** When the user tapped Share: the clock is shown as it was then (spec §3.2). */
-  sharedAt: Date;
   /** A finished game keeps its result/endReason when voided; this names no winner instead. */
   voided: boolean;
 };
@@ -53,31 +55,24 @@ export type SnapshotRow = {
   number: number;
   white: SnapshotCell;
   black: SnapshotCell | null;
-  faded: boolean;
 };
 
 /** Everything the card shows, already worded (spec §1.2). */
 export type SnapshotModel = {
   board: BoardRenderInput;
-  pill: string;
+  group: string;
+  /** Time per move and rated or casual, under the group. */
+  meta: string;
   /** The player at the top of the board first. */
   players: [SnapshotPlayer, SnapshotPlayer];
   rows: SnapshotRow[];
-  status: string;
-  group: string;
-  terms: string;
+  /** The result, only for a finished game's final position. */
+  status: string | null;
 };
 
 /** The move a share names in its pill and caption; the initial position counts as move 1. */
 export function shareMoveNumber(ply: number): number {
   return Math.max(1, Math.ceil(ply / 2));
-}
-
-/** `1d 2h` from a day up, `14h 32m` below; never negative. */
-export function formatSnapshotTimeLeft(ms: number): string {
-  const minutes = Math.max(0, Math.floor(ms / 60_000));
-  const hours = Math.floor(minutes / 60);
-  return hours >= 24 ? `${Math.floor(hours / 24)}d ${hours % 24}h` : `${hours}h ${minutes % 60}m`;
 }
 
 function player(colour: Colour, side: SnapshotSide): SnapshotPlayer {
@@ -89,7 +84,7 @@ function player(colour: Colour, side: SnapshotSide): SnapshotPlayer {
   return { colour, name: side.name, rating };
 }
 
-function moveRows(sans: readonly string[]): SnapshotRow[] {
+function moveRows(sans: readonly string[], limit: number): SnapshotRow[] {
   const last = sans.length - 1;
   const rows: SnapshotRow[] = [];
   for (let index = 0; index < sans.length; index += 2) {
@@ -98,13 +93,9 @@ function moveRows(sans: readonly string[]): SnapshotRow[] {
       number: index / 2 + 1,
       white: { san: sans[index]!, current: index === last },
       black: black === undefined ? null : { san: black, current: index + 1 === last },
-      faded: false,
     });
   }
-  if (rows.length <= SNAPSHOT_MAX_ROWS) return rows;
-  return rows
-    .slice(-SNAPSHOT_MAX_ROWS)
-    .map((row, index) => (index === 0 ? { ...row, faded: true } : row));
+  return rows.slice(-limit);
 }
 
 const joined = (parts: (string | null)[]): string => parts.filter(Boolean).join(' · ');
@@ -125,18 +116,10 @@ function resultLine(input: SnapshotInput): string {
   return reason ?? t('app.game.result.aborted');
 }
 
-/** Spec §3.2, first match wins. */
-function statusLine(input: SnapshotInput): string {
-  const latest = input.ply === input.plyCount;
-  if (input.status === 'finished' && latest && input.voided) return t('end_reason.voided');
-  if (input.status === 'finished' && latest) return resultLine(input);
-  const toMove = t('image.share.to_move', { side: t(`colour.${sideToMove(input.board.fen)}`) });
-  if (input.timePerMove === null) return joined([toMove, timePerMoveLabel(null)]);
-  if (input.status === 'active' && latest && input.deadlineAt) {
-    const left = input.deadlineAt.getTime() - input.sharedAt.getTime();
-    return joined([toMove, t('image.share.time_left', { time: formatSnapshotTimeLeft(left) })]);
-  }
-  return toMove;
+/** Spec §3.2: a running game or an earlier position carries no status line. */
+function statusLine(input: SnapshotInput): string | null {
+  if (input.status !== 'finished' || input.ply !== input.plyCount) return null;
+  return input.voided ? t('end_reason.voided') : resultLine(input);
 }
 
 export function buildSnapshotModel(input: SnapshotInput): SnapshotModel {
@@ -144,11 +127,10 @@ export function buildSnapshotModel(input: SnapshotInput): SnapshotModel {
   const black = player('black', input.black);
   return {
     board: input.board,
-    pill: t('image.share.snapshot', { moveNumber: shareMoveNumber(input.ply) }),
-    players: input.board.orientation === 'white' ? [black, white] : [white, black],
-    rows: moveRows(input.sans),
-    status: statusLine(input),
     group: input.groupTitle,
-    terms: joined([timePerMoveLabel(input.timePerMove), ratedLabel(input.rated)]),
+    meta: joined([timePerMoveLabel(input.timePerMove), ratedLabel(input.rated)]),
+    players: input.board.orientation === 'white' ? [black, white] : [white, black],
+    rows: moveRows(input.sans, snapshotRowLimit(input.groupTitle)),
+    status: statusLine(input),
   };
 }

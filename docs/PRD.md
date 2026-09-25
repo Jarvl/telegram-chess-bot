@@ -167,7 +167,7 @@ The bot posts nothing to the group except the following:
 |---|---|---|
 | Welcome card | Bot added | One line plus **♟ Open Chess** |
 | Game card | Challenge created; edited on accept, and again at game end | Players (with colours once assigned), time per move, rated/casual; status line ("Move 12 · Bob to move") updated silently as the game goes; **Accept**/**Decline** while pending; **♟ Open game** while running; result, **Analyse on Lichess** and **Rematch** when finished |
-| Shared position | A player or spectator taps Share position in the app | Snapshot card of that position (board, players, recent moves, where the game stood), caption "Alice shared move 23 of Alice vs Bob", **♟ Open live game** button. Group members reply in the chat as usual |
+| Shared position | A player or spectator taps Share position in the app | Snapshot card of that position (board, group and terms, players, recent moves, and the result once the game is over), caption "Alice shared move 23 of Alice vs Bob", **♟ Open live game** button. Group members reply in the chat as usual |
 | Reply to `/play` | Only when the command cannot be fulfilled | One short line (for example, the opponent already has 2 games with you) |
 
 Edits to the game card are silent (no notification). There are no per-move messages, no nudges in the group, no bump or re-post behaviour. Status-line edits are throttled to at most one per move.

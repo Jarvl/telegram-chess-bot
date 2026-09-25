@@ -14,9 +14,24 @@ const PAGE = '#f5f0dc';
 const INK = '#15181d';
 const MUTED = '#707579';
 const GREEN = '#256b42';
-/** The prototype's camera glyph, filled in the pill's text colour. */
-const CAMERA =
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#f5f0dc" fill-rule="evenodd" d="M9 4.5h6l1.4 2H20a1.5 1.5 0 0 1 1.5 1.5v10A1.5 1.5 0 0 1 20 19.5H4A1.5 1.5 0 0 1 2.5 18V8A1.5 1.5 0 0 1 4 6.5h3.6L9 4.5Zm3 4a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9Zm0 2a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5Z"/></svg>';
+const DEEP_GREEN = '#153a26';
+const DOT = 28;
+const DOT_GAP = 18;
+const NAME_LINE_HEIGHT = 1.15;
+
+/** Characters, not UTF-16 units, so an emoji counts once. */
+const length = (text: string): number => [...text].length;
+
+/** The group title drops a size once it is long enough to wrap onto a third line. */
+export function groupFontSize(group: string): number {
+  return length(group) > 60 ? 30 : 34;
+}
+
+/** Both names share one size, set by the longer, so the two rows stay alike. */
+export function nameFontSize(players: readonly SnapshotPlayer[]): number {
+  const longest = Math.max(...players.map((player) => length(player.name)));
+  return longest <= 16 ? 40 : longest <= 22 ? 34 : 30;
+}
 
 type Style = Record<string, string | number>;
 type Child = El | string;
@@ -38,13 +53,8 @@ function el(
 const svgDataUri = (svg: string): string =>
   `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
 
-/** One line that ends in an ellipsis instead of wrapping. */
-const ONE_LINE: Style = {
-  overflow: 'hidden',
-  whiteSpace: 'nowrap',
-  textOverflow: 'ellipsis',
-  minWidth: 0,
-};
+/** Wraps anywhere, so an unbroken name or title still fits the panel. */
+const WRAP: Style = { minWidth: 0, wordBreak: 'break-word' };
 
 function coordinate(text: string, onLightSquare: boolean, position: Style): El {
   const color = onLightSquare ? BOARD_DARK : BOARD_LIGHT;
@@ -91,39 +101,53 @@ function board(model: SnapshotModel): El {
   );
 }
 
-function pill(text: string): El {
-  return el(
-    'div',
-    {
-      display: 'flex',
-      alignItems: 'center',
-      alignSelf: 'flex-start',
-      gap: 16,
-      padding: '12px 26px 12px 20px',
-      borderRadius: 999,
-      background: '#153a26',
-      color: PAGE,
-      fontSize: 30,
-      fontWeight: 700,
-      lineHeight: 1,
-      letterSpacing: '0.06em',
-      textTransform: 'uppercase',
-      whiteSpace: 'nowrap',
-    },
-    [el('img', {}, [], { src: svgDataUri(CAMERA), width: 36, height: 36 }), el('span', {}, [text])],
-  );
+/** §1.2: the group and its terms head the panel. */
+function header(model: SnapshotModel): El {
+  return el('div', { display: 'flex', flexDirection: 'column', gap: 10, flexShrink: 0 }, [
+    el(
+      'span',
+      {
+        fontSize: groupFontSize(model.group),
+        fontWeight: 700,
+        lineHeight: 1.2,
+        color: DEEP_GREEN,
+        ...WRAP,
+      },
+      [model.group],
+    ),
+    el('span', { fontSize: 28, lineHeight: 1.2, color: MUTED }, [model.meta]),
+  ]);
 }
 
-function playerRow(player: SnapshotPlayer): El {
+/** A colour dot beside the name, centred on its first line, with the rating underneath. */
+function playerRow(player: SnapshotPlayer, fontSize: number): El {
   const dot: Style =
     player.colour === 'white'
       ? { background: '#ffffff', border: '3px solid #c9c2ab' }
       : { background: '#2b2b2b' };
-  return el('div', { display: 'flex', alignItems: 'center', gap: 20 }, [
-    el('div', { width: 34, height: 34, borderRadius: 17, flexShrink: 0, ...dot }),
-    el('span', { fontSize: 46, fontWeight: 600, flexShrink: 1, ...ONE_LINE }, [player.name]),
+  const dotTop = Math.round((fontSize * NAME_LINE_HEIGHT - DOT) / 2);
+  return el('div', { display: 'flex', flexDirection: 'column', gap: 8 }, [
+    el('div', { display: 'flex', alignItems: 'flex-start', gap: DOT_GAP, minWidth: 0 }, [
+      el('div', {
+        width: DOT,
+        height: DOT,
+        marginTop: dotTop,
+        borderRadius: DOT / 2,
+        flexShrink: 0,
+        ...dot,
+      }),
+      el(
+        'span',
+        { fontSize, fontWeight: 600, lineHeight: NAME_LINE_HEIGHT, flexShrink: 1, ...WRAP },
+        [player.name],
+      ),
+    ]),
     ...(player.rating
-      ? [el('span', { fontSize: 38, color: MUTED, lineHeight: 1, flexShrink: 0 }, [player.rating])]
+      ? [
+          el('span', { paddingLeft: DOT + DOT_GAP, fontSize: 30, lineHeight: 1.2, color: MUTED }, [
+            player.rating,
+          ]),
+        ]
       : []),
   ]);
 }
@@ -134,10 +158,10 @@ function cell(value: SnapshotCell | null): El {
     : {};
   return el(
     'div',
-    { display: 'flex', flex: 1 },
+    { display: 'flex', width: 190, flexShrink: 0 },
     value
       ? [
-          el('span', { padding: '2px 14px', marginLeft: -14, borderRadius: 12, ...current }, [
+          el('span', { padding: '0 12px', marginLeft: -12, borderRadius: 10, ...current }, [
             value.san,
           ]),
         ]
@@ -146,15 +170,16 @@ function cell(value: SnapshotCell | null): El {
 }
 
 function moveRow(row: SnapshotRow): El {
-  return el('div', { display: 'flex', opacity: row.faded ? 0.25 : 1 }, [
-    el('span', { width: 90, flexShrink: 0, color: '#9a9a8e' }, [`${row.number}.`]),
+  return el('div', { display: 'flex', flexShrink: 0 }, [
+    el('span', { width: 84, flexShrink: 0, color: '#9a9a8e' }, [`${row.number}.`]),
     cell(row.white),
     cell(row.black),
   ]);
 }
 
-/** §1.2, top to bottom: pill, players, divider, moves, footer. */
+/** §1.2, top to bottom: group and terms, players, divider, moves, then a finished game's result. */
 function panel(model: SnapshotModel): El {
+  const nameSize = nameFontSize(model.players);
   return el(
     'div',
     {
@@ -162,15 +187,15 @@ function panel(model: SnapshotModel): El {
       flexDirection: 'column',
       flex: 1,
       minWidth: 0,
-      padding: '44px 56px',
-      gap: 22,
+      padding: '56px 64px',
+      gap: 40,
     },
     [
-      pill(model.pill),
+      header(model),
       el(
         'div',
-        { display: 'flex', flexDirection: 'column', gap: 22 },
-        model.players.map(playerRow),
+        { display: 'flex', flexDirection: 'column', gap: 26, flexShrink: 0 },
+        model.players.map((player) => playerRow(player, nameSize)),
       ),
       el('div', { height: 3, background: '#e2dcc6', flexShrink: 0 }),
       el(
@@ -181,28 +206,21 @@ function panel(model: SnapshotModel): El {
           flex: 1,
           minHeight: 0,
           overflow: 'hidden',
-          gap: 10,
-          fontSize: 36,
-          lineHeight: 1.15,
+          gap: 14,
+          fontSize: 34,
+          lineHeight: 1.2,
         },
         model.rows.map(moveRow),
       ),
-      el('div', { display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0 }, [
-        el(
-          'span',
-          {
-            fontSize: 40,
-            fontWeight: 700,
-            lineHeight: 1.15,
-            color: GREEN,
-            display: 'block',
-            lineClamp: 2,
-          },
-          [model.status],
-        ),
-        el('span', { fontSize: 32, color: MUTED, ...ONE_LINE }, [model.group]),
-        el('span', { fontSize: 32, color: MUTED, ...ONE_LINE }, [model.terms]),
-      ]),
+      ...(model.status
+        ? [
+            el(
+              'span',
+              { flexShrink: 0, fontSize: 34, fontWeight: 700, lineHeight: 1.2, color: GREEN },
+              [model.status],
+            ),
+          ]
+        : []),
     ],
   );
 }

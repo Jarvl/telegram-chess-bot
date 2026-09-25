@@ -7,7 +7,7 @@ import type { BoardRenderInput } from '../../src/images/board';
 import { loadFonts } from '../../src/images/fonts';
 import { renderSnapshotPng, renderSnapshotSvg } from '../../src/images/snapshot';
 import { buildSnapshotModel, type SnapshotInput } from '../../src/images/snapshotModel';
-import { SHARED_AT, snapshotInput } from '../helpers/snapshotFixtures';
+import { snapshotInput } from '../helpers/snapshotFixtures';
 
 /** Kasparov–Topalov, Wijk aan Zee 1999, through 30…Qc4 (the design's long-game example). */
 const KASPAROV_TOPALOV =
@@ -34,7 +34,6 @@ const samples: Record<string, Partial<SnapshotInput>> = {
     plyCount: 1,
     sans: ['e4'],
     board: replay(['e4']),
-    deadlineAt: new Date(SHARED_AT.getTime() + (14 * 60 + 32) * 60_000),
   },
   'long-game': {
     ply: 60,
@@ -50,12 +49,18 @@ const samples: Record<string, Partial<SnapshotInput>> = {
     status: 'finished',
     result: '1-0',
     endReason: 'resignation',
-    deadlineAt: null,
   },
   'cjk-emoji': {
     white: { name: '李小龍', rating: { rating: 1500, rd: 300 }, engineLevel: null },
     black: { name: 'さくら 🐐', rating: null, engineLevel: null },
-    groupTitle: '♞ 김민수의 체스 클럽 🔥🔥🔥 and a very long title that must end in an ellipsis',
+    groupTitle: '♞ 김민수의 체스 클럽 🔥🔥🔥 and a very long title that wraps onto three lines',
+  },
+  'unbroken-name': {
+    ply: 60,
+    plyCount: 60,
+    sans: KASPAROV_TOPALOV,
+    board: replay(KASPAROV_TOPALOV),
+    black: { name: 'x'.repeat(60), rating: null, engineLevel: null },
   },
   'long-winner': {
     ply: 60,
@@ -65,7 +70,6 @@ const samples: Record<string, Partial<SnapshotInput>> = {
     status: 'finished',
     result: '1-0',
     endReason: 'checkmate',
-    deadlineAt: null,
     white: { name: '@gregory_pyle_the_great', rating: { rating: 1512, rd: 50 }, engineLevel: null },
   },
   'draw-insufficient': {
@@ -76,7 +80,6 @@ const samples: Record<string, Partial<SnapshotInput>> = {
     status: 'finished',
     result: '1/2-1/2',
     endReason: 'insufficient_material',
-    deadlineAt: null,
   },
   voided: {
     ply: 60,
@@ -86,7 +89,6 @@ const samples: Record<string, Partial<SnapshotInput>> = {
     status: 'finished',
     result: '1-0',
     endReason: 'checkmate',
-    deadlineAt: null,
     voided: true,
   },
   'black-bot': {
@@ -96,7 +98,6 @@ const samples: Record<string, Partial<SnapshotInput>> = {
     sans: ['e4'],
     timePerMove: null,
     rated: false,
-    deadlineAt: null,
     white: { name: 'Chess Goat', rating: null, engineLevel: 'club' },
   },
 };
