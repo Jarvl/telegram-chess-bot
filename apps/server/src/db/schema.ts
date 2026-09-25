@@ -164,6 +164,11 @@ export const games = pgTable(
     startedAt: tz().notNull().defaultNow(),
     finishedAt: tz(),
     lastMoveAt: tz(),
+    /** The premove chain of the side not to move, oldest first, as UCI (premoves spec, Data). */
+    premoves: text()
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
   },
   (t) => [
     index('games_deadline_active')

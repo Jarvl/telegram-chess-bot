@@ -98,6 +98,7 @@ const dmPayload = z.object({
   template: z.enum(['turn', 'challenge', 'reminder', 'game_end']),
   gameId: z.number().int().optional(),
   challengeId: z.number().int().optional(),
+  premovesCancelled: z.boolean().optional(),
 });
 const messagePayload = z.object({
   chatId: z.number().int(),
@@ -300,12 +301,13 @@ async function dmContent(
     : timeLeft
       ? 'dm.turn.first'
       : 'dm.turn.first_no_clock';
+  const turn = t(key, {
+    opponent: displayName(opponent),
+    lastMove: lastMove ?? '',
+    timeLeft: timeLeft ?? '',
+  });
   return {
-    text: t(key, {
-      opponent: displayName(opponent),
-      lastMove: lastMove ?? '',
-      timeLeft: timeLeft ?? '',
-    }),
+    text: payload.premovesCancelled ? `${turn}\n\n${t('dm.premoves_cancelled')}` : turn,
     buttons: [[openGame], goToGroup],
   };
 }

@@ -26,20 +26,24 @@ export function Board(props: {
     const adapter = createBoardAdapter(
       element.current!,
       {
-        ...store.position.value,
+        ...store.boardView.value,
         orientation: store.orientation.value,
-        turnColour: store.sideToMove.value,
+        turnColour: store.boardTurn.value,
       },
       { viewOnly: spectator },
     );
     adapter.onMove((orig, dest, meta) => onMoveRef.current(orig, dest, meta));
     props.onReady(adapter);
+    // Premoves spec, Board: a tap while viewing an earlier premove goes back to the end of the chain.
+    adapter.onSelect(() => {
+      if (store.premoveMode.value && !store.atChainEnd.value) store.premoveStep.value = null;
+    });
     const disposers = [
       effect(() => {
         const next = {
-          ...store.position.value,
+          ...store.boardView.value,
           orientation: store.orientation.value,
-          turnColour: store.sideToMove.value,
+          turnColour: store.boardTurn.value,
         };
         if (!frozenRef.current) adapter.setPosition(next);
       }),
@@ -50,6 +54,7 @@ export function Board(props: {
         }),
       ),
       effect(() => adapter.setViewOnly(store.dto.value.viewerRole === 'spectator')),
+      effect(() => adapter.setHighlights(store.premoveSquares.value)),
     ];
     return () => {
       for (const dispose of disposers) dispose();
@@ -57,7 +62,7 @@ export function Board(props: {
     };
   }, [store]);
   return (
-    <div class="board-wrap">
+    <div class={store.premoveMode.value ? 'board-wrap premove' : 'board-wrap'}>
       <div ref={element} />
       {props.children}
     </div>

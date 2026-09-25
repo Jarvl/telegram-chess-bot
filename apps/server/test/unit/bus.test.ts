@@ -43,4 +43,13 @@ describe('LocalBus', () => {
     expect(() => bus.publish('g')).not.toThrow();
     expect(seen).toEqual(['ok']);
   });
+
+  it('hands the audience to every listener so each can decide whether it is meant', () => {
+    const bus = new LocalBus();
+    const seen: unknown[] = [];
+    bus.subscribe('g', (audience) => seen.push(audience));
+    bus.publish('g', { userId: 7 });
+    bus.publish('g');
+    expect(seen).toEqual([{ userId: 7 }, undefined]);
+  });
 });

@@ -1,12 +1,16 @@
 import {
+  imaginedBoard,
   INITIAL_FEN,
   legalDests,
+  placementOf,
+  premoveTargets,
   sideToMove,
   type Colour,
   type GameDto,
 } from '@group-chess/shared';
 import { computed, signal, type ReadonlySignal, type Signal } from '@preact/signals';
 import { Chess } from 'chess.js';
+import { premoveLabel, sameList } from './premoves';
 
 export type Position = {
   ply: number;
@@ -15,7 +19,13 @@ export type Position = {
   check: boolean;
 };
 
-export type Notice = 'draw_offered' | 'draw_declined' | 'opponent_moved' | 'finished';
+export type Notice =
+  | 'draw_offered'
+  | 'draw_declined'
+  | 'opponent_moved'
+  | 'finished'
+  | 'premove_played'
+  | 'premoves_cancelled';
 
 function inCheck(fen: string): boolean {
   try {
@@ -65,6 +75,24 @@ export function diffNotices(prev: GameDto, next: GameDto): Notice[] {
   ) {
     notices.push('opponent_moved');
   }
+  // Premoves spec, Notices: the viewer's chain either played moves or was cancelled. A resumed
+  // app can jump several plies at once (fix round 1), so count how many queued premoves fired in
+  // order — the queue's own side moves every other ply, starting two plies after `prev` — rather
+  // than assuming only the first one could have played.
+  if (next.plyCount > prev.plyCount && next.status === 'active' && prev.premoves.length > 0) {
+    let fired = 0;
+    while (
+      fired < prev.premoves.length &&
+      next.moves[prev.plyCount + 1 + 2 * fired]?.uci === prev.premoves[fired]
+    ) {
+      fired += 1;
+    }
+    if (fired >= 1) notices.push('premove_played');
+    // A chain that lost more than the fired moves was cancelled after them: across a multi-ply
+    // jump, a premove played and a later reply found the next one illegal. The server keeps a
+    // fired premove's leftover chain whole, so this is always a real cancel.
+    if (next.premoves.length < prev.premoves.length - fired) notices.push('premoves_cancelled');
+  }
   return notices;
 }
 
@@ -79,6 +107,30 @@ export class GameStore {
   readonly sideToMove: ReadonlySignal<Colour>;
   readonly canMove: ReadonlySignal<boolean>;
   readonly dests: ReadonlySignal<Map<string, string[]>>;
+  /**
+   * The chain the player has made but the server hasn't confirmed yet. A state from the server
+   * replaces it, except a same-ply one while a save is running: the save owns it until it settles
+   * (premoves spec, Queuing).
+   */
+  readonly optimisticPremoves: Signal<string[] | null> = signal(null);
+  /** null is the end of the chain; 0 the current position; k the position after premove k. */
+  readonly premoveStep: Signal<number | null> = signal(null);
+  /** A premove save is running. The board stays live; further edits wait their turn. */
+  readonly premoveSending: Signal<boolean> = signal(false);
+  /**
+   * True while the player's own move is anywhere short of settled (waiting for Confirm, sending,
+   * retrying). The stream can already show the opponent's turn then, but every drop would be
+   * refused until the move settles, so the board offers no premoves meanwhile.
+   */
+  readonly moveBusy: Signal<boolean> = signal(false);
+  readonly premoves: ReadonlySignal<string[]>;
+  readonly premoveMode: ReadonlySignal<boolean>;
+  readonly shownStep: ReadonlySignal<number>;
+  readonly atChainEnd: ReadonlySignal<boolean>;
+  readonly boardView: ReadonlySignal<Position>;
+  readonly boardTurn: ReadonlySignal<Colour>;
+  readonly premoveSquares: ReadonlySignal<string[]>;
+  readonly premoveLabels: ReadonlySignal<string[]>;
 
   constructor(initial: GameDto) {
     this.dto = signal(initial);
@@ -91,8 +143,50 @@ export class GameStore {
       return this.flipped.value ? (own === 'white' ? 'black' : 'white') : own;
     });
     this.sideToMove = computed(() => sideToMove(this.position.value.fen));
+    this.premoves = computed(() => this.optimisticPremoves.value ?? this.dto.value.premoves);
+    this.premoveMode = computed(() => {
+      const dto = this.dto.value;
+      return (
+        dto.status === 'active' &&
+        this.isLatest.value &&
+        (dto.viewerRole === 'white' || dto.viewerRole === 'black') &&
+        sideToMove(dto.fen) !== dto.viewerRole &&
+        !this.moveBusy.value
+      );
+    });
+    this.shownStep = computed(() =>
+      Math.min(this.premoveStep.value ?? Number.POSITIVE_INFINITY, this.premoves.value.length),
+    );
+    this.atChainEnd = computed(() => this.shownStep.value === this.premoves.value.length);
+    // The queue belongs to the viewer; an entry that would move the other side's piece (one that
+    // captured the piece it was queued for) is skipped, as the server's check skips it.
+    const owner = (): Colour | undefined => {
+      const role = this.dto.value.viewerRole;
+      return role === 'white' || role === 'black' ? role : undefined;
+    };
+    const imagined = (count: number) =>
+      imaginedBoard(this.dto.value.fen, this.premoves.value.slice(0, count), owner());
+    this.boardView = computed(() => {
+      const real = this.position.value;
+      if (!this.premoveMode.value || this.shownStep.value === 0) return real;
+      const side = this.dto.value.viewerRole === 'black' ? 'b' : 'w';
+      const placement = placementOf(imagined(this.shownStep.value).pieces);
+      return { ...real, fen: `${placement} ${side} - - 0 1`, check: false };
+    });
+    this.boardTurn = computed(() =>
+      this.premoveMode.value ? (this.dto.value.viewerRole as Colour) : this.sideToMove.value,
+    );
+    this.premoveSquares = computed(() => {
+      const step = this.shownStep.value;
+      const uci = this.premoveMode.value && step > 0 ? this.premoves.value[step - 1] : undefined;
+      return uci ? [uci.slice(0, 2), uci.slice(2, 4)] : [];
+    });
+    this.premoveLabels = computed(() =>
+      this.premoves.value.map((uci, index) => premoveLabel(imagined(index), uci, owner())),
+    );
     this.canMove = computed(() => {
       const dto = this.dto.value;
+      if (this.premoveMode.value) return this.atChainEnd.value;
       return (
         dto.status === 'active' &&
         this.isLatest.value &&
@@ -100,9 +194,15 @@ export class GameStore {
         sideToMove(dto.fen) === dto.viewerRole
       );
     });
-    this.dests = computed(() =>
-      this.canMove.value ? legalDests(this.dto.value.fen) : new Map<string, string[]>(),
-    );
+    this.dests = computed(() => {
+      if (!this.canMove.value) return new Map<string, string[]>();
+      if (this.premoveMode.value)
+        return premoveTargets(
+          imagined(this.premoves.value.length),
+          this.dto.value.viewerRole as Colour,
+        );
+      return legalDests(this.dto.value.fen);
+    });
   }
 
   /**
@@ -115,12 +215,23 @@ export class GameStore {
     if (
       next.version === current.version &&
       next.plyCount === current.plyCount &&
-      next.status === current.status
+      next.status === current.status &&
+      sameList(next.premoves, current.premoves)
     ) {
       return false;
     }
     const viewing = this.viewingPly.value;
     this.dto.value = next;
+    const samePly = next.plyCount === current.plyCount && next.status === current.status;
+    if (!(this.premoveSending.value && samePly)) this.optimisticPremoves.value = null;
+    // The step clamps to the end when the game moves on, or when the chain shrinks to at or
+    // below it — otherwise a later append would jump the view back to a stale step (fix round 1).
+    if (
+      next.plyCount !== current.plyCount ||
+      next.premoves.length <= (this.premoveStep.value ?? Number.POSITIVE_INFINITY)
+    ) {
+      this.premoveStep.value = null;
+    }
     // A player reading an old position is brought back when the game moves on; spectators stay.
     if (viewing !== null && next.plyCount > current.plyCount && next.viewerRole !== 'spectator') {
       this.viewingPly.value = null;
@@ -135,5 +246,14 @@ export class GameStore {
 
   flip(): void {
     this.flipped.value = !this.flipped.value;
+  }
+
+  /** Views premove `step` (0 = the current position); returns whether the view changed. */
+  viewPremove(step: number): boolean {
+    const length = this.premoves.value.length;
+    const k = Math.max(0, Math.min(length, step));
+    if (k === this.shownStep.value) return false;
+    this.premoveStep.value = k === length ? null : k;
+    return true;
   }
 }

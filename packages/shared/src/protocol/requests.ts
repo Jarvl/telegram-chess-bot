@@ -18,6 +18,15 @@ export const MoveRequestSchema = z.object({
 
 export type MoveRequest = z.infer<typeof MoveRequestSchema>;
 
+/** Compare-and-set of the viewer's premove chain (premoves spec, API): `base` is the chain the device showed. */
+export const PremovesRequestSchema = z.object({
+  base: z.array(UciSchema),
+  premoves: z.array(UciSchema),
+  expectedPly: z.number().int().min(0),
+});
+
+export type PremovesRequest = z.infer<typeof PremovesRequestSchema>;
+
 export const ChallengeRequestSchema = z.object({
   /** null for an open challenge. */
   opponentId: UserIdSchema.nullable(),

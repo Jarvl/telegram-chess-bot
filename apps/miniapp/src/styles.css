@@ -45,6 +45,9 @@
   --lm: rgba(224, 185, 74, 0.6);
   --sel: rgba(46, 125, 79, 0.55);
   --dot: rgba(21, 58, 38, 0.4);
+  --pm: #2481cc;
+  --pm-sq: rgba(36, 129, 204, 0.42);
+  --pm-soft: #e6f1fa;
   --stable-height: 100vh;
   --radius: 12px;
   --tabbar-h: calc(56px + env(safe-area-inset-bottom, 0px));
@@ -924,6 +927,54 @@ button {
   padding-left: 6px;
 }
 
+.move-list .premove-gap {
+  color: var(--hint);
+  padding: 3px 7px;
+}
+
+.move-list .premove-number {
+  color: var(--pm);
+}
+
+.move-list button.premove-chip {
+  color: var(--pm);
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1.5px var(--pm);
+}
+
+.move-list button.premove-chip[aria-current='true'] {
+  background: var(--pm);
+  color: #fff;
+  box-shadow: none;
+}
+
+.premove-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 16px 4px;
+}
+
+.premove-bar .premove-label {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.premove-bar .premove-label.pending {
+  color: var(--pm);
+}
+
+.premove-bar .pill-btn[data-action='premove-remove'] {
+  background: var(--pm-soft);
+  color: var(--pm);
+}
+
+.premove-bar .pill-btn:disabled {
+  opacity: 0.35;
+}
+
 .replay-controls {
   display: flex;
   align-items: center;
@@ -1063,6 +1114,23 @@ cg-board square.oc.move-dest {
 
 cg-board square.move-dest:hover {
   background: var(--dot);
+}
+
+/* Premoves (premoves spec, Board): the viewed premove's squares and blue destination dots. */
+cg-board square.premove-sq {
+  background-color: var(--pm-sq);
+}
+
+.board-wrap.premove cg-board square.move-dest {
+  background: radial-gradient(var(--pm-sq) 22%, transparent 23%);
+}
+
+.board-wrap.premove cg-board square.oc.move-dest {
+  background: radial-gradient(transparent 0%, transparent 79%, var(--pm-sq) 80%);
+}
+
+.board-wrap.premove cg-board square.move-dest:hover {
+  background: var(--pm-sq);
 }
 
 cg-board square.check {

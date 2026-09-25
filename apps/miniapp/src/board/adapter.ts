@@ -16,12 +16,23 @@ export type Movable = { colour: Colour | 'none'; dests: Map<string, string[]> };
 
 export type MoveHandler = (orig: string, dest: string, meta: { captured: boolean }) => void;
 
+export type SelectHandler = (square: string) => void;
+
+/** The viewed premove's two squares, as chessground custom highlights (premoves spec, Board). */
+export function highlightSquares(squares: string[]): Map<Key, string> {
+  return new Map(squares.map((square) => [square as Key, 'premove-sq']));
+}
+
 /** Spec §6.3: the seam around chessground; nothing else imports it. */
 export interface BoardAdapter {
   setPosition(position: BoardPosition): void;
   setMovable(movable: Movable): void;
   setViewOnly(viewOnly: boolean): void;
   onMove(handler: MoveHandler): void;
+  /** Marks the viewed premove's squares; `[]` clears them. */
+  setHighlights(squares: string[]): void;
+  /** Every tap on a square, for jumping to the end of the premove chain. */
+  onSelect(handler: SelectHandler): void;
   flip(): void;
   /** Snaps a lifted or dropped piece back; the next `setPosition` restores the board. */
   cancelMove(): void;
@@ -40,6 +51,7 @@ export function boardConfig(
   movable: Movable,
   viewOnly: boolean,
   onMove: MoveHandler,
+  onSelect: SelectHandler = () => undefined,
 ): Config {
   return {
     fen: position.fen,
@@ -69,12 +81,14 @@ export function boardConfig(
     draggable: { enabled: true, showGhost: true },
     selectable: { enabled: true },
     drawable: { enabled: false },
+    events: { select: (key) => onSelect(key) },
   };
 }
 
 class ChessgroundAdapter implements BoardAdapter {
   private readonly api: Api;
   private handler: MoveHandler = () => undefined;
+  private selectHandler: SelectHandler = () => undefined;
   private position: BoardPosition;
   private movable: Movable = { colour: 'none', dests: new Map() };
   private viewOnly: boolean;
@@ -86,8 +100,12 @@ class ChessgroundAdapter implements BoardAdapter {
   }
 
   private config(): Config {
-    return boardConfig(this.position, this.movable, this.viewOnly, (orig, dest, meta) =>
-      this.handler(orig, dest, meta),
+    return boardConfig(
+      this.position,
+      this.movable,
+      this.viewOnly,
+      (orig, dest, meta) => this.handler(orig, dest, meta),
+      (square) => this.selectHandler(square),
     );
   }
 
@@ -124,6 +142,14 @@ class ChessgroundAdapter implements BoardAdapter {
 
   onMove(handler: MoveHandler): void {
     this.handler = handler;
+  }
+
+  setHighlights(squares: string[]): void {
+    this.api.set({ highlight: { custom: highlightSquares(squares) } });
+  }
+
+  onSelect(handler: SelectHandler): void {
+    this.selectHandler = handler;
   }
 
   flip(): void {

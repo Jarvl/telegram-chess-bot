@@ -306,6 +306,25 @@ describe('send_dm', () => {
         .map((b) => b.text),
     ).toEqual(['♟ Open game', '🔍 Analyse on Lichess']);
   });
+
+  it('adds the cancelled line to the turn DM when the premoves were cancelled', async () => {
+    const { group, alice, bob } = await people();
+    const game = await insertGame(db, group.id, bob.id, alice.id, {
+      cardMessageId: 900,
+      fen: AFTER_E4,
+      plyCount: 1,
+    });
+    await insertMove(db, game.id, 1, 'e2e4', 'e4', AFTER_E4);
+    await enqueue(db, {
+      kind: 'send_dm',
+      payload: { userId: alice.id, template: 'turn', gameId: game.id, premovesCancelled: true },
+    });
+    await worker.runOnce();
+    expect(fake.callsTo('sendMessage')[0]?.body).toMatchObject({
+      chat_id: 11,
+      text: 'Your move vs Bob · 1. e4 · 23 h left\n\nYour premoves were cancelled.',
+    });
+  });
 });
 
 describe('send_welcome and send_message', () => {

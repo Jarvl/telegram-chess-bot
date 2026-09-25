@@ -45,8 +45,16 @@ export function eventsRoutes(api: Hono<ApiEnv>, ctx: ApiContext): void {
             .catch(() => undefined);
           return chain;
         };
-        if (!Number.isFinite(lastEventId) || lastEventId < game.version) await send();
-        const unsubscribe = ctx.deps.bus.subscribe(publicId, () => void send());
+        // Subscribe before the first snapshot: a push landing while it is read must not be lost.
+        // Owner-only premove pushes carry no new version, so nothing later would make up for one.
+        // `chain` keeps the sends in order, so that push's state follows the snapshot.
+        const unsubscribe = ctx.deps.bus.subscribe(publicId, (audience) => {
+          if (audience && audience.userId !== user.id) return;
+          void send();
+        });
+        // Always a snapshot on (re)connect: premove edits leave `version` alone, so a matching
+        // Last-Event-ID no longer proves this device has the owner's current chain.
+        await send();
         const ping = setInterval(
           () => void stream.writeSSE({ event: 'ping', data: '' }).catch(() => undefined),
           PING_MS,

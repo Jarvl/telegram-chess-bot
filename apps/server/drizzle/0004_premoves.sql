@@ -1,0 +1,1 @@
+ALTER TABLE "games" ADD COLUMN "premoves" text[] DEFAULT '{}'::text[] NOT NULL;

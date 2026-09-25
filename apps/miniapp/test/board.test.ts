@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { boardConfig } from '../src/board/adapter';
+import { boardConfig, highlightSquares } from '../src/board/adapter';
 import { isPromotion, promotionOverlayStyle, promotionPieces } from '../src/board/promotion';
 import { resultForViewer, ratingChangeFor } from '../src/ui/game/result';
 import { AFTER_E4, afterPlies, gameDto } from './support/gameFixtures';
@@ -69,7 +69,7 @@ describe('promotion', () => {
 });
 
 describe('result labels', () => {
-  it('describes the result from the viewer’s side with the reason and the rating change', () => {
+  it("describes the result from the viewer's side with the reason and the rating change", () => {
     const finished = afterPlies(4, {
       status: 'finished',
       result: '0-1',
@@ -94,5 +94,39 @@ describe('result labels', () => {
     expect(ratingChangeFor(finished)).toBe('1500? → 1662?');
     expect(ratingChangeFor({ ...finished, viewerRole: 'spectator' })).toBeNull();
     expect(ratingChangeFor({ ...finished, rated: false })).toBeNull();
+  });
+});
+
+describe('premove highlights and taps', () => {
+  const position = {
+    fen: AFTER_E4,
+    lastMove: null,
+    check: false,
+    orientation: 'white' as const,
+    turnColour: 'white' as const,
+  };
+  const movable = { colour: 'white' as const, dests: new Map<string, string[]>() };
+
+  it("marks the viewed premove's squares with the premove class", () => {
+    expect(highlightSquares(['g1', 'h3'])).toEqual(
+      new Map([
+        ['g1', 'premove-sq'],
+        ['h3', 'premove-sq'],
+      ]),
+    );
+    expect(highlightSquares([]).size).toBe(0);
+  });
+
+  it('reports a tapped square to the select handler', () => {
+    const taps: string[] = [];
+    const config = boardConfig(
+      position,
+      movable,
+      false,
+      () => undefined,
+      (square) => taps.push(square),
+    );
+    config.events?.select?.('e4');
+    expect(taps).toEqual(['e4']);
   });
 });
