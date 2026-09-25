@@ -153,7 +153,7 @@ export const en = {
   'app.lobby.settings': 'Group settings',
   'app.lobby.challenges_count': 'Challenges · {count}',
   'app.lobby.no_active_others': 'Nobody else has a game running here.',
-  'app.lobby.no_active_mine': 'None of your games are running here.',
+  'app.lobby.no_active_mine': 'You have no active games. Challenge someone!',
   'app.lobby.no_finished_others': 'Nobody else has finished a game here yet.',
   'app.lobby.no_finished_mine': "You haven't finished a game here yet.",
   'app.lobby.no_players': 'Nobody has played enough rated games here yet.',

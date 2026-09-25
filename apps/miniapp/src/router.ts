@@ -1,5 +1,6 @@
 import type { GroupRef } from '@group-chess/shared';
 import { computed, signal, type ReadonlySignal, type Signal } from '@preact/signals';
+import type { LobbyScope } from './state/lobby';
 import type { Tg } from './tg/webapp';
 
 export type Route =
@@ -9,7 +10,8 @@ export type Route =
   | { name: 'locked'; group: GroupRef }
   | { name: 'games' }
   | { name: 'groups' }
-  | { name: 'lobby'; groupId: string }
+  /** `scope` is the Games tab left selected, kept for coming back from a game (dropped with the entry). */
+  | { name: 'lobby'; groupId: string; scope?: LobbyScope }
   | { name: 'leaderboard'; groupId: string }
   | { name: 'newGame'; groupId: string; opponentId?: string }
   | { name: 'game'; gameId: string }

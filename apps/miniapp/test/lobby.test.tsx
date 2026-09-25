@@ -100,6 +100,27 @@ describe('Lobby', () => {
     expect(window.__tg!.haptics).toContain('selection');
   });
 
+  it('keeps Others selected coming back from a game, but not on a fresh visit', async () => {
+    const r = open(lobby);
+    await r.flush();
+    await r.click('[data-scope="others"]');
+    r.app.router.push({ name: 'game', gameId: 'GameWwwwww' });
+    await r.flush();
+    r.app.router.back();
+    await r.flush();
+    expect(ids(r.root)).toEqual(['GameWwwwww']);
+    r.app.router.back();
+    r.app.router.push({ name: 'lobby', groupId: 'GrOuPiDxYz' });
+    await r.flush();
+    expect(ids(r.root)).toEqual(['GameBbbbbb', 'GameAaaaaa', 'GameCccccc']);
+  });
+
+  it('nudges the viewer to challenge someone when they have no game running', async () => {
+    const r = open({ ...lobby, active: [watching] });
+    await r.flush();
+    expect(r.text()).toContain('You have no active games. Challenge someone!');
+  });
+
   it('dims finished games only, not active ones waiting on someone else', async () => {
     const r = open(lobby);
     await r.flush();
