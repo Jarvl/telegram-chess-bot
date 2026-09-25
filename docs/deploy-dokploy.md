@@ -111,6 +111,8 @@ Now that the domain serves `/app/`, go back to BotFather:
   choose a different one, update the variable and redeploy.
 - Optionally set the same URL as the bot's **Main App** (*Bot Settings* → *Configure Mini App*) so the
   bot's profile gets an **Open App** button. It opens the user's games across all groups.
+- In the same place, upload [`docs/assets/miniapp-loading-icon.svg`](assets/miniapp-loading-icon.svg)
+  as the loading icon Telegram shows while the app starts.
 
 Do not add commands or a menu button in BotFather. On every start the server registers `/play`,
 `/chess` and `/settings`, and points the DM's **Open** menu button at `<PUBLIC_URL>/app/`.
