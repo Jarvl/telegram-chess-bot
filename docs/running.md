@@ -81,6 +81,9 @@ Still in BotFather:
 - Optional but nicer: `/mybots` → your bot → *Bot Settings* → *Configure Mini App* → *Main App*, set
   to the same `<PUBLIC_URL>/app/`, so the bot's profile and its entry in chat lists get an
   **Open App** button. It opens your games across all groups.
+- While there, upload [`docs/assets/miniapp-loading-icon.svg`](assets/miniapp-loading-icon.svg) as
+  the Mini App's loading icon: a goat piece between a pawn and a rook, which Telegram shows while
+  the app loads.
 
 Do **not** add commands or a menu button in BotFather. On every start the server registers `/play`,
 `/chess` and `/settings`, and sets the DM's **Open** menu button to `<PUBLIC_URL>/app/`, so a new
