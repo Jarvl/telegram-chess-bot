@@ -169,6 +169,19 @@ export async function startServer(
     } catch (error) {
       log.warn({ err: error }, 'could not register the bot commands; they keep their last value');
     }
+    // The DM's Open button, set here rather than in BotFather so it follows PUBLIC_URL (a tunnel's
+    // changes on every restart). Groups ignore it: there the way in is a card's direct link.
+    try {
+      await api.setChatMenuButton({
+        menu_button: {
+          type: 'web_app',
+          text: t('button.menu'),
+          web_app: { url: `${config.PUBLIC_URL.replace(/\/$/, '')}/app/` },
+        },
+      });
+    } catch (error) {
+      log.warn({ err: error }, 'could not set the menu button; it keeps its last value');
+    }
     if (config.TELEGRAM_POLLING) {
       await api.deleteWebhook();
       polling = bot.start({ allowed_updates: [...ALLOWED_UPDATES] });

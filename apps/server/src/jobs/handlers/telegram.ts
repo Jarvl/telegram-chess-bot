@@ -136,7 +136,7 @@ async function editGameCard(ctx: TelegramHandlerContext, gameId: number): Promis
   if (game.cardMessageId === null) throw new Error(`game ${game.id} has no message id yet`);
   const group = await requireGroup(ctx.deps.db, game.groupId);
   if (group.botStatus === 'left') return { outcome: 'done' };
-  const rendered = renderGameCard(await gameCardView(ctx.deps.db, game, ctx.config));
+  const rendered = renderGameCard(await gameCardView(ctx.deps.db, game, group, ctx.config));
   const result = await editMessage(ctx, group.telegramChatId, game.cardMessageId, rendered);
   if (!result.ok && result.failure.kind === 'message_gone') {
     await ctx.deps.db.update(games).set({ cardMissing: true }).where(eq(games.id, game.id));
@@ -152,7 +152,9 @@ const sendChallengeCard =
     if (!challenge || challenge.messageId !== null) return { outcome: 'done' };
     const group = await requireGroup(ctx.deps.db, challenge.groupId);
     if (group.botStatus === 'left') return { outcome: 'done' };
-    const rendered = renderChallengeCard(await challengeCardView(ctx.deps.db, challenge));
+    const rendered = renderChallengeCard(
+      await challengeCardView(ctx.deps.db, challenge, group, ctx.config),
+    );
     const result = await call(ctx, group.telegramChatId, () =>
       ctx.api.sendMessage(group.telegramChatId, rendered.text, {
         entities: rendered.entities,
@@ -197,7 +199,9 @@ const editCard =
       throw new Error(`challenge ${challenge.id} has no message id yet`);
     const group = await requireGroup(ctx.deps.db, challenge.groupId);
     if (group.botStatus === 'left') return { outcome: 'done' };
-    const rendered = renderChallengeCard(await challengeCardView(ctx.deps.db, challenge));
+    const rendered = renderChallengeCard(
+      await challengeCardView(ctx.deps.db, challenge, group, ctx.config),
+    );
     return settle(await editMessage(ctx, group.telegramChatId, challenge.messageId, rendered));
   };
 
