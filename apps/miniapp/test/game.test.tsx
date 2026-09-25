@@ -260,7 +260,6 @@ describe('Game', () => {
     // Telegram's own Close does what Done did.
     expect(r.root.querySelector('[data-action="done"]')).toBeNull();
     expect(r.root.querySelector('.toolbar')).toBeNull();
-    expect(r.root.querySelector('.game')?.classList.contains('with-icon-bar')).toBe(true);
     expect(FakeEventSource.instances).toHaveLength(0);
     await r.click('[data-action="analyse"]');
     expect(window.__tg!.links).toContain('https://lichess.org/abcd1234');
@@ -407,8 +406,16 @@ describe('Game', () => {
       body: { ply: 1 },
     });
     expect(document.querySelector('.toast')?.textContent).toBe('Shared to Chess Club');
-    expect(r.root.querySelector('.icon-bar')).toBeNull();
-    expect(r.root.querySelector('.game')?.classList.contains('with-icon-bar')).toBe(false);
+    // The same icon bar as a player's, with its two buttons in two wide slots.
+    const labels = [...r.root.querySelectorAll('.icon-bar.two button')].map((b) => [
+      b.getAttribute('data-action'),
+      b.textContent,
+    ]);
+    expect(labels).toEqual([
+      ['share', 'Share to group'],
+      ['flip', 'Flip'],
+    ]);
+    expect(r.root.querySelector('.pill-btn[data-action="share"]')).toBeNull();
   });
 
   it('gives a player four fixed slots: share to group, flip, draw and resign', async () => {
@@ -424,8 +431,6 @@ describe('Game', () => {
       ['offer-draw', '½Draw'],
       ['resign', 'Resign'],
     ]);
-    // The board gives up the bar's extra height, so the bar clears the tab bar.
-    expect(r.root.querySelector('.game')?.classList.contains('with-icon-bar')).toBe(true);
     await r.click('[data-action="flip"]');
     expect(adapter.positions.at(-1)?.orientation).toBe('black');
     await r.click('[data-action="resign"]');

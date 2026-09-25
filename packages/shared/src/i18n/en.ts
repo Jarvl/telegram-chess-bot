@@ -205,7 +205,6 @@ export const en = {
   'app.game.premove_remove': 'Remove',
   'app.game.premove_prev': 'Previous premove',
   'app.game.premove_next': 'Next premove',
-  'app.game.share': 'Share position',
   'app.game.share_to_group': 'Share to group',
   'app.game.shared': 'Shared to {group}',
   'app.game.share_limit': 'Too many shares. Try again in a minute',

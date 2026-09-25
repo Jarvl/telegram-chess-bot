@@ -268,7 +268,7 @@ Carol shared move 23 of Alice vs Bob
 ### 8.2 Mini App screens
 
 - **Lobby (group)**: header with group name; tabs Active · Finished · Players; **New game** button. "Your move" games pinned to the top of Active.
-- **Game**: board fills the width; above it the opponent's name, rating and clock; below it yours; a compact move list; a replay slider with arrow controls; for players, an icon bar with four fixed slots: Share to group, Flip, Draw (dimmed to Offered once you offer, and before the second move) and Resign (Abort before the second move); Draw, Abort and Resign each ask to confirm. Spectators get Share position and Flip.
+- **Game**: board fills the width; above it the opponent's name, rating and clock; below it yours; a compact move list; a replay slider with arrow controls; for players, an icon bar with four fixed slots: Share to group, Flip, Draw (dimmed to Offered once you offer, and before the second move) and Resign (Abort before the second move); Draw, Abort and Resign each ask to confirm. Spectators of a live game get Share to group and Flip in two wide slots of the same bar.
 - **Game end**: no result card; a Won, Lost, Draw, Aborted or Voided tag takes each clock's place, the reason (e.g. Checkmate) replaces the winner's second line (both lines for a draw), and each rating shows its change. The icon bar keeps its slots: **Share to group**, **Analyze** (Lichess), **PGN** and, for players, **Rematch**. Telegram's own Close replaces Done.
 - **Replay**: board, slider and arrow controls, move list, Share position, Analyze on Lichess, PGN.
 - **New game**: opponent (list of group players, or Open challenge), time per move, colour, rated toggle, **Send challenge**.

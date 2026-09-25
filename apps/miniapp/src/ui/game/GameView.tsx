@@ -536,7 +536,7 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
   const moveButtons = moveState.kind === 'pendingConfirm' && (inPage.confirm || inPage.cancel);
 
   return (
-    <div class={playing || finished ? 'game with-icon-bar' : 'game'}>
+    <div class="game">
       <PlayerBar dto={dto} colour={top} now={now} />
       <Board
         store={store}
@@ -739,11 +739,14 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
           ) : null}
         </div>
       ) : (
-        <div class="toolbar">
-          <button class="pill-btn" data-action="share" onClick={() => void share()}>
-            {t('app.game.share')}
+        // A spectator of a live game has only these two, so they split the bar between them.
+        <div class="icon-bar two">
+          <button class="bar-btn" data-action="share" onClick={() => void share()}>
+            <ShareIcon />
+            {t('app.game.share_to_group')}
           </button>
-          <button class="pill-btn" data-action="flip" onClick={() => store.flip()}>
+          <button class="bar-btn" data-action="flip" onClick={() => store.flip()}>
+            <FlipIcon />
             {t('app.game.flip')}
           </button>
         </div>

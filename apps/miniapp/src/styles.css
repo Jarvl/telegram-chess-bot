@@ -738,10 +738,12 @@ button {
 }
 
 /* Game screen (Task 5) */
-/* Every game has the replay slider row (38px) under the moves; the board gives that back, plus the
-   10px the 200px budget already ran short by on a 667px phone, so the bar clears the tab bar. */
+/* Every game has the replay slider row (38px) under the moves, and the icon bar, which stands 20px
+   taller than the pill row the 200px budget was set for. The board gives both back, plus the 10px
+   the budget already ran short by on a 667px phone, so the bar clears the tab bar. */
 .game {
   --replay-row: 48px;
+  --icon-bar-extra: 20px;
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -754,7 +756,7 @@ button {
     100vw,
     calc(
       var(--stable-height) - 200px - var(--board-reserve) - var(--replay-row) -
-        var(--icon-bar-extra, 0px)
+        var(--icon-bar-extra)
     )
   );
   max-width: 640px;
@@ -1040,12 +1042,6 @@ button {
   padding: 6px 16px;
 }
 
-/* The icon bar stands 20px taller than the pill row the board's 200px budget was set for, so the
-   board gives that back rather than pushing the bar under the tab bar. */
-.game.with-icon-bar {
-  --icon-bar-extra: 20px;
-}
-
 /* Share gets the wider slot: its label is the longest, and it is the most used. */
 .icon-bar {
   display: grid;
@@ -1055,6 +1051,10 @@ button {
   padding: 4px;
   border-radius: 18px;
   background: var(--card);
+}
+
+.icon-bar.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .bar-btn {
