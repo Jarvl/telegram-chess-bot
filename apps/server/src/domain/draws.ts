@@ -2,7 +2,7 @@ import { computeClaims, type Colour, type GameDto } from '@group-chess/shared';
 import { eq, sql } from 'drizzle-orm';
 import { games, type GameRow } from '../db/schema';
 import type { Deps } from './deps';
-import { enqueueEngineMove, isEngineGame } from './engineGames';
+import { isEngineGame } from './engineGames';
 import { DomainError } from './errors';
 import { positionKeys } from './gameDto';
 import { finishGame, listMoves, loadGameDto, lockActiveGame, type EndInput } from './games';
@@ -29,6 +29,12 @@ export async function offerDraw(deps: Deps, input: Input): Promise<GameDto> {
   const dto = await deps.db.transaction(async (tx) => {
     const { game, colour, ended } = await lockActiveGame(tx, input.gameId, input.userId);
     if (ended) return loadGameDto(tx, game, input.userId);
+    // Spec §8: the bot never takes a draw, so there is nothing to offer it.
+    if (isEngineGame(game)) {
+      throw new DomainError('validation', 'the bot does not take draws', {
+        reason: 'engine_game',
+      });
+    }
     if (!canOfferDraw(game, colour)) {
       throw new DomainError('forbidden', 'a draw offer is not available now', {
         reason: 'draw_offer_unavailable',
@@ -47,9 +53,6 @@ export async function offerDraw(deps: Deps, input: Input): Promise<GameDto> {
       .where(eq(games.id, game.id))
       .returning();
     if (!updated) throw new DomainError('not_found', 'game not found');
-    // Spec §8: the bot declines every offer. Enqueueing the engine job rather than declining inline
-    // keeps one decline path, so the human sees the normal declined state over SSE.
-    if (isEngineGame(updated)) await enqueueEngineMove(tx, updated);
     return loadGameDto(tx, updated, input.userId);
   });
   deps.bus.publish(input.gameId);

@@ -1,3 +1,9 @@
 packages:
   - 'packages/*'
   - 'apps/*'
+
+# pnpm 10 runs no dependency install scripts unless listed here. esbuild's checks that its native
+# binary is present and matches its version, so a broken binary fails the install, not a later tsx
+# or vite run.
+onlyBuiltDependencies:
+  - esbuild
