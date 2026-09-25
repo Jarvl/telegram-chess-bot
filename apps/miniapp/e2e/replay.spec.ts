@@ -12,12 +12,12 @@ test('replays a finished game and reaches analysis and the PGN', async ({ page }
   await expect(page.locator('.result-detail')).toContainText('Checkmate');
   await expect(page.locator('.move-list [data-ply]')).toHaveCount(4);
   await page.locator('[data-ply="2"]').click();
-  await expect(page.locator('[data-action="latest"]')).toBeVisible();
   await expect(page.locator('square.last-move')).toHaveCount(2);
+  await expect(page.locator('[data-action="latest"]')).toHaveCount(0);
   await page.locator('[data-action="next"]').click();
   await expect(page.locator('[data-ply="3"]')).toHaveAttribute('aria-current', 'true');
-  await page.locator('[data-action="latest"]').click();
-  await expect(page.locator('[data-action="latest"]')).toHaveCount(0);
+  await page.locator('[data-ply="4"]').click();
+  await expect(page.locator('[data-ply="4"]')).toHaveAttribute('aria-current', 'true');
   await page.locator('[data-action="analyse"]').click();
   expect((await tgState(page)).links[0]).toContain('lichess.org/analysis/pgn/');
   await page.locator('[data-action="pgn"]').click();

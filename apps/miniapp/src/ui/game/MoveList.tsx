@@ -67,16 +67,6 @@ export function MoveList(props: { store: GameStore; locked?: boolean }) {
           </>
         );
       })}
-      {!store.isLatest.value ? (
-        <button
-          class="badge"
-          data-action="latest"
-          disabled={props.locked}
-          onClick={() => store.viewPly(null)}
-        >
-          {t('app.game.latest')}
-        </button>
-      ) : null}
     </div>
   );
 }

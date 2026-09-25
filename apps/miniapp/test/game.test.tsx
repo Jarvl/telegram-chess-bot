@@ -261,7 +261,8 @@ describe('Game', () => {
     expect(r.calls.at(-1)?.path).toBe(`/api/games/${GAME}/rematch`);
     await r.click('[data-ply="2"]');
     expect(adapter.positions.at(-1)?.lastMove).toEqual(['e7', 'e5']);
-    await r.click('[data-action="latest"]');
+    expect(r.root.querySelector('[data-action="latest"]')).toBeNull();
+    await r.click('[data-ply="4"]');
     expect(adapter.positions.at(-1)?.lastMove).toEqual(['d8', 'h4']);
   });
 
