@@ -96,6 +96,11 @@ describe('challenges and lobby', () => {
       'Bob',
       'Carol',
     ]);
+    expect((players as { settings: unknown }).settings).toEqual({
+      defaultTimePerMove: 86400,
+      ratedDefault: true,
+      allowOpenChallenges: true,
+    });
   });
 
   it('pages finished games and serves a player page', async () => {

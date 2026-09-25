@@ -114,13 +114,14 @@ Now that the domain serves `/app/`, go back to BotFather:
 - In the same place, upload [`docs/assets/miniapp-loading-icon.svg`](assets/miniapp-loading-icon.svg)
   as the loading icon Telegram shows while the app starts.
 
-Do not add commands or a menu button in BotFather. On every start the server registers `/play`,
+Do not add commands or a menu button in BotFather. On every start the server registers `/challenge`,
 `/chess` and `/settings`, and points the DM's **Open** menu button at `<PUBLIC_URL>/app/`.
 
 ## 7. Use it
 
 Create a group, add the bot, and promote it to administrator so it can pin its card and see who
-joins. Reply to someone with `/play` to challenge them, or send `/chess` for the lobby.
+joins. Tap **Challenge someone** on the welcome card, send `/challenge @name`, or reply to someone with
+`/challenge`. `/chess` posts the Challenge and lobby buttons again.
 
 ## Worth doing before you rely on it
 

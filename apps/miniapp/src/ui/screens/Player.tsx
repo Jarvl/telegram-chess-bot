@@ -1,4 +1,5 @@
 import { PlayerPageDtoSchema, ratingLabel, t } from '@group-chess/shared';
+import { session } from '../../state/session';
 import { Avatar } from '../Avatar';
 import { useApp } from '../context';
 import { GameCard } from '../GameCard';
@@ -27,6 +28,17 @@ export function Player(props: { groupId: string; userId: string }) {
         </div>
       </header>
       <p class="hint">{t('app.player.head_to_head', headToHead)}</p>
+      {player.id === session.value?.user.id ? null : (
+        <button
+          class="btn block"
+          data-action="challenge"
+          onClick={() =>
+            router.push({ name: 'newGame', groupId: props.groupId, opponentId: player.id })
+          }
+        >
+          {t('app.player.challenge')}
+        </button>
+      )}
       <div class="section">{t('app.player.recent')}</div>
       <div class="card">
         {recentGames.map((game) => (

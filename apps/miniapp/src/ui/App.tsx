@@ -34,7 +34,13 @@ function Screen() {
     case 'leaderboard':
       return <Leaderboard key={route.groupId} groupId={route.groupId} />;
     case 'newGame':
-      return <NewGame key={route.groupId} groupId={route.groupId} defaults={route.defaults} />;
+      return (
+        <NewGame
+          key={`${route.groupId}:${route.opponentId ?? ''}`}
+          groupId={route.groupId}
+          opponentId={route.opponentId}
+        />
+      );
     case 'game':
       return <Game key={route.gameId} gameId={route.gameId} />;
     case 'player':

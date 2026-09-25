@@ -5,21 +5,22 @@ import { NewGame } from '../src/ui/screens/NewGame';
 import { gameDto } from './support/gameFixtures';
 import { renderApp } from './support/render';
 
-const players = {
-  players: [
-    { id: '2', name: 'Bob', username: 'bob', rating: 1520, provisional: false, isBot: false },
-  ],
-  bot: null,
+const settings = { defaultTimePerMove: 86400, ratedDefault: true, allowOpenChallenges: true };
+
+const bob = {
+  id: '2',
+  name: 'Bob',
+  username: 'bob',
+  rating: 1520,
+  provisional: false,
+  isBot: false,
 };
 
-const withBot = { players: [], bot: { levels: [...ENGINE_LEVELS] } };
+const players = { players: [bob], settings, bot: null };
 
-const withBotAndPlayers = {
-  players: [
-    { id: '2', name: 'Bob', username: 'bob', rating: 1520, provisional: false, isBot: false },
-  ],
-  bot: { levels: [...ENGINE_LEVELS] },
-};
+const withBot = { players: [], settings, bot: { levels: [...ENGINE_LEVELS] } };
+
+const withBotAndPlayers = { players: [bob], settings, bot: { levels: [...ENGINE_LEVELS] } };
 
 const engineGame: GameDto = gameDto({ id: 'EnGiNeGam1', engineLevel: 'strong' });
 
@@ -77,14 +78,14 @@ describe('NewGame', () => {
 
   it('sends an open challenge with a null opponent and the group defaults', async () => {
     const r = renderApp(
-      () => (
-        <NewGame
-          groupId="GrOuPiDxYz"
-          defaults={{ defaultTimePerMove: 259200, ratedDefault: true, allowOpenChallenges: true }}
-        />
-      ),
+      () => <NewGame groupId="GrOuPiDxYz" />,
       ({ method }) =>
-        method === 'POST' ? { status: 200, body: challenge } : { status: 200, body: players },
+        method === 'POST'
+          ? { status: 200, body: challenge }
+          : {
+              status: 200,
+              body: { ...players, settings: { ...settings, defaultTimePerMove: 259200 } },
+            },
     );
     await r.flush();
     await r.click('[data-opponent="open"]');
@@ -101,10 +102,41 @@ describe('NewGame', () => {
   it('explains an empty picker', async () => {
     const r = renderApp(
       () => <NewGame groupId="GrOuPiDxYz" />,
-      () => ({ status: 200, body: { players: [], bot: null } }),
+      () => ({ status: 200, body: { players: [], settings, bot: null } }),
     );
     await r.flush();
-    expect(r.text()).toContain('Reply to their message with /play');
+    expect(r.text()).toContain('Reply to their message with /challenge');
+  });
+
+  it('starts with the opponent it was opened for already picked', async () => {
+    const r = renderApp(
+      () => <NewGame groupId="GrOuPiDxYz" opponentId="2" />,
+      () => ({ status: 200, body: players }),
+    );
+    await r.flush();
+    expect(r.root.querySelector('[data-opponent="2"]')?.getAttribute('aria-pressed')).toBe('true');
+    expect(window.__tg!.mainButton).toMatchObject({ text: 'Send challenge', enabled: true });
+  });
+
+  it('leaves the pick empty when that opponent is no longer in the group', async () => {
+    const r = renderApp(
+      () => <NewGame groupId="GrOuPiDxYz" opponentId="9" />,
+      () => ({ status: 200, body: players }),
+    );
+    await r.flush();
+    expect(pressedOpponentRows(r.root)).toHaveLength(0);
+  });
+
+  it('offers no open challenge when the group has them off', async () => {
+    const r = renderApp(
+      () => <NewGame groupId="GrOuPiDxYz" />,
+      () => ({
+        status: 200,
+        body: { ...players, settings: { ...settings, allowOpenChallenges: false } },
+      }),
+    );
+    await r.flush();
+    expect(r.root.querySelector('[data-opponent="open"]')).toBeNull();
   });
 
   it('shows the bot row, and its levels once selected, when the picker offers one', async () => {

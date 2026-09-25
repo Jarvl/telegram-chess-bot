@@ -1,7 +1,6 @@
 import {
   ChallengeDtoSchema,
   GameDtoSchema,
-  GROUP_SETTINGS_DEFAULTS,
   PlayersPickerDtoSchema,
   ratingLabel,
   t,
@@ -11,7 +10,7 @@ import {
   type ColourChoice,
   type EngineGameRequest,
   type EngineLevel,
-  type LobbyDto,
+  type PlayersPickerDto,
   type TimePerMove,
 } from '@group-chess/shared';
 import { h } from 'preact';
@@ -76,13 +75,28 @@ function OpponentRow(props: {
 
 const king = (colour: 'white' | 'black') => h('piece', { class: `king ${colour}` });
 
-export function NewGame(props: { groupId: string; defaults?: LobbyDto['settings'] }) {
-  const { client, router, tg } = useApp();
-  const defaults = props.defaults ?? GROUP_SETTINGS_DEFAULTS;
-  const players = useResource(`players:${props.groupId}`, () =>
+/**
+ * Loads the picker, then the form: the group's defaults come with the players, so the form is
+ * right whether it was opened from the lobby, a player's page or a chat link.
+ */
+export function NewGame(props: { groupId: string; opponentId?: string }) {
+  const { client } = useApp();
+  const picker = useResource(`players:${props.groupId}`, () =>
     client.get(`/api/groups/${props.groupId}/players`, PlayersPickerDtoSchema),
   );
-  const [selection, setSelection] = useState<Selection>({ kind: 'none' });
+  if (picker.error) return <ErrorScreen onRetry={() => void picker.reload()} />;
+  if (!picker.data) return <Loading />;
+  return <NewGameForm groupId={props.groupId} opponentId={props.opponentId} picker={picker.data} />;
+}
+
+function NewGameForm(props: { groupId: string; opponentId?: string; picker: PlayersPickerDto }) {
+  const { client, router, tg } = useApp();
+  const { players, bot: botPicker, settings: defaults } = props.picker;
+  // A player's page sends its player along; one who has since left the group is simply not picked.
+  const [selection, setSelection] = useState<Selection>(() => {
+    const picked = players.find((player) => player.id === props.opponentId);
+    return picked ? { kind: 'human', id: picked.id } : { kind: 'none' };
+  });
   const [timePerMove, setTimePerMove] = useState<TimePerMove>(defaults.defaultTimePerMove);
   const [colour, setColour] = useState<ColourChoice>('random');
   const [rated, setRated] = useState(defaults.ratedDefault);
@@ -134,9 +148,6 @@ export function NewGame(props: { groupId: string; defaults?: LobbyDto['settings'
     progress: sending,
   });
 
-  if (players.error) return <ErrorScreen onRetry={() => void players.reload()} />;
-  if (!players.data) return <Loading />;
-  const botPicker = players.data.bot;
   // The picker DTO guarantees at least one level whenever the bot is offered; narrowing on the
   // first entry carries that guarantee into the types, so no non-null assertion is needed here.
   const firstLevel = botPicker?.levels[0];
@@ -156,7 +167,7 @@ export function NewGame(props: { groupId: string; defaults?: LobbyDto['settings'
             data={{ 'data-testid': 'opponent-bot' }}
           />
         ) : null}
-        {players.data.players.map((player) => (
+        {players.map((player) => (
           <OpponentRow
             key={player.id}
             on={selection.kind === 'human' && selection.id === player.id}
@@ -186,7 +197,7 @@ export function NewGame(props: { groupId: string; defaults?: LobbyDto['settings'
           />
         ) : null}
       </div>
-      {players.data.players.length === 0 ? <p class="hint">{t('app.new.no_players')}</p> : null}
+      {players.length === 0 ? <p class="hint">{t('app.new.no_players')}</p> : null}
       {selection.kind === 'bot' && botPicker ? (
         <>
           <div class="section">{t('app.new.bot_level')}</div>

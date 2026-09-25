@@ -216,13 +216,22 @@ describe('renderGameCard', () => {
 });
 
 describe('welcome and share', () => {
-  it('renders the welcome card with the Open Chess button', () => {
-    const card = renderWelcomeCard('https://t.me/GroupChessBot/chess?startapp=l_grp0000001');
+  it('renders the welcome card with how to challenge and the Challenge and lobby buttons', () => {
+    const card = renderWelcomeCard({
+      challenge: 'https://t.me/GroupChessBot/chess?startapp=n_grp0000001',
+      lobby: lobbyLink,
+    });
     expect(card.text).toBe(
-      'Play chess with this group on a real board inside Telegram. The chat only sees results and shared positions.',
+      'Play chess with this group on a real board inside Telegram. Tap Challenge someone to pick an opponent, or send /challenge @name here. The chat only sees results and shared positions.',
     );
     expect(card.reply_markup?.inline_keyboard).toEqual([
-      [{ text: '♟ Open Chess', url: 'https://t.me/GroupChessBot/chess?startapp=l_grp0000001' }],
+      [
+        {
+          text: '⚔️ Challenge someone',
+          url: 'https://t.me/GroupChessBot/chess?startapp=n_grp0000001',
+        },
+      ],
+      [{ text: '♟ Group lobby', url: lobbyLink }],
     ]);
   });
 

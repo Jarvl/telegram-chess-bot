@@ -1,4 +1,4 @@
-import type { Chat, Update, User } from 'grammy/types';
+import type { Chat, MessageEntity, Update, User } from 'grammy/types';
 
 let updateId = 1000;
 let messageId = 500;
@@ -30,6 +30,8 @@ export function commandUpdate(options: {
   text: string;
   replyTo?: ReplyTarget;
   threadId?: number;
+  /** Entities after the command's own, such as an @mention of the opponent. */
+  entities?: MessageEntity[];
 }): Update {
   const command = options.text.split(' ')[0] ?? options.text;
   const base = { date: 1, chat: options.chat };
@@ -40,7 +42,10 @@ export function commandUpdate(options: {
       message_id: (messageId += 1),
       from: options.from,
       text: options.text,
-      entities: [{ type: 'bot_command', offset: 0, length: command.length }],
+      entities: [
+        { type: 'bot_command', offset: 0, length: command.length },
+        ...(options.entities ?? []),
+      ],
       ...(options.threadId ? { message_thread_id: options.threadId, is_topic_message: true } : {}),
       ...(options.replyTo
         ? {

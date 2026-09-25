@@ -307,9 +307,10 @@ const sendWelcome =
     const { groupId } = z.object({ groupId: z.number().int() }).parse(job.payload);
     const group = await requireGroup(ctx.deps.db, groupId);
     if (group.botStatus === 'left') return { outcome: 'done' };
-    const rendered = renderWelcomeCard(
-      miniAppLink(ctx.config, { kind: 'lobby', groupId: group.publicId }),
-    );
+    const rendered = renderWelcomeCard({
+      challenge: miniAppLink(ctx.config, { kind: 'newGame', groupId: group.publicId }),
+      lobby: miniAppLink(ctx.config, { kind: 'lobby', groupId: group.publicId }),
+    });
     const result = await call(ctx, group.telegramChatId, () =>
       ctx.api.sendMessage(group.telegramChatId, rendered.text, {
         reply_markup: rendered.reply_markup,
@@ -340,7 +341,10 @@ const sendMessage =
         reply_parameters: payload.replyToMessageId
           ? { message_id: payload.replyToMessageId, allow_sending_without_reply: true }
           : undefined,
-        reply_markup: payload.buttons ? { inline_keyboard: [payload.buttons] } : undefined,
+        // One button per row: two side by side would cut their labels short on a phone.
+        reply_markup: payload.buttons
+          ? { inline_keyboard: payload.buttons.map((button) => [button]) }
+          : undefined,
       }),
     );
     return settle(result);

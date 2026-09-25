@@ -112,6 +112,29 @@ test('the lobby’s leaderboard chip ranks you and reaches a player', async ({ p
   await expect(page.locator('.player-row.you')).toContainText('(you)');
   await page.locator(`[data-player="${world.users.bob.id}"]`).click();
   await expect(page.locator('.title')).toHaveText('@bob');
+  await page.locator('[data-action="challenge"]').click();
+  await expect(page.locator(`[data-opponent="${world.users.bob.id}"]`)).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await clickBack(page);
+  await expect(page.locator('.title')).toHaveText('@bob');
   await clickBack(page);
   await expect(page.locator('.title')).toHaveText('Leaderboard');
+});
+
+test('a Challenge someone link from the chat opens New game, and back leads to the lobby', async ({
+  page,
+}) => {
+  const world = await seed('none');
+  await openApp(page, {
+    user: world.users.alice.telegram,
+    startParam: `n_${world.group.publicId}`,
+  });
+  await expect(page.locator('.title')).toHaveText('New game');
+  await page.locator('[data-opponent]').filter({ hasText: '@bob' }).click();
+  await expect.poll(async () => (await tgState(page)).mainButton.enabled).toBe(true);
+  await clickBack(page);
+  await expect(page.locator('.title')).toHaveText('Chess Club');
+  expect((await tgState(page)).closed).toBe(false);
 });

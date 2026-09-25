@@ -321,7 +321,13 @@ describe('send_welcome and send_message', () => {
       inline_keyboard: [
         [
           {
-            text: '♟ Open Chess',
+            text: '⚔️ Challenge someone',
+            url: `https://t.me/TestChessBot/chess?startapp=n_${group.publicId}`,
+          },
+        ],
+        [
+          {
+            text: '♟ Group lobby',
             url: `https://t.me/TestChessBot/chess?startapp=l_${group.publicId}`,
           },
         ],
@@ -358,5 +364,21 @@ describe('send_welcome and send_message', () => {
     });
     await worker.runOnce();
     expect((await db.select().from(groups))[0]?.botStatus).toBe('left');
+  });
+
+  it("stacks a line's buttons one per row", async () => {
+    await people();
+    const buttons = [
+      { text: 'One', url: 'https://t.me/a' },
+      { text: 'Two', url: 'https://t.me/b' },
+    ];
+    await enqueue(db, {
+      kind: 'send_message',
+      payload: { chatId: CHAT, threadId: null, text: 'Pick', buttons },
+    });
+    await worker.runOnce();
+    expect(fake.callsTo('sendMessage')[0]?.body.reply_markup).toEqual({
+      inline_keyboard: [[buttons[0]], [buttons[1]]],
+    });
   });
 });

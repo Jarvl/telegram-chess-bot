@@ -214,6 +214,8 @@ export type LobbyDto = z.infer<typeof LobbyDtoSchema>;
 
 export const PlayersPickerDtoSchema = z.object({
   players: z.array(PlayerRefSchema),
+  /** The group's challenge defaults, so the form is right however it was reached. */
+  settings: LobbyDtoSchema.shape.settings,
   /**
    * Deliberately not a `PlayerRef`: no screen can render the bot as if it were a human, and it
    * never carries a rating. Null when the engine is unavailable or switched off — a present `bot`
@@ -286,6 +288,8 @@ export type GroupSettingsDto = z.infer<typeof GroupSettingsDtoSchema>;
 export const LaunchRouteSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('game'), game: GameDtoSchema }),
   z.object({ kind: z.literal('lobby'), lobby: LobbyDtoSchema }),
+  /** A "challenge someone" link: the lobby's data, landed with New game on top of it. */
+  z.object({ kind: z.literal('newGame'), lobby: LobbyDtoSchema }),
   z.object({ kind: z.literal('settings'), settings: GroupSettingsDtoSchema }),
   z.object({ kind: z.literal('home'), games: MeGamesDtoSchema }),
   z.object({ kind: z.literal('locked'), group: GroupRefSchema }),

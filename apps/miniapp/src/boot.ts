@@ -7,13 +7,13 @@ import type { AppContextValue, Prefetched } from './ui/context';
 
 /**
  * Maps the launch route to a tab and its one screen, parking that screen's data for its first
- * render. Every landing is one deep: the tab bar carries "go home", so the BackButton is free
- * to mean "leave", which is what a launch from a chat card wants it to mean.
+ * render. Every landing is one deep, New game aside: the tab bar carries "go home", so the
+ * BackButton is free to mean "leave", which is what a launch from a chat card wants it to mean.
  */
 export function landingFor(
   route: LaunchRoute,
   prefetched: Prefetched,
-): { tab: TabName; route: Route } {
+): { tab: TabName; route: Route; below?: Route[] } {
   switch (route.kind) {
     case 'game':
       prefetched.game = route.game;
@@ -21,6 +21,14 @@ export function landingFor(
     case 'lobby':
       prefetched.lobby = route.lobby;
       return { tab: 'groups', route: { name: 'lobby', groupId: route.lobby.group.id } };
+    case 'newGame':
+      // Back from a chat's "challenge someone" link leads to the group before it closes.
+      prefetched.lobby = route.lobby;
+      return {
+        tab: 'groups',
+        route: { name: 'newGame', groupId: route.lobby.group.id },
+        below: [{ name: 'lobby', groupId: route.lobby.group.id }],
+      };
     case 'settings':
       prefetched.settings = route.settings;
       return { tab: 'groups', route: { name: 'groupSettings', groupId: route.settings.group.id } };
@@ -57,7 +65,7 @@ export async function boot(app: AppContextValue): Promise<void> {
   }
   applyLaunch(outcome.response, tg.startParam);
   const landing = landingFor(outcome.response.route, prefetched);
-  router.land(landing.tab, landing.route);
+  router.land(landing.tab, landing.route, landing.below);
 
   // Telegram's ⋯ menu gains Settings once there is a session to have settings for.
   tg.onSettingsButton(() => router.select('settings'));

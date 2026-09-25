@@ -1,7 +1,7 @@
 import type { PlayerRef } from '@group-chess/shared';
 import { and, desc, eq, isNull, ne, sql } from 'drizzle-orm';
 import type { DbOrTx } from '../db/client';
-import { groupMembers, ratings, users, type GroupMemberRow } from '../db/schema';
+import { groupMembers, ratings, users, type GroupMemberRow, type UserRow } from '../db/schema';
 import { toPlayerRef } from './players';
 
 /** Membership evidence from the user's own activity in the group (spec §5.6 step 4). */
@@ -100,4 +100,31 @@ export async function listKnownPlayers(
     .orderBy(desc(groupMembers.lastSeenAt), users.id)
     .limit(options.limit ?? 50);
   return rows.map((row) => toPlayerRef(row.user, row.rating));
+}
+
+/**
+ * A current member named by an @mention. Telegram gives bots no way to turn a username into a
+ * user, so only people the bot has already seen in this group can be found; handles compare
+ * without case, as Telegram's do.
+ */
+export async function findMemberByUsername(
+  tx: DbOrTx,
+  groupId: number,
+  username: string,
+): Promise<UserRow | null> {
+  const [row] = await tx
+    .select({ user: users })
+    .from(groupMembers)
+    .innerJoin(users, eq(users.id, groupMembers.userId))
+    .where(
+      and(
+        eq(groupMembers.groupId, groupId),
+        eq(groupMembers.status, 'member'),
+        isNull(users.deletedAt),
+        sql`lower(${users.username}) = lower(${username})`,
+      ),
+    )
+    .orderBy(desc(groupMembers.lastSeenAt))
+    .limit(1);
+  return row?.user ?? null;
 }

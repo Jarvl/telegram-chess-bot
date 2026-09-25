@@ -1,6 +1,6 @@
 # Group Chess
 
-A Telegram bot and Mini App for playing correspondence chess inside group chats. People challenge each other with `/play` or from the app, play on a real board inside Telegram (drag and drop or tap-tap), and the group sees only cards, results and shared positions. Rules and clocks are enforced on the server; every finished game gets a Lichess analysis link.
+A Telegram bot and Mini App for playing correspondence chess inside group chats. People challenge each other with `/challenge @name` or from the app, play on a real board inside Telegram (drag and drop or tap-tap), and the group sees only cards, results and shared positions. Rules and clocks are enforced on the server; every finished game gets a Lichess analysis link.
 
 - Product requirements: [docs/PRD.md](docs/PRD.md)
 - Technical design: [docs/superpowers/specs/2026-09-20-group-chess-technical-design.md](docs/superpowers/specs/2026-09-20-group-chess-technical-design.md)

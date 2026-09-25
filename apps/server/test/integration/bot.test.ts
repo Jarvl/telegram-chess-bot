@@ -73,17 +73,17 @@ const messagesSent = async () =>
 
 describe('webhook', () => {
   it('rejects a missing or wrong secret and records nothing', async () => {
-    expect((await post(commandUpdate({ chat, from: alice, text: '/play' }), null)).status).toBe(
-      401,
-    );
-    expect((await post(commandUpdate({ chat, from: alice, text: '/play' }), 'nope')).status).toBe(
-      401,
-    );
+    expect(
+      (await post(commandUpdate({ chat, from: alice, text: '/challenge' }), null)).status,
+    ).toBe(401);
+    expect(
+      (await post(commandUpdate({ chat, from: alice, text: '/challenge' }), 'nope')).status,
+    ).toBe(401);
     expect(await db.select().from(telegramUpdates)).toHaveLength(0);
   });
 
   it('acknowledges a duplicate update without repeating its effects', async () => {
-    const update = commandUpdate({ chat, from: alice, text: '/play', replyTo: { from: bob } });
+    const update = commandUpdate({ chat, from: alice, text: '/challenge', replyTo: { from: bob } });
     expect((await post(update)).status).toBe(200);
     expect((await post(update)).status).toBe(200);
     expect(await db.select().from(challenges)).toHaveLength(1);
@@ -96,7 +96,7 @@ describe('webhook', () => {
   });
 
   it('reprocesses an update whose earlier attempt never finished, but not one still in flight', async () => {
-    const update = commandUpdate({ chat, from: alice, text: '/play', replyTo: { from: bob } });
+    const update = commandUpdate({ chat, from: alice, text: '/challenge', replyTo: { from: bob } });
     await db.insert(telegramUpdates).values({ updateId: update.update_id });
     expect((await post(update)).status).toBe(200);
     expect(await db.select().from(challenges)).toHaveLength(0);
@@ -111,13 +111,13 @@ describe('webhook', () => {
   });
 });
 
-describe('/play', () => {
+describe('/challenge', () => {
   it('creates a direct challenge from a reply inside the topic and records both members', async () => {
     await post(
       commandUpdate({
         chat,
         from: alice,
-        text: '/play@TestChessBot',
+        text: '/challenge@TestChessBot',
         replyTo: { from: bob },
         threadId: 77,
       }),
@@ -145,11 +145,11 @@ describe('/play', () => {
   });
 
   it('creates an open challenge without a reply, or explains when the group forbids them', async () => {
-    await post(commandUpdate({ chat, from: alice, text: '/play' }));
+    await post(commandUpdate({ chat, from: alice, text: '/challenge' }));
     expect((await db.select().from(challenges))[0]?.opponentId).toBeNull();
     const [group] = await db.select().from(groups);
     await updateGroupSettings(db, group!.id, { allowOpenChallenges: false });
-    const update = commandUpdate({ chat, from: alice, text: '/play' });
+    const update = commandUpdate({ chat, from: alice, text: '/challenge' });
     await post(update);
     expect(await db.select().from(challenges)).toHaveLength(1);
     expect(await messagesSent()).toEqual([
@@ -162,16 +162,18 @@ describe('/play', () => {
   });
 
   it('replies with one line for a self-challenge, a bot or an anonymous author', async () => {
-    await post(commandUpdate({ chat, from: alice, text: '/play', replyTo: { from: alice } }));
+    await post(commandUpdate({ chat, from: alice, text: '/challenge', replyTo: { from: alice } }));
     await post(
       commandUpdate({
         chat,
         from: alice,
-        text: '/play',
+        text: '/challenge',
         replyTo: { from: { ...bob, is_bot: true } },
       }),
     );
-    await post(commandUpdate({ chat, from: alice, text: '/play', replyTo: { senderChat: true } }));
+    await post(
+      commandUpdate({ chat, from: alice, text: '/challenge', replyTo: { senderChat: true } }),
+    );
     expect((await messagesSent()).map((p) => (p as { text: string }).text)).toEqual([
       "You can't challenge yourself.",
       "Bots don't play here.",
@@ -182,15 +184,90 @@ describe('/play', () => {
 
   it('ignores commands addressed to another bot', async () => {
     await post(
-      commandUpdate({ chat, from: alice, text: '/play@OtherBot', replyTo: { from: bob } }),
+      commandUpdate({ chat, from: alice, text: '/challenge@OtherBot', replyTo: { from: bob } }),
     );
     expect(await db.select().from(challenges)).toHaveLength(0);
     expect(await jobRows()).toHaveLength(0);
   });
+  it('ignores /play, which is not a command', async () => {
+    await post(commandUpdate({ chat, from: alice, text: '/play', replyTo: { from: bob } }));
+    expect(await db.select().from(challenges)).toHaveLength(0);
+    expect(await jobRows()).toHaveLength(0);
+  });
+
+  it('challenges a member named by @username, whatever its case', async () => {
+    await post(serviceUpdate(chat, alice, { new_chat_members: [carol] }));
+    await post(
+      commandUpdate({
+        chat,
+        from: alice,
+        text: '/challenge @Carol',
+        entities: [{ type: 'mention', offset: 11, length: 6 }],
+      }),
+    );
+    const [challenge] = await db.select().from(challenges);
+    const [carolRow] = await db.select().from(users).where(eq(users.telegramUserId, carol.id));
+    expect(challenge?.opponentId).toBe(carolRow!.id);
+  });
+
+  it('challenges someone picked from the mention list, who may have no username', async () => {
+    await post(
+      commandUpdate({
+        chat,
+        from: alice,
+        text: '/challenge Bob',
+        entities: [{ type: 'text_mention', offset: 11, length: 3, user: bob }],
+      }),
+    );
+    const [challenge] = await db.select().from(challenges);
+    const [bobRow] = await db.select().from(users).where(eq(users.telegramUserId, bob.id));
+    expect(challenge?.opponentId).toBe(bobRow!.id);
+    expect(await db.select().from(groupMembers)).toHaveLength(2);
+  });
+
+  it('prefers the mention over the message it replies to', async () => {
+    await post(serviceUpdate(chat, alice, { new_chat_members: [carol] }));
+    await post(
+      commandUpdate({
+        chat,
+        from: alice,
+        text: '/challenge @carol',
+        replyTo: { from: bob },
+        entities: [{ type: 'mention', offset: 11, length: 6 }],
+      }),
+    );
+    const [carolRow] = await db.select().from(users).where(eq(users.telegramUserId, carol.id));
+    expect((await db.select().from(challenges))[0]?.opponentId).toBe(carolRow!.id);
+  });
+
+  it('explains a mention it cannot place, and refuses the bot and yourself by name', async () => {
+    // Dan was here once and has left, which is as good as never seen.
+    const dan = tgUser(44, 'Dan', 'dan');
+    await post(serviceUpdate(chat, alice, { new_chat_members: [dan] }));
+    await post(serviceUpdate(chat, dan, { left_chat_member: dan }));
+    const mention = (name: string) =>
+      commandUpdate({
+        chat,
+        from: alice,
+        text: `/challenge ${name}`,
+        entities: [{ type: 'mention', offset: 11, length: name.length }],
+      });
+    await post(mention('@nobody'));
+    await post(mention('@dan'));
+    await post(mention('@TestChessBot'));
+    await post(mention('@alice'));
+    expect((await messagesSent()).map((p) => (p as { text: string }).text)).toEqual([
+      "I haven't seen @nobody in this group yet. Reply to one of their messages with /challenge instead.",
+      "I haven't seen @dan in this group yet. Reply to one of their messages with /challenge instead.",
+      "Bots don't play here.",
+      "You can't challenge yourself.",
+    ]);
+    expect(await db.select().from(challenges)).toHaveLength(0);
+  });
 });
 
 describe('/chess, /settings and /start', () => {
-  it('posts an Open Chess button once per group per minute, sharing the budget with /settings', async () => {
+  it('posts Challenge and lobby buttons once per group per minute, sharing the budget with /settings', async () => {
     await post(commandUpdate({ chat, from: alice, text: '/chess' }));
     await post(commandUpdate({ chat, from: bob, text: '/chess' }));
     await post(commandUpdate({ chat, from: bob, text: '/settings' }));
@@ -199,9 +276,14 @@ describe('/chess, /settings and /start', () => {
     expect(sent).toHaveLength(1);
     expect(sent[0]).toMatchObject({
       chatId: chat.id,
+      text: 'Challenge someone in this group, or open the lobby for games and ratings.',
       buttons: [
         {
-          text: '♟ Open Chess',
+          text: '⚔️ Challenge someone',
+          url: `https://t.me/TestChessBot/chess?startapp=n_${group!.publicId}`,
+        },
+        {
+          text: '♟ Group lobby',
           url: `https://t.me/TestChessBot/chess?startapp=l_${group!.publicId}`,
         },
       ],
