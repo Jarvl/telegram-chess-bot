@@ -7,25 +7,16 @@ import { isDomainError } from '../../src/domain/errors';
 import { createEngineGame } from '../../src/domain/engineGames';
 import { getGameDto, playMove, requireGameByPublicId, resign } from '../../src/domain/games';
 import { touchMember } from '../../src/domain/members';
-import { Metrics } from '../../src/metrics';
-import { testConfig } from '../helpers/config';
 import { openTestDb, testDeps, truncateAll } from '../helpers/db';
-import { createEngineJobRunner } from '../helpers/engineJob';
-import { fakeEngine } from '../helpers/fakeEngine';
 import { insertGame, insertGroup, insertUser } from '../helpers/fixtures';
 
 const { db, close } = openTestDb();
 const deps = testDeps(db);
-const config = testConfig();
-let metrics = new Metrics();
 let group: Awaited<ReturnType<typeof insertGroup>>;
 let alice: Awaited<ReturnType<typeof insertUser>>;
-let runEngineJob: ReturnType<typeof createEngineJobRunner>;
 
 beforeEach(async () => {
   await truncateAll(db);
-  metrics = new Metrics();
-  runEngineJob = createEngineJobRunner(deps, db, metrics, config);
   group = await insertGroup(db);
   alice = await insertUser(db, { firstName: 'Alice' });
   await touchMember(db, group.id, alice.id);
@@ -53,8 +44,7 @@ describe('GameDto.engineLevel', () => {
 });
 
 describe('draw offers against the bot', () => {
-  it('has the bot decline a draw offer rather than leaving it pending', async () => {
-    const engine = fakeEngine({ replies: [{ uci: 'e7e5' }] });
+  it('refuses a draw offer, leaving no offer and queueing no engine job', async () => {
     const game = await createEngineGame(deps, {
       groupId: group.id,
       userId: alice.id,
@@ -68,28 +58,13 @@ describe('draw offers against the bot', () => {
       expectedPly: 0,
       clientMoveId: 'c1',
     });
-    await offerDraw(deps, { gameId: game.publicId, userId: alice.id });
-    expect((await requireGameByPublicId(db, game.publicId)).drawOfferBy).not.toBeNull();
-    await runEngineJob(engine, game.id);
-    const after = await requireGameByPublicId(db, game.publicId);
-    expect(after.drawOfferBy).toBeNull();
-    expect(after.status).toBe('active');
-  });
-
-  it('declines the offer even when it is the human to move, so no offer is left hanging', async () => {
-    const engine = fakeEngine({ replies: [{ uci: 'e7e5' }] });
-    const game = await createEngineGame(deps, {
-      groupId: group.id,
-      userId: alice.id,
-      level: 'club',
-      colour: 'white',
-    });
-    await offerDraw(deps, { gameId: game.publicId, userId: alice.id });
-    await runEngineJob(engine, game.id);
-    const after = await requireGameByPublicId(db, game.publicId);
-    expect(after.drawOfferBy).toBeNull();
-    expect(after.plyCount).toBe(0);
-    expect(engine.calls).toHaveLength(0);
+    const jobsBefore = (await db.select().from(jobs)).length;
+    const error = await offerDraw(deps, { gameId: game.publicId, userId: alice.id }).catch(
+      (err) => err,
+    );
+    expect(isDomainError(error) && error.details?.reason).toBe('engine_game');
+    expect((await requireGameByPublicId(db, game.publicId)).drawOfferBy).toBeNull();
+    expect(await db.select().from(jobs)).toHaveLength(jobsBefore);
   });
 });
 

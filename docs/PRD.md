@@ -268,7 +268,7 @@ Carol shared move 23 of Alice vs Bob
 ### 8.2 Mini App screens
 
 - **Lobby (group)**: header with group name; tabs Active · Finished · Players; **New game** button. "Your move" games pinned to the top of Active.
-- **Game**: board fills the width; above it the opponent's name, rating and clock; below it yours; a compact move list; a toolbar with Share position, Draw, Resign (and Abort while allowed), Flip for spectators.
+- **Game**: board fills the width; above it the opponent's name, rating and clock; below it yours; a compact move list; for players, an icon bar with four fixed slots: Share to group, Flip, Draw (dimmed to Offered once you offer, and before the second move) and Resign (Abort before the second move); Draw, Abort and Resign each ask to confirm. Spectators get Share position and Flip.
 - **Game end**: result banner, rating change, **Analyse on Lichess**, **Rematch**, **Share final position**, **Done** (closes the app).
 - **Replay**: board, slider and arrow controls, move list, Share position, Analyse on Lichess, PGN.
 - **New game**: opponent (list of group players, or Open challenge), time per move, colour, rated toggle, **Send challenge**.
