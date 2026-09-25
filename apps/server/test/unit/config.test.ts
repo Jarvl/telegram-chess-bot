@@ -53,6 +53,16 @@ describe('loadConfig', () => {
     expect(loadConfig({ ...valid, ENGINE_ENABLED: 'false' }).ENGINE_ENABLED).toBe(false);
   });
 
+  it('never resets the database unless told to', () => {
+    expect(loadConfig(valid).DATABASE_RESET_ON_MISMATCH).toBe(false);
+    expect(
+      loadConfig({ ...valid, DATABASE_RESET_ON_MISMATCH: 'true' }).DATABASE_RESET_ON_MISMATCH,
+    ).toBe(true);
+    expect(() => loadConfig({ ...valid, DATABASE_RESET_ON_MISMATCH: 'yes' })).toThrow(
+      /DATABASE_RESET_ON_MISMATCH/,
+    );
+  });
+
   it('refuses a non-positive move time', () => {
     expect(() => loadConfig({ ...valid, ENGINE_MOVETIME_MS: '0' })).toThrow();
   });
