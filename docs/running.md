@@ -11,8 +11,12 @@ token and some environment variables.
 
 ```bash
 pnpm install
+pnpm fonts
 scripts/local-postgres.sh start
 ```
+
+`pnpm fonts` downloads the shared-position card's fonts (about 20 MB) into `apps/server/fonts/`. The
+server will not start its job worker without them.
 
 That prints the two connection strings. You want the first one:
 

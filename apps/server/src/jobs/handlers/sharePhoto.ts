@@ -1,14 +1,17 @@
-import { INITIAL_FEN, sideToMove, t, type Colour } from '@group-chess/shared';
+import { INITIAL_FEN, t, type TimePerMove } from '@group-chess/shared';
 import { Chess } from 'chess.js';
 import { eq } from 'drizzle-orm';
 import { InputFile } from 'grammy';
 import { z } from 'zod';
-import { shares, type MoveRow } from '../../db/schema';
+import { shares, type GameRow, type MoveRow, type UserRow } from '../../db/schema';
 import { listMoves, requireGameById } from '../../domain/games';
 import { requireGroup } from '../../domain/groups';
+import { getPlayerRating } from '../../domain/ratings';
 import { displayName, requireUser } from '../../domain/users';
-import { renderBoardPng, renderBoardSvg, type BoardRenderInput } from '../../images/board';
-import { boardImageKey, getCachedFileId, storeFileId } from '../../images/cache';
+import { getCachedFileId, snapshotImageKey, storeFileId } from '../../images/cache';
+import type { SnapshotFonts } from '../../images/fonts';
+import { renderSnapshotPng, renderSnapshotSvg } from '../../images/snapshot';
+import { buildSnapshotModel, shareMoveNumber, type SnapshotSide } from '../../images/snapshotModel';
 import { renderShareCaption } from '../../telegram/cards';
 import { miniAppLink } from '../../telegram/links';
 import type { JobHandler, JobHandlers } from '../types';
@@ -27,9 +30,21 @@ export function positionAtPly(
   return { fen: move.fenAfter, lastMove: move.uci };
 }
 
-/** Spec §7.7: render or reuse, then `sendPhoto` to the game's topic with the share caption. */
+async function side(
+  ctx: TelegramHandlerContext,
+  game: GameRow,
+  user: UserRow,
+): Promise<SnapshotSide> {
+  return {
+    name: displayName(user),
+    rating: await getPlayerRating(ctx.deps.db, game.groupId, user.id),
+    engineLevel: user.isEngine ? game.engineLevel : null,
+  };
+}
+
+/** Snapshot spec §3.1: build the card, reuse or upload it, and post it to the game's topic. */
 const sendSharePhoto =
-  (ctx: TelegramHandlerContext): JobHandler =>
+  (ctx: TelegramHandlerContext, fonts: SnapshotFonts): JobHandler =>
   async ({ job }) => {
     const { shareId } = payloadSchema.parse(job.payload);
     const [share] = await ctx.deps.db.select().from(shares).where(eq(shares.id, shareId));
@@ -44,22 +59,37 @@ const sendSharePhoto =
       listMoves(ctx.deps.db, game.id),
     ]);
     const position = positionAtPly(moves, share.ply);
-    const orientation: Colour = share.userId === game.blackId ? 'black' : 'white';
-    const input: BoardRenderInput = {
-      ...position,
-      check: new Chess(position.fen).inCheck(),
-      orientation,
-    };
-    const key = boardImageKey(input);
+    const model = buildSnapshotModel({
+      ply: share.ply,
+      sans: moves.filter((move) => move.ply <= share.ply).map((move) => move.san),
+      board: {
+        ...position,
+        check: new Chess(position.fen).inCheck(),
+        orientation: share.userId === game.blackId ? 'black' : 'white',
+      },
+      white: await side(ctx, game, white),
+      black: await side(ctx, game, black),
+      groupTitle: group.title,
+      timePerMove: game.timePerMove as TimePerMove,
+      rated: game.rated,
+      status: game.status,
+      result: game.result,
+      endReason: game.endReason,
+      plyCount: game.plyCount,
+      deadlineAt: game.deadlineAt,
+      sharedAt: share.createdAt,
+      voided: game.voidedAt !== null,
+    });
+    const svg = await renderSnapshotSvg(model, fonts);
+    const key = snapshotImageKey(svg);
     const cached = await getCachedFileId(ctx.deps.db, key);
     const caption = renderShareCaption({
       sharer: displayName(sharer),
-      moveNumber: Math.max(1, Math.ceil(share.ply / 2)),
+      moveNumber: shareMoveNumber(share.ply),
       white: displayName(white),
       black: displayName(black),
-      sideToMove: sideToMove(position.fen),
     });
-    const photo = cached ?? new InputFile(renderBoardPng(renderBoardSvg(input)), 'board.png');
+    const photo = cached ?? new InputFile(renderSnapshotPng(svg), 'snapshot.png');
     const result = await call(ctx, group.telegramChatId, () =>
       ctx.api.sendPhoto(group.telegramChatId, photo, {
         caption,
@@ -68,7 +98,7 @@ const sendSharePhoto =
           inline_keyboard: [
             [
               {
-                text: t('button.open_game'),
+                text: t('button.open_live_game'),
                 url: miniAppLink(ctx.config, { kind: 'game', gameId: game.publicId }),
               },
             ],
@@ -86,6 +116,9 @@ const sendSharePhoto =
     return { outcome: 'done' };
   };
 
-export function sharePhotoJobHandlers(ctx: TelegramHandlerContext): JobHandlers {
-  return { send_share_photo: sendSharePhoto(ctx) };
+export function sharePhotoJobHandlers(
+  ctx: TelegramHandlerContext,
+  fonts: SnapshotFonts,
+): JobHandlers {
+  return { send_share_photo: sendSharePhoto(ctx, fonts) };
 }

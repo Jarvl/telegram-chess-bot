@@ -21,6 +21,11 @@ COPY apps ./apps
 COPY scripts ./scripts
 RUN pnpm --filter @group-chess/miniapp build && node scripts/check-bundle-size.mjs
 
+# Snapshot spec §2.2: the card's fonts are downloaded by pinned URL and sha256, never committed.
+FROM base AS fonts
+COPY scripts/fetch-fonts.mjs ./scripts/
+RUN node scripts/fetch-fonts.mjs
+
 FROM base AS runtime
 ENV NODE_ENV=production
 # Spec §12: the engine opponent needs a UCI binary. Pin the version, and prove at build time that it
@@ -35,6 +40,7 @@ ENV PATH=$PATH:/usr/games
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml LICENSE ./
 COPY packages/shared ./packages/shared
 COPY apps/server ./apps/server
+COPY --from=fonts /app/apps/server/fonts/ ./apps/server/fonts/
 COPY scripts ./scripts
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
     CI=1 pnpm install --frozen-lockfile --prod --filter "@group-chess/server..." \

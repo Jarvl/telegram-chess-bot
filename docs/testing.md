@@ -20,6 +20,10 @@ exit criteria come from PRD §13.
 
 `pnpm test` is 626 tests in about 80 seconds. Integration tests need `TEST_DATABASE_URL`; without
 it only the unit projects run, which is a silent reduction in coverage, so CI always sets it.
+The server's test setup downloads the snapshot card's fonts on first run
+(`scripts/fetch-fonts.mjs`, checksummed), so the first `pnpm test` on a fresh clone needs network
+access. A local `pnpm e2e` needs them too, since its harness boots the job worker: run `pnpm fonts`,
+or `pnpm test` once, first.
 
 Local setup is one command. `scripts/local-postgres.sh start` creates both databases on port 54329
 and prints the two exports.

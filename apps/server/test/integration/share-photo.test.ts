@@ -1,6 +1,7 @@
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { boardImages, jobs, shares } from '../../src/db/schema';
+import { boardImages, games, jobs, shares } from '../../src/db/schema';
+import { loadFonts } from '../../src/images/fonts';
 import { sharePhotoJobHandlers } from '../../src/jobs/handlers/sharePhoto';
 import { enqueue } from '../../src/jobs/queue';
 import { JobWorker } from '../../src/jobs/worker';
@@ -22,10 +23,11 @@ beforeAll(async () => {
   fake = await FakeTelegram.start();
   const config = testConfig({ TELEGRAM_API_ROOT: fake.url });
   const api = createTelegramApi(config, { apiRoot: fake.url });
+  const fonts = await loadFonts();
   worker = new JobWorker({
     db,
     log: deps.log,
-    handlers: sharePhotoJobHandlers({ deps, api, config }),
+    handlers: sharePhotoJobHandlers({ deps, api, config }, fonts),
     workerId: 's',
   });
 });
@@ -53,8 +55,11 @@ async function table(botStatus: 'administrator' | 'left' = 'administrator') {
   return { group, alice, bob, carol, game };
 }
 
-async function share(gameId: number, userId: number, ply: number) {
-  const [row] = await db.insert(shares).values({ gameId, userId, ply }).returning();
+async function share(gameId: number, userId: number, ply: number, createdAt?: Date) {
+  const [row] = await db
+    .insert(shares)
+    .values({ gameId, userId, ply, ...(createdAt ? { createdAt } : {}) })
+    .returning();
   await enqueue(db, { kind: 'send_share_photo', payload: { shareId: row!.id } });
   return row!;
 }
@@ -75,12 +80,12 @@ describe('send_share_photo', () => {
     expect(call?.body.__file).toBe(true);
     expect(call?.body.chat_id).toBe(String(CHAT));
     expect(call?.body.message_thread_id).toBe('7');
-    expect(call?.body.caption).toBe('Alice shared move 1 · Alice vs Bob · White to move');
+    expect(call?.body.caption).toBe('Alice shared move 1 of Alice vs Bob');
     const markup = JSON.parse(String(call?.body.reply_markup)) as {
       inline_keyboard: { text: string; url: string }[][];
     };
     expect(markup.inline_keyboard[0]?.[0]).toEqual({
-      text: '♟ Open game',
+      text: '♟ Open live game',
       url: `https://t.me/TestChessBot/chess?startapp=g_${game.publicId}`,
     });
     const [stored] = await db.select().from(shares);
@@ -92,8 +97,12 @@ describe('send_share_photo', () => {
     expect(await pendingJobs()).toHaveLength(0);
   });
 
-  it('reuses the cached file id for the same position', async () => {
+  it('reuses the cached file id for an identical card', async () => {
     const { alice, carol, game } = await table();
+    await db
+      .update(games)
+      .set({ status: 'finished', result: '1-0', endReason: 'resignation', deadlineAt: null })
+      .where(eq(games.id, game.id));
     await share(game.id, alice.id, 2);
     await worker.runOnce();
     await share(game.id, carol.id, 2);
@@ -102,9 +111,19 @@ describe('send_share_photo', () => {
     expect(calls).toHaveLength(2);
     expect(calls[1]?.multipart).toBe(false);
     expect(calls[1]?.body.photo).toBe('AgACAgIAAxkFake');
-    expect(calls[1]?.body.caption).toBe('Carol shared move 1 · Alice vs Bob · White to move');
+    expect(calls[1]?.body.caption).toBe('Carol shared move 1 of Alice vs Bob');
     expect(await db.select().from(boardImages)).toHaveLength(1);
     expect((await db.select().from(shares)).map((row) => row.messageId)).toEqual([101, 102]);
+  });
+
+  it('uploads a new card when the time left has changed', async () => {
+    const { carol, game } = await table();
+    await share(game.id, carol.id, 2, new Date(Date.now() - 2 * 3_600_000));
+    await worker.runOnce();
+    await share(game.id, carol.id, 2);
+    await worker.runOnce();
+    expect(fake.callsTo('sendPhoto').map((call) => call.multipart)).toEqual([true, true]);
+    expect(await db.select().from(boardImages)).toHaveLength(2);
   });
 
   it('renders from the black side when Black shares, which is a different image', async () => {
@@ -124,8 +143,8 @@ describe('send_share_photo', () => {
     await worker.runOnce();
     const captions = fake.callsTo('sendPhoto').map((call) => call.body.caption);
     expect(captions).toEqual([
-      'Carol shared move 1 · Alice vs Bob · White to move',
-      'Carol shared move 1 · Alice vs Bob · Black to move',
+      'Carol shared move 1 of Alice vs Bob',
+      'Carol shared move 1 of Alice vs Bob',
     ]);
   });
 
