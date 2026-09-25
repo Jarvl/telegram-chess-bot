@@ -136,6 +136,33 @@ describe('send_share_photo', () => {
     expect(await db.select().from(boardImages)).toHaveLength(2);
   });
 
+  it('leaves a stored premove chain out of the card, for its owner and the opponent alike', async () => {
+    const { alice, bob, game } = await table();
+    // One timestamp for every share, so the time left on the card cannot differ between them.
+    const at = new Date();
+    await share(game.id, alice.id, 2, at);
+    await share(game.id, bob.id, 2, at);
+    await worker.runOnce();
+    // White is to move, so the chain is Bob's (premoves spec: the side not to move owns it).
+    await db
+      .update(games)
+      .set({ premoves: ['d7d5', 'd5e4'] })
+      .where(eq(games.id, game.id));
+    await share(game.id, alice.id, 2, at);
+    await share(game.id, bob.id, 2, at);
+    await worker.runOnce();
+    // Each card is cached by its rendered image: reusing the file id means the image is the same.
+    const calls = fake.callsTo('sendPhoto');
+    expect(calls.map((call) => call.multipart)).toEqual([true, true, false, false]);
+    expect(await db.select().from(boardImages)).toHaveLength(2);
+    expect(calls.map((call) => call.body.caption)).toEqual([
+      'Alice shared move 1 of Alice vs Bob',
+      'Bob shared move 1 of Alice vs Bob',
+      'Alice shared move 1 of Alice vs Bob',
+      'Bob shared move 1 of Alice vs Bob',
+    ]);
+  });
+
   it('shares the initial position and an earlier ply', async () => {
     const { carol, game } = await table();
     await share(game.id, carol.id, 0);

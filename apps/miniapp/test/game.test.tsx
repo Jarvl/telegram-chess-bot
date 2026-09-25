@@ -689,6 +689,19 @@ describe('Game with move confirmations', () => {
   });
 });
 
+describe('Game premoves and Share position', () => {
+  it('shares the real position, never the imagined one, at any premove step', async () => {
+    // After 1. f3 it is Black's move; White has queued Nh3 and Ng5.
+    const r = mount(afterPlies(1, { viewerRole: 'white', premoves: ['g1h3', 'h3g5'] }));
+    await r.flush();
+    await r.click('[data-action="share"]');
+    await r.click('[data-action="premove-prev"]');
+    await r.click('[data-action="share"]');
+    const shares = r.calls.filter((c) => c.path === `/api/games/${GAME}/share`);
+    expect(shares.map((c) => c.body)).toEqual([{ ply: 1 }, { ply: 1 }]);
+  });
+});
+
 describe('Game premoves', () => {
   // After 1. f3 it is Black's move; the viewer is White.
   const waiting = (premoves: string[] = []) => afterPlies(1, { viewerRole: 'white', premoves });
