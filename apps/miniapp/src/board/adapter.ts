@@ -1,4 +1,4 @@
-import type { Colour } from '@group-chess/shared';
+import { sideToMove, type Colour } from '@group-chess/shared';
 import { Chessground } from 'chessground';
 import type { Api } from 'chessground/api';
 import type { Config } from 'chessground/config';
@@ -39,6 +39,15 @@ export interface BoardAdapter {
   destroy(): void;
 }
 
+/**
+ * The colour whose king is in check, for chessground. Given `true` it marks the `turnColor` king,
+ * but in premove mode `turnColour` is the viewer (so they can lift pieces) while the checked king
+ * is the opponent's: the side to move in the FEN is always the one in check.
+ */
+function checkedColour(position: BoardPosition): Colour | false {
+  return position.check ? sideToMove(position.fen) : false;
+}
+
 function toDests(dests: Map<string, string[]>): Dests {
   const out: Dests = new Map();
   for (const [from, targets] of dests) out.set(from as Key, targets as Key[]);
@@ -58,7 +67,7 @@ export function boardConfig(
     orientation: position.orientation,
     turnColor: position.turnColour,
     lastMove: position.lastMove ? (position.lastMove as [Key, Key]) : undefined,
-    check: position.check,
+    check: checkedColour(position),
     coordinates: true,
     viewOnly,
     disableContextMenu: true,
@@ -117,7 +126,7 @@ class ChessgroundAdapter implements BoardAdapter {
       orientation: position.orientation,
       turnColor: position.turnColour,
       lastMove: position.lastMove ? (position.lastMove as [Key, Key]) : undefined,
-      check: position.check,
+      check: checkedColour(position),
       movable: {
         color: this.movable.colour === 'none' ? undefined : this.movable.colour,
         dests: toDests(this.movable.dests),
