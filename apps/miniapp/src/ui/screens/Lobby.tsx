@@ -145,9 +145,7 @@ export function Lobby(props: { groupId: string }) {
       <button
         class="btn block"
         data-action="new-game"
-        onClick={() =>
-          router.push({ name: 'newGame', groupId: props.groupId, defaults: data.settings })
-        }
+        onClick={() => router.push({ name: 'newGame', groupId: props.groupId })}
       >
         {t('app.lobby.new_game')}
       </button>

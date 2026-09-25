@@ -247,11 +247,14 @@ export function renderGameCard(view: GameCardView): RenderedMessage {
   };
 }
 
-export function renderWelcomeCard(openChessLink: string): RenderedMessage {
+export function renderWelcomeCard(links: { challenge: string; lobby: string }): RenderedMessage {
   return {
     text: t('card.welcome'),
     entities: [],
-    reply_markup: keyboard([[{ text: t('button.open_chess'), url: openChessLink }]]),
+    reply_markup: keyboard([
+      [{ text: t('button.challenge'), url: links.challenge }],
+      [{ text: t('button.group_lobby'), url: links.lobby }],
+    ]),
   };
 }
 

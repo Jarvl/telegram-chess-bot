@@ -45,7 +45,7 @@ export const ALLOWED_UPDATES = [
 /** Spec §5.1 step 3: three group commands, two private commands, nothing in the default scope. */
 export const BOT_COMMANDS = {
   group: [
-    { command: 'play', description: t('command.play.description') },
+    { command: 'challenge', description: t('command.challenge.description') },
     { command: 'chess', description: t('command.chess.description') },
     { command: 'settings', description: t('command.settings.description') },
   ],

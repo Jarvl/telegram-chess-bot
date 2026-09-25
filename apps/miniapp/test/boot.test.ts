@@ -125,6 +125,29 @@ describe('boot', () => {
     expect(calls).toHaveLength(1);
   });
 
+  it('lands a challenge link on New game over the prefetched lobby', async () => {
+    const lobby = {
+      group: { id: 'GrOuPiDxYz', title: 'Club' },
+      isAdmin: false,
+      settings: { defaultTimePerMove: 86400, ratedDefault: true, allowOpenChallenges: true },
+      active: [],
+      finished: { items: [], nextCursor: null },
+      challenges: [],
+      players: [],
+    };
+    const app = setup('8.0', 'n_GrOuPiDxYz', () => ({
+      status: 200,
+      body: launchBody({ kind: 'newGame', lobby }),
+    }));
+    await boot(app);
+    expect(app.router.tab.value).toBe('groups');
+    expect(app.router.stack.value).toEqual([
+      { name: 'lobby', groupId: 'GrOuPiDxYz' },
+      { name: 'newGame', groupId: 'GrOuPiDxYz' },
+    ]);
+    expect(app.prefetched.lobby).toEqual(lobby);
+  });
+
   it('shows the reopen screen when the launch is rejected and the error screen when it fails', async () => {
     const expired = setup('8.0', undefined, () => ({
       status: 401,

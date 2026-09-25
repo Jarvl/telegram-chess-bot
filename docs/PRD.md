@@ -90,7 +90,7 @@ Acceptance: no configuration needed before the first game.
 
 Two paths, both one step:
 
-- **In the chat**: reply to any message from Bob with `/play`. The bot posts a game card: "Alice vs Bob · 1 day per move · [Accept] [Decline]". Only Bob can accept.
+- **In the chat**: send `/challenge @bob`, or reply to any message from Bob with `/challenge`. The bot posts a game card: "Alice vs Bob · 1 day per move · [Accept] [Decline]". Only Bob can accept.
 - **In the app**: Alice opens the lobby, taps **New game**, picks Bob from the group's players (people the bot has seen in this group) or chooses **Open challenge**, sets the time control, and confirms. The bot posts the same card to the group.
 
 Acceptance: the challenged player is mentioned on the card (so they are notified) and, if they have allowed DMs, gets a DM with an **Open** button.
@@ -124,13 +124,13 @@ Priorities: **P0** = launch, **P1** = fast follow. Almost everything is P0 becau
 
 - Welcome card on join with the **♟ Open Chess** button. Optional pin (needs pin rights).
 - Bot profile has the Main Mini App button, so the lobby also opens from the bot's profile without any message in the group.
-- Group-scoped command menu contains only `/play`, `/chess` and `/settings`.
+- Group-scoped command menu contains only `/challenge`, `/chess` and `/settings`.
 - The first time a user opens the app, it asks for permission to send them DMs (used for "your move" and challenge notifications). The app works if they decline.
 
 ### 7.2 Challenges — P0
 
-- Direct challenge by replying `/play` to the opponent's message in the group, or from the app by picking a player the bot has seen in that group.
-- Open challenge from the app or `/play` with no reply: the first person other than the challenger to accept gets the game.
+- Direct challenge with `/challenge @name` or by replying `/challenge` to the opponent's message in the group, or from the app by picking a player the bot has seen in that group.
+- Open challenge from the app or `/challenge` on its own: the first person other than the challenger to accept gets the game.
 - Options: time per move (`1h`, `8h`, `1d` default, `3d`, `7d`, none), colour (random default, or choose), rated or casual (rated default).
 - The game card in the group is the challenge card edited in place on accept. Declined and expired (24 h) challenges are edited to say so, not deleted.
 - **Rematch** from the game-end screen in the app or the game-end card creates a reversed-colour challenge already accepted by the presser.
@@ -168,7 +168,7 @@ The bot posts nothing to the group except the following:
 | Welcome card | Bot added | One line plus **♟ Open Chess** |
 | Game card | Challenge created; edited on accept, and again at game end | Players (with colours once assigned), time per move, rated/casual; status line ("Move 12 · Bob to move") updated silently as the game goes; **Accept**/**Decline** while pending; **♟ Open game** while running; result, **Analyse on Lichess** and **Rematch** when finished |
 | Shared position | A player or spectator taps Share position in the app | Snapshot card of that position (board, group and terms, players, recent moves, and the result once the game is over), caption "Alice shared move 23 of Alice vs Bob", **♟ Open live game** button. Group members reply in the chat as usual |
-| Reply to `/play` | Only when the command cannot be fulfilled | One short line (for example, the opponent already has 2 games with you) |
+| Reply to `/challenge` | Only when the command cannot be fulfilled | One short line (for example, the opponent already has 2 games with you) |
 
 Edits to the game card are silent (no notification). There are no per-move messages, no nudges in the group, no bump or re-post behaviour. Status-line edits are throttled to at most one per move.
 
@@ -280,7 +280,7 @@ The bot has three group commands and no others in the group menu:
 
 | Command | Purpose |
 |---|---|
-| `/play` (as a reply to someone) | Challenge that person with the group's default settings |
+| `/challenge @name`, or as a reply to someone | Challenge that person with the group's default settings |
 | `/chess` | Post an **♟ Open Chess** button (for groups that did not pin the welcome card) |
 | `/settings` | Post an **Open settings** button (admins) |
 
@@ -321,7 +321,7 @@ Considered and not used: inline keyboards for moves (clunky, the reason for the 
 |---|---|
 | Interactive content only in Mini Apps | The board lives in the app; the chat gets cards and images only. |
 | Inline `web_app` buttons don't work in groups | All app buttons in the group are direct links. |
-| No member list; unknown usernames can't be resolved | In-app opponent picker shows known players; reply-to-message `/play` covers everyone else. |
+| No member list; unknown usernames can't be resolved | In-app opponent picker shows known players; `/challenge @name` reaches anyone the bot has seen, and reply-to-message `/challenge` covers everyone else. |
 | Bots can't DM without permission | Ask in the app on first launch; the app and the challenge mention cover users who decline. |
 | Edits don't notify | Turn notifications are DMs and in-app, never group messages. |
 | About 20 messages per minute per group | Irrelevant at this footprint; position shares are user-initiated and rate-limited per user (20 per minute, so several positions can be shared at once). |

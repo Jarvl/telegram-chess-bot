@@ -6,8 +6,9 @@ describe('start param codec', () => {
     expect(encodeStartParam({ kind: 'game', gameId: 'aZ09bY18cX' })).toBe('g_aZ09bY18cX');
   });
 
-  it('encodes lobby and settings payloads', () => {
+  it('encodes lobby, new game and settings payloads', () => {
     expect(encodeStartParam({ kind: 'lobby', groupId: 'aZ09bY18cX' })).toBe('l_aZ09bY18cX');
+    expect(encodeStartParam({ kind: 'newGame', groupId: 'aZ09bY18cX' })).toBe('n_aZ09bY18cX');
     expect(encodeStartParam({ kind: 'settings', groupId: 'aZ09bY18cX' })).toBe('s_aZ09bY18cX');
   });
 
@@ -15,6 +16,7 @@ describe('start param codec', () => {
     const params: StartParam[] = [
       { kind: 'game', gameId: 'aZ09bY18cX' },
       { kind: 'lobby', groupId: 'grp0000001' },
+      { kind: 'newGame', groupId: 'grp0000001' },
       { kind: 'settings', groupId: 'grp0000001' },
     ];
     for (const param of params) {

@@ -29,7 +29,7 @@ import {
   settingsOf,
   type TelegramChatInfo,
 } from '../domain/groups';
-import { markLeft, touchMember } from '../domain/members';
+import { findMemberByUsername, markLeft, touchMember } from '../domain/members';
 import { ensureUser, setDmAllowed } from '../domain/users';
 import { enqueue } from '../jobs/queue';
 import { createTelegramApi } from '../telegram/client';
@@ -87,7 +87,7 @@ export async function createBot(deps: Deps, config: Config): Promise<Bot> {
 
   const groupOnly = bot.chatType(['group', 'supergroup']);
 
-  groupOnly.command('play', async (ctx) => {
+  groupOnly.command('challenge', async (ctx) => {
     const from = ctx.from;
     if (!from || from.is_bot || ctx.msg.sender_chat) return;
     const group = await ensureGroup(deps.db, chatInfo(ctx.chat));
@@ -96,9 +96,30 @@ export async function createBot(deps: Deps, config: Config): Promise<Bot> {
     const threadId = ctx.msg.is_topic_message ? (ctx.msg.message_thread_id ?? null) : null;
     const reply = (key: MessageKey, params: MessageParams = {}) =>
       sendLine(ctx.chat.id, threadId, key, params, { replyToMessageId: ctx.msg.message_id });
+    // An @mention names the opponent more deliberately than the message the command replies to.
+    const mention = ctx.msg.entities?.find(
+      (entity) => entity.type === 'mention' || entity.type === 'text_mention',
+    );
     const target = ctx.msg.reply_to_message;
     let opponentId: number | null = null;
-    if (target) {
+    if (mention?.type === 'text_mention') {
+      // Picked from the mention list: Telegram hands over the person, username or not.
+      if (mention.user.is_bot) return reply('reply.bot');
+      if (mention.user.id === from.id) return reply('reply.self');
+      const opponent = await ensureUser(deps.db, userInfo(mention.user));
+      await touchMember(deps.db, group.id, opponent.id);
+      opponentId = opponent.id;
+    } else if (mention) {
+      const handle = (ctx.msg.text ?? '').slice(
+        mention.offset + 1,
+        mention.offset + mention.length,
+      );
+      if (handle.toLowerCase() === ctx.me.username.toLowerCase()) return reply('reply.bot');
+      const opponent = await findMemberByUsername(deps.db, group.id, handle);
+      if (opponent?.id === user.id) return reply('reply.self');
+      if (!opponent) return reply('reply.unknown_mention', { name: `@${handle}` });
+      opponentId = opponent.id;
+    } else if (target) {
       if (target.sender_chat || !target.from) return reply('reply.anonymous');
       if (target.from.is_bot) return reply('reply.bot');
       if (target.from.id === from.id) return reply('reply.self');
@@ -134,18 +155,23 @@ export async function createBot(deps: Deps, config: Config): Promise<Bot> {
       const user = await ensureUser(deps.db, userInfo(ctx.from));
       await touchMember(deps.db, group.id, user.id);
       const threadId = ctx.msg.is_topic_message ? (ctx.msg.message_thread_id ?? null) : null;
+      const groupId = group.publicId;
       await sendLine(
         ctx.chat.id,
         threadId,
         kind === 'lobby' ? 'command.chess' : 'command.settings',
         {},
         {
-          buttons: [
-            {
-              text: t(kind === 'lobby' ? 'button.open_chess' : 'button.open_settings'),
-              url: miniAppLink(config, { kind, groupId: group.publicId }),
-            },
-          ],
+          buttons:
+            kind === 'lobby'
+              ? [
+                  {
+                    text: t('button.challenge'),
+                    url: miniAppLink(config, { kind: 'newGame', groupId }),
+                  },
+                  { text: t('button.group_lobby'), url: miniAppLink(config, { kind, groupId }) },
+                ]
+              : [{ text: t('button.open_settings'), url: miniAppLink(config, { kind, groupId }) }],
         },
       );
     };

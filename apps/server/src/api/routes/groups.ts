@@ -38,8 +38,14 @@ export function groupsRoutes(api: Hono<ApiEnv>, ctx: ApiContext): void {
 
   api.get('/groups/:g/players', async (c) => {
     const group = await memberGroup(c);
+    const settings = settingsOf(group);
     const body: PlayersPickerDto = {
       players: await listKnownPlayers(db, group.id, { excludeUserId: c.get('user').id }),
+      settings: {
+        defaultTimePerMove: settings.defaultTimePerMove,
+        ratedDefault: settings.ratedDefault,
+        allowOpenChallenges: settings.allowOpenChallenges,
+      },
       bot: ctx.config.ENGINE_ENABLED ? { levels: [...ENGINE_LEVELS] } : null,
     };
     return c.json(body);

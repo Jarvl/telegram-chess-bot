@@ -44,6 +44,22 @@ describe('Router', () => {
     expect(record.closed).toBe(true);
   });
 
+  it('lands a screen on top of another, so back leads to the lower one before closing', () => {
+    const { router, record } = setup(true);
+    router.land('groups', { name: 'newGame', groupId: 'GrOuPiDxYz' }, [
+      { name: 'lobby', groupId: 'GrOuPiDxYz' },
+    ]);
+    expect(router.stack.value).toEqual([
+      { name: 'lobby', groupId: 'GrOuPiDxYz' },
+      { name: 'newGame', groupId: 'GrOuPiDxYz' },
+    ]);
+    record.clickBack();
+    expect(router.current.value).toEqual({ name: 'lobby', groupId: 'GrOuPiDxYz' });
+    expect(record.closed).toBe(false);
+    record.clickBack();
+    expect(record.closed).toBe(true);
+  });
+
   it('leaves closing to Telegram at the root of a profile launch', () => {
     const { router, record } = setup(false);
     router.land('games', { name: 'games' });

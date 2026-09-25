@@ -238,6 +238,13 @@ describe('POST /api/launch', () => {
     expect(lobby.route.kind).toBe('lobby');
     if (lobby.route.kind === 'lobby')
       expect(LobbyDtoSchema.parse(lobby.route.lobby).isAdmin).toBe(false);
+    const newGame = LaunchResponseSchema.parse(
+      await (await launch({ user: alice, startParam: `n_${group.publicId}` })).json(),
+    );
+    expect(newGame.route).toMatchObject({
+      kind: 'newGame',
+      lobby: { group: { id: group.publicId } },
+    });
     const notAdmin = LaunchResponseSchema.parse(
       await (await launch({ user: alice, startParam: `s_${group.publicId}` })).json(),
     );

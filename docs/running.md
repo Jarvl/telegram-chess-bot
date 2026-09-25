@@ -85,7 +85,7 @@ Still in BotFather:
   the Mini App's loading icon: a goat piece between a pawn and a rook, which Telegram shows while
   the app loads.
 
-Do **not** add commands or a menu button in BotFather. On every start the server registers `/play`,
+Do **not** add commands or a menu button in BotFather. On every start the server registers `/challenge`,
 `/chess` and `/settings`, and sets the DM's **Open** menu button to `<PUBLIC_URL>/app/`, so a new
 tunnel URL is picked up by a restart.
 
@@ -142,9 +142,10 @@ If `/app/` is a 404, `MINI_APP_DIR` is unset or you have not run `pnpm build`.
 1. Create a group in Telegram and add your bot to it.
 2. Promote the bot to administrator. It needs that to pin its welcome card and to see who joins,
    which is what the membership check uses.
-3. The bot posts a welcome card with an **Open Chess** button.
-4. Reply to someone's message with `/play` to challenge them, or send `/chess` to open the lobby and
-   challenge from there. To play both sides yourself, use a second Telegram account.
+3. The bot posts a welcome card with **⚔️ Challenge someone** and **♟ Group lobby** buttons.
+4. Tap **Challenge someone** and pick an opponent, or send `/challenge @name` (or reply to their
+   message with `/challenge`) in the group. `/chess` posts the same two buttons again. To play both
+   sides yourself, use a second Telegram account.
 5. Tap through to the board and move. Drag a piece, or tap the piece and then the target square.
 
 ## If something does not work
@@ -153,7 +154,8 @@ If `/app/` is a 404, `MINI_APP_DIR` is unset or you have not run `pnpm build`.
 |---|---|
 | Blank screen in Telegram | `MINI_APP_DIR` not set, or `pnpm build` not run |
 | "Reopen from Telegram" | The app was opened outside Telegram, or `BOT_TOKEN` does not match the bot whose link you used |
-| Bot ignores `/play` in the group | It is not an administrator, or you sent the command without replying to someone |
+| Bot ignores `/challenge` in the group | It is not an administrator |
+| "I haven't seen @name in this group yet" | The bot only knows people it has seen in the group. Reply to one of their messages with `/challenge` instead |
 | Nothing happens on any command | The webhook cannot reach you. Check the tunnel is still up and `PUBLIC_URL` matches its current URL, then restart the server |
 | Server exits at startup | The configuration is invalid; the error names the variable and what is wrong with it |
 | Moves work but the group card never updates | The bot lacks permission to edit its own message, usually because it is not an administrator |

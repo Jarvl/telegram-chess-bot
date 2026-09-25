@@ -147,7 +147,7 @@ Repository layout is in §16. The server is one package with these modules. Depe
 
 | Module | Responsibility |
 |---|---|
-| `bot` | grammY handlers for `/play`, `/chess`, `/settings`, `/start`, callback queries, `my_chat_member`, `chat_member`, service messages. Translates updates into domain calls. Never sends messages directly; it enqueues jobs |
+| `bot` | grammY handlers for `/challenge`, `/chess`, `/settings`, `/start`, callback queries, `my_chat_member`, `chat_member`, service messages. Translates updates into domain calls. Never sends messages directly; it enqueues jobs |
 | `api` | Hono routes for the Mini App (§9): launch, lobby, games, moves, SSE, sharing, preferences, admin |
 | `domain` | `challenges`, `games` (with the arbiter from the shared package), `ratings`, `sharing`, `notifications`, `membership`. All business rules and transactions live here |
 | `telegram` | Outbound Bot API client (grammY `Api` with the `transformer-throttler` plugin for pacing; 429s reschedule the job), card renderer (state → text and keyboard), mention formatting, deep-link builder |
@@ -189,7 +189,7 @@ Deployment is a multi-stage Docker image: build the Mini App, copy the bundle in
 
 1. Privacy mode on (default).
 2. Create the Mini App with `/newapp`, short name `MINI_APP_SHORT_NAME`, URL `PUBLIC_URL/app/`. Enable the same URL as the Main Mini App so the bot profile opens the lobby.
-3. Commands via `setMyCommands`: scope `all_group_chats` → `/play`, `/chess`, `/settings`; scope `all_private_chats` → `/start`. No default-scope commands, so the group menu stays at three entries.
+3. Commands via `setMyCommands`: scope `all_group_chats` → `/challenge`, `/chess`, `/settings`; scope `all_private_chats` → `/start`. No default-scope commands, so the group menu stays at three entries.
 4. `setWebhook` with `secret_token` and `allowed_updates: ["message", "callback_query", "my_chat_member", "chat_member"]`. `chat_member` is not delivered by default and only arrives where the bot is an administrator; it is a bonus feed for the known-players list, never a dependency.
 5. Menu button left as the default (opens the Main Mini App).
 
@@ -209,6 +209,7 @@ Direct link: `https://t.me/<BOT_USERNAME>/<MINI_APP_SHORT_NAME>?startapp=<payloa
 |---|---|
 | `g_<gameId>` | Game (live board, replay if finished) |
 | `l_<groupId>` | Lobby for that group |
+| `n_<groupId>` | New game for that group, landed over its lobby so Back returns there before closing |
 | `s_<groupId>` | Group settings (admins) |
 | *(none, profile launch)* | The user's groups, then the lobby |
 
@@ -246,14 +247,15 @@ Rules for cards:
 
 | Command | Behaviour | One-line replies (the only case the bot replies to a command) |
 |---|---|---|
-| `/play` as a reply | Direct challenge to the author of the replied-to message using group defaults. Card posted in the same topic (or the fixed topic, per settings) | Reply to yourself; reply to a bot; reply to an anonymous admin or channel post (`sender_chat` set); opponent or you blocked; you have 3 pending challenges |
-| `/play` without a reply | Open challenge, if the group allows them | Open challenges are off in this group; limits as above |
-| `/chess` | Posts an `♟ Open Chess` URL button (`l_<groupId>`). Rate-limited to one per group per minute; excess is ignored silently | none |
+| `/challenge @name` | Direct challenge to a current member the bot has seen here (handles compare without case), or to the person picked from Telegram's mention list (`text_mention`). A mention wins over a reply | Mentioning the bot or yourself; "I haven't seen @name in this group yet", since the Bot API cannot look a user up by username; limits as below |
+| `/challenge` as a reply | Direct challenge to the author of the replied-to message using group defaults. Card posted in the same topic (or the fixed topic, per settings) | Reply to yourself; reply to a bot; reply to an anonymous admin or channel post (`sender_chat` set); opponent or you blocked; you have 3 pending challenges |
+| `/challenge` alone | Open challenge, if the group allows them | Open challenges are off in this group; limits as above |
+| `/chess` | Posts `⚔️ Challenge someone` (`n_<groupId>`) and `♟ Group lobby` (`l_<groupId>`) URL buttons, one per row. Rate-limited to one per group per minute; excess is ignored silently | none |
 | `/settings` | Posts an `Open settings` URL button (`s_<groupId>`). Same rate limit. Anyone can see the button; the app enforces admin rights | none |
 | `/start` in a private chat | Marks `dm_allowed = true` (the user started the chat), replies with an `♟ Open Chess` button. In private chats this may be a `web_app` inline button | none |
-| Anything else | Ignored, including commands addressed to other bots and `/play@otherbot` | none |
+| Anything else | Ignored, including commands addressed to other bots and `/challenge@otherbot` | none |
 
-Commands with the bot's suffix (`/play@GroupChessBot`) are accepted. Every command from a group also updates `group_members` for the sender (§5.6).
+Commands with the bot's suffix (`/challenge@GroupChessBot`) are accepted. Every command from a group also updates `group_members` for the sender (§5.6).
 
 ### 5.6 Membership and admin verification
 

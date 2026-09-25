@@ -1,4 +1,4 @@
-import type { GroupRef, LobbyDto } from '@group-chess/shared';
+import type { GroupRef } from '@group-chess/shared';
 import { computed, signal, type ReadonlySignal, type Signal } from '@preact/signals';
 import type { Tg } from './tg/webapp';
 
@@ -11,7 +11,7 @@ export type Route =
   | { name: 'groups' }
   | { name: 'lobby'; groupId: string }
   | { name: 'leaderboard'; groupId: string }
-  | { name: 'newGame'; groupId: string; defaults?: LobbyDto['settings'] }
+  | { name: 'newGame'; groupId: string; opponentId?: string }
   | { name: 'game'; gameId: string }
   | { name: 'player'; groupId: string; userId: string }
   | { name: 'settings' }
@@ -68,10 +68,13 @@ export class Router {
     this.sync();
   }
 
-  /** Where a launch lands: one screen in one tab, so back never becomes the way home. */
-  land(tab: TabName, route: Route): void {
+  /**
+   * Where a launch lands: one screen in one tab, so back never becomes the way home. `below`
+   * slips screens under it for a form whose back should lead somewhere before it closes.
+   */
+  land(tab: TabName, route: Route, below: Route[] = []): void {
     this.tab.value = tab;
-    this.write(tab, [route]);
+    this.write(tab, [...below, route]);
   }
 
   /** A lateral move: another tab resumes where it was left, the active one returns to its root. */
