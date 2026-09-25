@@ -89,7 +89,9 @@ export async function getGameDto(
   return loadGameDto(deps.db, game, input.viewerUserId);
 }
 
-/** Ends a game inside `tx`: status and result, ratings and snapshots, then the card, DM and import jobs. */
+const ABORT_REASONS: ReadonlySet<EndInput['endReason']> = new Set(['abort', 'timeout_abort']);
+
+/** Ends a game inside `tx`: status and result, ratings and snapshots, then the card, result photo and import jobs. */
 export async function finishGame(
   tx: DbOrTx,
   game: GameRow,
@@ -127,11 +129,13 @@ export async function finishGame(
       dedupKey: `card:g:${game.publicId}`,
     });
   }
-  for (const userId of [game.whiteId, game.blackId]) {
+  // The group hears how a game ended through one result photo, not DMs to its players; bot games
+  // and aborted games announce nothing beyond the card.
+  if (!engineGame && !ABORT_REASONS.has(end.endReason)) {
     await enqueue(tx, {
-      kind: 'send_dm',
-      payload: { userId, template: 'game_end', gameId: game.id },
-      dedupKey: `dm:${userId}:g:${game.publicId}:end`,
+      kind: 'send_result_photo',
+      payload: { gameId: game.id },
+      dedupKey: `result:g:${game.publicId}`,
     });
   }
   if (importable) {

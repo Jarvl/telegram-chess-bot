@@ -7,6 +7,7 @@ export const JOB_KINDS = [
   'send_challenge_card',
   'edit_card',
   'send_share_photo',
+  'send_result_photo',
   'send_dm',
   'send_welcome',
   'send_message',

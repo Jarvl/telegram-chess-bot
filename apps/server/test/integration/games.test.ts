@@ -133,7 +133,7 @@ describe('playMove', () => {
   });
 
   it('applies the timeout instead of a move that arrives after the deadline', async () => {
-    const { game, alice, bob } = await setup({ deadlineInSeconds: -1 });
+    const { game, alice } = await setup({ deadlineInSeconds: -1 });
     const dto = await move(game.publicId, alice.id, 'e2e4', 0);
     expect(dto).toMatchObject({
       status: 'finished',
@@ -143,11 +143,8 @@ describe('playMove', () => {
     });
     expect(dto.moves).toEqual([]);
     const kinds = (await jobList()).map((job) => [job.kind, job.dedupKey]);
-    expect(kinds).toEqual([
-      ['edit_card', `card:g:${game.publicId}`],
-      ['send_dm', `dm:${alice.id}:g:${game.publicId}:end`],
-      ['send_dm', `dm:${bob.id}:g:${game.publicId}:end`],
-    ]);
+    // An abort updates the card and posts no result photo; the players get no DM either.
+    expect(kinds).toEqual([['edit_card', `card:g:${game.publicId}`]]);
   });
 
   it('scores a late move after real play as a rated loss on time', async () => {
@@ -185,9 +182,10 @@ describe('playMove', () => {
       expect.arrayContaining([
         `card:g:${game.publicId}`,
         `lichess:${game.publicId}`,
-        `dm:${alice.id}:g:${game.publicId}:end`,
+        `result:g:${game.publicId}`,
       ]),
     );
+    expect((await jobList()).map((job) => job.kind)).not.toContain('send_dm');
   });
 
   it('clears the opponent’s draw offer when the mover is not the offerer, and keeps the mover’s own', async () => {
@@ -219,6 +217,11 @@ describe('resign, abort, void', () => {
     const dto = await resign(deps, { gameId: game.publicId, userId: bob.id });
     expect(dto).toMatchObject({ status: 'finished', result: '1-0', endReason: 'resignation' });
     expect(await db.select().from(ratings)).toHaveLength(2);
+    expect((await jobList()).map((job) => [job.kind, job.dedupKey, job.payload])).toEqual([
+      ['edit_card', `card:g:${game.publicId}`, { gameId: game.id }],
+      ['send_result_photo', `result:g:${game.publicId}`, { gameId: game.id }],
+      ['lichess_import', `lichess:${game.publicId}`, { gameId: game.id }],
+    ]);
   });
 
   it('applies a passed deadline before a resignation by the player who is not flagged', async () => {
@@ -235,6 +238,7 @@ describe('resign, abort, void', () => {
     const dto = await abortGame(deps, { gameId: game.publicId, userId: bob.id });
     expect(dto).toMatchObject({ status: 'finished', result: '*', endReason: 'abort' });
     expect(await db.select().from(ratings)).toHaveLength(0);
+    expect((await jobList()).map((job) => job.kind)).not.toContain('send_result_photo');
     const later = await setup({ fen: AFTER_E4_E5, plyCount: 2 });
     await expect(
       abortGame(deps, { gameId: later.game.publicId, userId: later.alice.id }),
@@ -254,6 +258,9 @@ describe('resign, abort, void', () => {
       voided: true,
     });
     expect((await jobList()).map((job) => job.kind)).not.toContain('lichess_import');
+    expect((await jobList()).map((job) => job.dedupKey)).toContain(
+      `result:g:${running.game.publicId}`,
+    );
     expect(voided.lichessUrl).toBeUndefined();
 
     const done = await setup({

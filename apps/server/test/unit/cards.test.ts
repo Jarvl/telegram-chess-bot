@@ -125,7 +125,7 @@ describe('renderGameCard', () => {
     expect(card.text).toBe('♟ Alice vs Bob\n1 day per move · Casual · Move 2 · Bob to move');
   });
 
-  it('renders a finished rated game with deltas, Rematch and Analyse', () => {
+  it('renders a finished rated game with deltas, Rematch and Analyze', () => {
     const card = renderGameCard(
       game({
         status: 'finished',
@@ -145,7 +145,7 @@ describe('renderGameCard', () => {
       inline_keyboard: [
         [
           { text: '🔁 Rematch', callback_data: 'gm/rem/game000001' },
-          { text: '🔍 Analyse on Lichess', url: 'https://lichess.org/abcdefgh' },
+          { text: '🔍 Analyze on Lichess', url: 'https://lichess.org/abcdefgh' },
         ],
         lobbyRow,
       ],
@@ -162,7 +162,7 @@ describe('renderGameCard', () => {
       }),
     );
     expect(short.reply_markup?.inline_keyboard[0]?.[1]).toEqual({
-      text: '🔍 Analyse on Lichess',
+      text: '🔍 Analyze on Lichess',
       url: 'https://lichess.org/analysis/pgn/e4_e5',
     });
     expect(short.text).toContain('Draw agreed · ½-½');
@@ -192,7 +192,7 @@ describe('renderGameCard', () => {
     expect(byPlayer.reply_markup?.inline_keyboard[1]).toEqual(lobbyRow);
   });
 
-  it('renders a voided game with its former result and Analyse when it had moves', () => {
+  it('renders a voided game with its former result and Analyze when it had moves', () => {
     const card = renderGameCard(
       game({
         status: 'finished',
@@ -205,7 +205,7 @@ describe('renderGameCard', () => {
     );
     expect(card.text).toBe('♟ Alice vs Bob · Voided by an admin\nwas Checkmate · 1-0');
     expect(card.reply_markup?.inline_keyboard[0]?.map((b) => b.text)).toEqual([
-      '🔍 Analyse on Lichess',
+      '🔍 Analyze on Lichess',
     ]);
     const noMoves = renderGameCard(
       game({ status: 'finished', result: '*', endReason: 'voided', voided: true, plyCount: 0 }),

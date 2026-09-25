@@ -1,11 +1,6 @@
 import {
-  analysisUrl,
-  endReasonLabel,
   formatTimeLeft,
-  isProvisional,
   ratedLabel,
-  ratingLabel,
-  resultLabel,
   sideToMove,
   t,
   timePerMoveLabel,
@@ -41,7 +36,7 @@ import type { JobHandler, JobHandlers, JobResult } from '../types';
 
 export type TelegramHandlerContext = { deps: Deps; api: TelegramApi; config: Config };
 
-type CallResult<T> = { ok: true; value: T } | { ok: false; failure: TelegramFailure };
+export type CallResult<T> = { ok: true; value: T } | { ok: false; failure: TelegramFailure };
 
 /** Runs one Bot API call and applies the chat-level consequences of spec §11. */
 export async function call<T>(
@@ -95,7 +90,7 @@ const challengePayload = z.object({ challengeId: z.number().int() });
 const cardPayload = z.union([gameCardPayload, challengePayload]);
 const dmPayload = z.object({
   userId: z.number().int(),
-  template: z.enum(['turn', 'challenge', 'reminder', 'game_end']),
+  template: z.enum(['turn', 'challenge', 'reminder']),
   gameId: z.number().int().optional(),
   challengeId: z.number().int().optional(),
   premovesCancelled: z.boolean().optional(),
@@ -252,35 +247,6 @@ async function dmContent(
   const goToGroup: InlineKeyboardButton[] = groupLink
     ? [{ text: t('button.go_to_group'), url: groupLink }]
     : [];
-
-  if (payload.template === 'game_end') {
-    if (game.status !== 'finished' || !game.result || !game.endReason) return null;
-    const isWhite = game.whiteId === user.id;
-    const before = isWhite ? game.whiteRatingBefore : game.blackRatingBefore;
-    const after = isWhite ? game.whiteRatingAfter : game.blackRatingAfter;
-    const rdBefore = isWhite ? game.whiteRdBefore : game.blackRdBefore;
-    const rdAfter = isWhite ? game.whiteRdAfter : game.blackRdAfter;
-    const params = {
-      result: resultLabel(game.result),
-      opponent: displayName(opponent),
-      endReason: endReasonLabel(game.endReason),
-    };
-    const text =
-      game.rated && before !== null && after !== null && rdBefore !== null && rdAfter !== null
-        ? t('dm.game_end.rating', {
-            ...params,
-            before: ratingLabel(before, isProvisional(rdBefore)),
-            after: ratingLabel(after, isProvisional(rdAfter)),
-          })
-        : t('dm.game_end', params);
-    const moves = game.plyCount > 0 ? await listMoves(deps.db, game.id) : [];
-    const analysis =
-      game.lichessUrl ?? (moves.length > 0 ? analysisUrl(moves.map((m) => m.san)) : null);
-    const buttons: InlineKeyboardButton[][] = [[openGame]];
-    if (analysis && analysis.length <= 2000)
-      buttons.push([{ text: t('button.analyse'), url: analysis }]);
-    return { text, buttons };
-  }
 
   if (game.status !== 'active') return null;
   const toMove = sideToMove(game.fen) === 'white' ? game.whiteId : game.blackId;

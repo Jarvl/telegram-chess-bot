@@ -36,6 +36,13 @@
       "when": 1790286049194,
       "tag": "0004_premoves",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790310496460,
+      "tag": "0005_game_result_photo",
+      "breakpoints": true
     }
   ]
 }
