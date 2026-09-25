@@ -953,9 +953,10 @@ button {
   padding-left: 6px;
 }
 
+/* The opponent's unknown reply: tight, so each premove costs little width in the strip. */
 .move-list .premove-gap {
   color: var(--hint);
-  padding: 3px 7px;
+  padding: 3px 1px;
 }
 
 .move-list .premove-number {
@@ -976,7 +977,6 @@ button {
 
 /* Removes the shown premove and the ones after it, after asking. */
 .move-list button.premove-remove {
-  margin-left: 2px;
   padding: 3px 8px;
   border-radius: 999px;
   background: var(--pm-soft);
