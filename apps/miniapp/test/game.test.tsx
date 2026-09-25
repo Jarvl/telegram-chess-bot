@@ -236,7 +236,7 @@ describe('Game', () => {
     expect(r.calls.at(-1)?.path).toBe(`/api/games/${GAME}/draw/decline`);
   });
 
-  it('shows the result, rematch, analysis and PGN for a finished game, with the PGN link fallback', async () => {
+  it('ends a finished game with share, analyze, PGN and rematch in the bar, with the PGN link fallback', async () => {
     const finished = afterPlies(4, {
       viewerRole: 'black',
       status: 'finished',
@@ -247,11 +247,20 @@ describe('Game', () => {
     });
     const r = mount(finished, okRoute(finished), '7.0');
     await r.flush();
-    expect(r.root.querySelector('.result-title')?.textContent).toBe('You won');
-    expect(r.root.querySelector('.result-detail')?.textContent).toBe(
-      'Checkmate · 0-1 · 1500? → 1662?',
-    );
-    expect(r.root.querySelector('.toolbar button')?.getAttribute('data-action')).toBe('rematch');
+    const labels = [...r.root.querySelectorAll('.icon-bar button')].map((b) => [
+      b.getAttribute('data-action'),
+      b.textContent,
+    ]);
+    expect(labels).toEqual([
+      ['share', 'Share to group'],
+      ['analyse', 'Analyze'],
+      ['pgn', 'PGN'],
+      ['rematch', 'Rematch'],
+    ]);
+    // Telegram's own Close does what Done did.
+    expect(r.root.querySelector('[data-action="done"]')).toBeNull();
+    expect(r.root.querySelector('.toolbar')).toBeNull();
+    expect(r.root.querySelector('.game')?.classList.contains('with-icon-bar')).toBe(true);
     expect(FakeEventSource.instances).toHaveLength(0);
     await r.click('[data-action="analyse"]');
     expect(window.__tg!.links).toContain('https://lichess.org/abcd1234');
@@ -267,6 +276,98 @@ describe('Game', () => {
     expect(r.root.querySelector('[data-action="latest"]')).toBeNull();
     await r.click('[data-ply="4"]');
     expect(adapter.positions.at(-1)?.lastMove).toEqual(['d8', 'h4']);
+  });
+
+  it('shows the result on the player bars in place of the clocks, with no result card', async () => {
+    const finished = afterPlies(4, {
+      viewerRole: 'black',
+      status: 'finished',
+      result: '0-1',
+      endReason: 'checkmate',
+      black: { ...gameDto().black, ratingAfter: 1662, provisionalAfter: true },
+    });
+    const r = mount(finished, okRoute(finished), '7.0');
+    await r.flush();
+    const white = r.root.querySelector('.player-bar[data-colour="white"]')!;
+    const black = r.root.querySelector('.player-bar[data-colour="black"]')!;
+    expect(r.root.querySelector('.result-card')).toBeNull();
+    expect(r.root.querySelector('.clock')).toBeNull();
+    expect(black.querySelector('.result-tag')?.textContent).toBe('Won');
+    expect(black.querySelector('.result-tag')?.className).toContain('won');
+    expect(black.querySelector('.sub')?.textContent).toBe('Checkmate');
+    expect(black.querySelector('.sub')?.className).toContain('reason');
+    expect(black.querySelector('.rating')?.textContent).toBe('1500? → 1662?');
+    expect(white.querySelector('.result-tag')?.textContent).toBe('Lost');
+    expect(white.querySelector('.sub')?.textContent).toBe('White · Chess Club');
+  });
+
+  it('tags both bars Draw with the reason under each name', async () => {
+    const finished = afterPlies(4, {
+      viewerRole: 'white',
+      status: 'finished',
+      result: '1/2-1/2',
+      endReason: 'draw_agreement',
+    });
+    const r = mount(finished, okRoute(finished), '7.0');
+    await r.flush();
+    for (const bar of r.root.querySelectorAll('.player-bar')) {
+      expect(bar.querySelector('.result-tag')?.textContent).toBe('Draw');
+      expect(bar.querySelector('.sub')?.textContent).toBe('Draw agreed');
+    }
+  });
+
+  it('tags both bars Voided for a voided game, and offers no rematch', async () => {
+    const finished = afterPlies(4, {
+      viewerRole: 'white',
+      status: 'finished',
+      result: '1-0',
+      endReason: 'resignation',
+      voided: true,
+    });
+    const r = mount(finished, okRoute(finished), '7.0');
+    await r.flush();
+    const tags = [...r.root.querySelectorAll('.result-tag')].map((tag) => tag.textContent);
+    expect(tags).toEqual(['Voided', 'Voided']);
+    expect(r.root.querySelector('[data-action="rematch"]')).toBeNull();
+  });
+
+  it('gives spectators of a finished game share, analyze and PGN, with Analyze dimmed without a link', async () => {
+    const finished = afterPlies(4, {
+      viewerRole: 'spectator',
+      status: 'finished',
+      result: '0-1',
+      endReason: 'checkmate',
+    });
+    const r = mount(finished, okRoute(finished), '7.0');
+    await r.flush();
+    const actions = [...r.root.querySelectorAll('.icon-bar button')].map((b) =>
+      b.getAttribute('data-action'),
+    );
+    expect(actions).toEqual(['share', 'analyse', 'pgn']);
+    expect(r.root.querySelector<HTMLButtonElement>('[data-action="analyse"]')?.disabled).toBe(true);
+  });
+
+  it('shows the replay slider in a game still being played, and holds moves while it looks back', async () => {
+    const r = mount(afterPlies(2, { viewerRole: 'white' }));
+    await r.flush();
+    const slider = r.root.querySelector<HTMLInputElement>('.replay-controls input[type="range"]')!;
+    expect(slider).not.toBeNull();
+    expect(slider.max).toBe('2');
+    expect(adapter.movables.at(-1)).toMatchObject({ colour: 'white' });
+    await r.click('[data-action="prev"]');
+    expect(adapter.positions.at(-1)?.lastMove).toEqual(['f2', 'f3']);
+    expect(adapter.movables.at(-1)).toMatchObject({ colour: 'none' });
+    await r.click('[data-action="next"]');
+    expect(adapter.positions.at(-1)?.lastMove).toEqual(['e7', 'e5']);
+    expect(adapter.movables.at(-1)).toMatchObject({ colour: 'white' });
+  });
+
+  it('shows the slider before the first move, with nothing to step through', async () => {
+    const r = mount(gameDto({ viewerRole: 'white' }));
+    await r.flush();
+    const slider = r.root.querySelector<HTMLInputElement>('.replay-controls input[type="range"]')!;
+    expect(slider.max).toBe('0');
+    expect(slider.disabled).toBe(true);
   });
 
   it('starts a fresh bot game on rematch when the finished game was against the engine', async () => {

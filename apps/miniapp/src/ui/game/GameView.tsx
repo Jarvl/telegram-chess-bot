@@ -31,7 +31,7 @@ import {
   type MoveEvent,
   type MoveState,
 } from '../../state/moveMachine';
-import { noteServerTime, prefs, session } from '../../state/session';
+import { noteServerTime, prefs } from '../../state/session';
 import { useApp } from '../context';
 import { confirmDialog } from '../dialog';
 import { toast } from '../toast';
@@ -39,7 +39,6 @@ import { Board } from './Board';
 import { MoveList } from './MoveList';
 import { PlayerBar } from './PlayerBar';
 import { PremoveBar } from './PremoveBar';
-import { resultDetail, resultForViewer } from './result';
 import { useClock } from './useClock';
 
 /** A send answered within this shows nothing; a slower one greys the board under a spinner. */
@@ -529,6 +528,7 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
     isPlayer && dto.status === 'active' && (dto.claims.threefold || dto.claims.fiftyMove);
   const busy = moveState.kind !== 'idle';
   const playing = isPlayer && dto.status === 'active';
+  const finished = dto.status === 'finished';
   // Draw waits for the second move, when the last slot turns from Abort to Resign, and the bot
   // never takes one (spec §8).
   const early = dto.plyCount < 2;
@@ -536,7 +536,7 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
   const moveButtons = moveState.kind === 'pendingConfirm' && (inPage.confirm || inPage.cancel);
 
   return (
-    <div class={playing ? 'game with-icon-bar' : 'game'}>
+    <div class={playing || finished ? 'game with-icon-bar' : 'game'}>
       <PlayerBar dto={dto} colour={top} now={now} />
       <Board
         store={store}
@@ -585,39 +585,33 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
         store={store}
         onRemove={(step) => void editPremoves(store.premoves.value.slice(0, step - 1), step - 1)}
       />
-      {dto.status === 'finished' ? (
-        <div class="replay-controls">
-          <button
-            class="pill-btn"
-            data-action="prev"
-            onClick={() => store.viewPly(store.position.value.ply - 1)}
-          >
-            ◀
-          </button>
-          <input
-            type="range"
-            min={0}
-            max={dto.plyCount}
-            value={store.position.value.ply}
-            onInput={(event) => store.viewPly(Number(event.currentTarget.value))}
-          />
-          <button
-            class="pill-btn"
-            data-action="next"
-            onClick={() => store.viewPly(store.position.value.ply + 1)}
-          >
-            ▶
-          </button>
-        </div>
-      ) : null}
-      {dto.status === 'finished' ? (
-        <div class="result-card" role="status">
-          <span class="result-title">
-            {dto.voided ? t('app.game.voided') : resultForViewer(dto)}
-          </span>
-          {resultDetail(dto) ? <span class="result-detail">{resultDetail(dto)}</span> : null}
-        </div>
-      ) : null}
+      {/* The slider shows in every game, so the row is there before the first move too. */}
+      <div class="replay-controls">
+        <button
+          class="pill-btn"
+          data-action="prev"
+          disabled={dto.plyCount === 0}
+          onClick={() => store.viewPly(store.position.value.ply - 1)}
+        >
+          ◀
+        </button>
+        <input
+          type="range"
+          min={0}
+          max={dto.plyCount}
+          value={store.position.value.ply}
+          disabled={dto.plyCount === 0}
+          onInput={(event) => store.viewPly(Number(event.currentTarget.value))}
+        />
+        <button
+          class="pill-btn"
+          data-action="next"
+          disabled={dto.plyCount === 0}
+          onClick={() => store.viewPly(store.position.value.ply + 1)}
+        >
+          ▶
+        </button>
+      </div>
       {offerFromOpponent && dto.status === 'active' ? (
         <div class="banner">
           <span class="grow">{t('app.game.draw_offer_from', { name: dto[offer!.by].name })}</span>
@@ -717,36 +711,41 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
             </button>
           )}
         </div>
-      ) : (
-        <div class="toolbar">
-          {dto.status === 'finished' && isPlayer && !dto.voided ? (
-            <button class="pill-btn primary" data-action="rematch" onClick={() => void rematch()}>
+      ) : finished ? (
+        // The same four slots after the game, Share still first so it does not move.
+        <div class="icon-bar">
+          <button class="bar-btn" data-action="share" onClick={() => void share()}>
+            <ShareIcon />
+            {t('app.game.share_to_group')}
+          </button>
+          <button
+            class="bar-btn"
+            data-action="analyse"
+            disabled={!dto.lichessUrl && !dto.analysisUrl}
+            onClick={analyse}
+          >
+            <AnalyzeIcon />
+            {t('app.game.analyze')}
+          </button>
+          <button class="bar-btn" data-action="pgn" onClick={() => void pgn()}>
+            <DownloadIcon />
+            {t('app.game.pgn')}
+          </button>
+          {isPlayer && !dto.voided ? (
+            <button class="bar-btn accent" data-action="rematch" onClick={() => void rematch()}>
+              <RematchIcon />
               {t('app.game.rematch')}
             </button>
           ) : null}
+        </div>
+      ) : (
+        <div class="toolbar">
           <button class="pill-btn" data-action="share" onClick={() => void share()}>
             {t('app.game.share')}
           </button>
-          {!isPlayer ? (
-            <button class="pill-btn" data-action="flip" onClick={() => store.flip()}>
-              {t('app.game.flip')}
-            </button>
-          ) : null}
-          {dto.status === 'finished' && (dto.lichessUrl || dto.analysisUrl) ? (
-            <button class="pill-btn" data-action="analyse" onClick={analyse}>
-              {t('app.game.analyse')}
-            </button>
-          ) : null}
-          {dto.status === 'finished' ? (
-            <button class="pill-btn" data-action="pgn" onClick={() => void pgn()}>
-              {t('app.game.pgn')}
-            </button>
-          ) : null}
-          {dto.status === 'finished' && session.value?.launchedFrom?.kind === 'game' ? (
-            <button class="pill-btn" data-action="done" onClick={() => tg.close()}>
-              {t('app.game.done')}
-            </button>
-          ) : null}
+          <button class="pill-btn" data-action="flip" onClick={() => store.flip()}>
+            {t('app.game.flip')}
+          </button>
         </div>
       )}
     </div>
@@ -777,6 +776,31 @@ function FlipIcon() {
   return (
     <svg {...ICON}>
       <path d="M7 20V4M3 8l4-4 4 4M17 4v16M13 16l4 4 4-4" />
+    </svg>
+  );
+}
+
+function AnalyzeIcon() {
+  return (
+    <svg {...ICON}>
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="M16 16l5 5" />
+    </svg>
+  );
+}
+
+function DownloadIcon() {
+  return (
+    <svg {...ICON}>
+      <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />
+    </svg>
+  );
+}
+
+function RematchIcon() {
+  return (
+    <svg {...ICON}>
+      <path d="M4 12a8 8 0 0 1 13.7-5.6L20 9M20 4v5h-5M20 12a8 8 0 0 1-13.7 5.6L4 15M4 20v-5h5" />
     </svg>
   );
 }

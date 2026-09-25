@@ -738,7 +738,10 @@ button {
 }
 
 /* Game screen (Task 5) */
+/* Every game has the replay slider row (38px) under the moves; the board gives that back, plus the
+   10px the 200px budget already ran short by on a 667px phone, so the bar clears the tab bar. */
 .game {
+  --replay-row: 48px;
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -749,7 +752,10 @@ button {
   position: relative;
   width: min(
     100vw,
-    calc(var(--stable-height) - 200px - var(--board-reserve) - var(--icon-bar-extra, 0px))
+    calc(
+      var(--stable-height) - 200px - var(--board-reserve) - var(--replay-row) -
+        var(--icon-bar-extra, 0px)
+    )
   );
   max-width: 640px;
   min-width: 280px;
@@ -861,6 +867,11 @@ button {
   font-weight: 600;
 }
 
+.player-bar .sub.reason {
+  color: var(--text);
+  font-weight: 600;
+}
+
 .clock {
   font-variant-numeric: tabular-nums;
   padding: 6px 12px;
@@ -885,6 +896,26 @@ button {
 .clock.urgent {
   background: var(--urgent);
   color: #fff;
+}
+
+/* A finished game's result, in the clock's place (7a in the toolbar design). */
+.result-tag {
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--hint);
+  font-weight: 700;
+  min-width: 64px;
+  text-align: center;
+}
+
+.result-tag.won {
+  background: var(--acc);
+  color: var(--acc-ink);
+}
+
+.result-tag.draw {
+  color: var(--text);
 }
 
 .move-list {
@@ -977,26 +1008,7 @@ button {
 
 .replay-controls input[type='range'] {
   flex: 1;
-}
-
-.result-card {
-  margin: 6px 16px;
-  padding: 14px;
-  border-radius: 16px;
-  background: var(--hero-bg);
-  color: var(--hero-ink);
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.result-title {
-  font: 24px/1.15 var(--display);
-}
-
-.result-detail {
-  font-size: 14px;
-  color: var(--hero-sub);
+  accent-color: var(--acc);
 }
 
 .banner {
@@ -1065,6 +1077,11 @@ button {
 
 .bar-btn.danger {
   color: var(--destructive);
+}
+
+.bar-btn.accent {
+  color: var(--acc-text);
+  font-weight: 700;
 }
 
 .bar-btn:disabled {

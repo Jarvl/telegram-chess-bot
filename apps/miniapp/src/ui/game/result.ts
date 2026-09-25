@@ -1,34 +1,22 @@
-import { endReasonLabel, ratingLabel, resultLabel, t, type GameDto } from '@group-chess/shared';
+import { endReasonLabel, type Colour, type GameDto } from '@group-chess/shared';
 
-/** The result banner text from the viewer's side (PRD §8.2). */
-export function resultForViewer(dto: GameDto): string {
-  if (!dto.result || dto.result === '*') return t('app.game.result.aborted');
-  if (dto.result === '1/2-1/2') return t('app.game.result.draw');
-  const winner = dto.result === '1-0' ? 'white' : 'black';
-  if (dto.viewerRole === 'spectator') return t(`app.game.result.${winner}`);
-  return t(dto.viewerRole === winner ? 'app.game.result.win' : 'app.game.result.loss');
-}
+export type ResultTag = 'won' | 'lost' | 'draw' | 'aborted' | 'voided';
 
-export function reasonForViewer(dto: GameDto): string | null {
-  return dto.endReason ? endReasonLabel(dto.endReason) : null;
-}
-
-/** `1500? → 1662?` for the viewer of a finished rated game; null otherwise. */
-export function ratingChangeFor(dto: GameDto): string | null {
-  if (dto.status !== 'finished' || !dto.rated || dto.voided) return null;
-  if (dto.viewerRole !== 'white' && dto.viewerRole !== 'black') return null;
-  const player = dto[dto.viewerRole];
-  if (player.ratingAfter === null || player.provisionalAfter === null) return null;
-  return `${ratingLabel(player.rating, player.provisional)} → ${ratingLabel(player.ratingAfter, player.provisionalAfter)}`;
-}
-
-/** The result card's second line: how it ended, the score, and the viewer's rating change. */
-export function resultDetail(dto: GameDto): string {
-  return [
-    reasonForViewer(dto),
-    dto.result && dto.result !== '*' ? resultLabel(dto.result) : null,
-    ratingChangeFor(dto),
-  ]
-    .filter(Boolean)
-    .join(' · ');
+/**
+ * What one player bar shows once the game is over: the tag in the clock's place, and the reason
+ * that replaces the bar's second line. The reason goes under the winner, under both sides for a
+ * draw, and under White alone for an abort; a voided game gives none. Null while the game is on.
+ */
+export function sideResult(
+  dto: GameDto,
+  colour: Colour,
+): { tag: ResultTag; reason: string | null } | null {
+  if (dto.status !== 'finished') return null;
+  if (dto.voided) return { tag: 'voided', reason: null };
+  const reason = dto.endReason ? endReasonLabel(dto.endReason) : null;
+  if (!dto.result || dto.result === '*')
+    return { tag: 'aborted', reason: colour === 'white' ? reason : null };
+  if (dto.result === '1/2-1/2') return { tag: 'draw', reason };
+  const winner: Colour = dto.result === '1-0' ? 'white' : 'black';
+  return winner === colour ? { tag: 'won', reason } : { tag: 'lost', reason: null };
 }
