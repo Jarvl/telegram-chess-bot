@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 # Spec §4.4: multi-stage — build the Mini App, then a runtime image with the server and the bundle.
-FROM node:22-bookworm-slim AS base
+FROM node:25-bookworm-slim AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 # A shared cache, not root's home: the runtime runs as `node`, which must find this pnpm already
