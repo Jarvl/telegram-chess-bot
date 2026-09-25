@@ -1,0 +1,174 @@
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import postgres from 'postgres';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { runMigrations } from '../../src/db/migrate';
+
+const REAL_FOLDER = fileURLToPath(new URL('../../drizzle', import.meta.url));
+const baseUrl = process.env.TEST_DATABASE_URL!;
+const admin = postgres(baseUrl, { max: 1, onnotice: () => undefined });
+const scratchName = `group_chess_migrate_${process.pid}`;
+const scratchUrl = (() => {
+  const url = new URL(baseUrl);
+  url.pathname = `/${scratchName}`;
+  return url.toString();
+})();
+
+let scratch: postgres.Sql;
+let tempDir: string;
+
+type Journal = {
+  entries: { idx: number; version: string; when: number; tag: string; breakpoints: boolean }[];
+};
+
+/** A copy of the real migrations plus `extra`, each one `create table <tag>` at timestamp `when`. */
+function migrationsFolder(name: string, extra: { tag: string; when: number }[] = []): string {
+  const folder = join(tempDir, name);
+  cpSync(REAL_FOLDER, folder, { recursive: true });
+  const journalPath = join(folder, 'meta', '_journal.json');
+  const journal = JSON.parse(readFileSync(journalPath, 'utf8')) as Journal;
+  for (const { tag, when } of extra) {
+    writeFileSync(join(folder, `${tag}.sql`), `create table "${tag}" (id integer);`);
+    journal.entries.push({
+      idx: journal.entries.length,
+      version: '7',
+      when,
+      tag,
+      breakpoints: true,
+    });
+  }
+  writeFileSync(journalPath, JSON.stringify(journal));
+  return folder;
+}
+
+const lastRealWhen = (
+  JSON.parse(readFileSync(join(REAL_FOLDER, 'meta', '_journal.json'), 'utf8')) as Journal
+).entries.at(-1)!.when;
+const branchA = { tag: '9990_branch_a', when: lastRealWhen + 2_000 };
+const branchB = { tag: '9991_branch_b', when: lastRealWhen + 1_000 };
+const branchC = { tag: '9992_branch_c', when: lastRealWhen + 3_000 };
+
+async function tables(): Promise<string[]> {
+  const rows = await scratch<{ name: string }[]>`
+    select table_name as name from information_schema.tables where table_schema = 'public'`;
+  return rows.map((row) => row.name);
+}
+
+async function markerSurvives(): Promise<boolean> {
+  return (await tables()).includes('reset_marker');
+}
+
+beforeAll(() => {
+  tempDir = mkdtempSync(join(tmpdir(), 'group-chess-migrations-'));
+});
+
+afterAll(async () => {
+  rmSync(tempDir, { recursive: true, force: true });
+  await admin.end({ timeout: 5 });
+});
+
+beforeEach(async () => {
+  await admin.unsafe(`drop database if exists ${scratchName} with (force)`);
+  await admin.unsafe(`create database ${scratchName}`);
+  scratch = postgres(scratchUrl, { max: 1, onnotice: () => undefined });
+});
+
+afterEach(async () => {
+  await scratch.end({ timeout: 5 });
+  await admin.unsafe(`drop database if exists ${scratchName} with (force)`);
+});
+
+/** Migrates with `folder`, then leaves a table that only survives if the next boot keeps the data. */
+async function deploy(folder: string): Promise<void> {
+  await runMigrations(scratchUrl, { migrationsFolder: folder });
+  await scratch`create table reset_marker (id integer)`;
+}
+
+describe('runMigrations with resetOnMismatch', () => {
+  it('migrates an empty database without reporting a reset', async () => {
+    const result = await runMigrations(scratchUrl, {
+      migrationsFolder: migrationsFolder('main'),
+      resetOnMismatch: true,
+    });
+    expect(result).toEqual({ reset: false });
+    expect(await tables()).toContain('games');
+  });
+
+  it('keeps the data when the build has exactly the applied migrations', async () => {
+    const main = migrationsFolder('main');
+    await deploy(main);
+    const result = await runMigrations(scratchUrl, {
+      migrationsFolder: main,
+      resetOnMismatch: true,
+    });
+    expect(result).toEqual({ reset: false });
+    expect(await markerSurvives()).toBe(true);
+  });
+
+  it('keeps the data and migrates forward when the build only adds migrations', async () => {
+    await deploy(migrationsFolder('main'));
+    const result = await runMigrations(scratchUrl, {
+      migrationsFolder: migrationsFolder('branch-a', [branchA]),
+      resetOnMismatch: true,
+    });
+    expect(result).toEqual({ reset: false });
+    expect(await markerSurvives()).toBe(true);
+    expect(await tables()).toContain(branchA.tag);
+  });
+
+  it('resets when the database has a migration the build does not', async () => {
+    await deploy(migrationsFolder('branch-a', [branchA]));
+    const result = await runMigrations(scratchUrl, {
+      migrationsFolder: migrationsFolder('main'),
+      resetOnMismatch: true,
+    });
+    expect(result).toEqual({ reset: true });
+    expect(await markerSurvives()).toBe(false);
+    expect(await tables()).not.toContain(branchA.tag);
+    expect(await tables()).toContain('games');
+  });
+
+  it('resets and applies a migration older than the last applied one, which drizzle alone skips', async () => {
+    await deploy(migrationsFolder('branch-a', [branchA]));
+    const result = await runMigrations(scratchUrl, {
+      migrationsFolder: migrationsFolder('branch-b', [branchB]),
+      resetOnMismatch: true,
+    });
+    expect(result).toEqual({ reset: true });
+    expect(await tables()).toContain(branchB.tag);
+    expect(await tables()).not.toContain(branchA.tag);
+  });
+
+  it('resets when a newer migration would otherwise stack on another branch’s', async () => {
+    await deploy(migrationsFolder('branch-a', [branchA]));
+    const result = await runMigrations(scratchUrl, {
+      migrationsFolder: migrationsFolder('branch-c', [branchC]),
+      resetOnMismatch: true,
+    });
+    expect(result).toEqual({ reset: true });
+    expect(await tables()).toContain(branchC.tag);
+    expect(await tables()).not.toContain(branchA.tag);
+  });
+
+  it('resets when an applied migration’s contents changed', async () => {
+    await deploy(migrationsFolder('branch-a', [branchA]));
+    const edited = migrationsFolder('branch-a-edited', [branchA]);
+    writeFileSync(join(edited, `${branchA.tag}.sql`), `create table "${branchA.tag}" (id bigint);`);
+    const result = await runMigrations(scratchUrl, {
+      migrationsFolder: edited,
+      resetOnMismatch: true,
+    });
+    expect(result).toEqual({ reset: true });
+    expect(await markerSurvives()).toBe(false);
+  });
+
+  it('never resets without the flag, even on a mismatch', async () => {
+    await deploy(migrationsFolder('branch-a', [branchA]));
+    const result = await runMigrations(scratchUrl, { migrationsFolder: migrationsFolder('main') });
+    expect(result).toEqual({ reset: false });
+    expect(await markerSurvives()).toBe(true);
+    expect(await tables()).toContain(branchA.tag);
+  });
+});

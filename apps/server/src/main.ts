@@ -85,7 +85,10 @@ export async function startServer(
 ): Promise<RunningServer> {
   const log = createLogger(config.LOG_LEVEL);
   const has = (role: Role): boolean => config.ROLES.includes(role);
-  await runMigrations(config.DATABASE_URL);
+  const { reset } = await runMigrations(config.DATABASE_URL, {
+    resetOnMismatch: config.DATABASE_RESET_ON_MISMATCH,
+  });
+  if (reset) log.warn('the database had migrations this build lacks, so it was wiped and rebuilt');
   const { db, close } = createDb(config.DATABASE_URL);
   const deps: Deps = { db, bus: new LocalBus(), log };
   const metrics = new Metrics({ db });

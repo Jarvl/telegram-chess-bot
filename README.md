@@ -56,26 +56,27 @@ The end-to-end suite needs Chromium: `pnpm --filter @group-chess/miniapp exec pl
 
 Everything is an environment variable, validated at boot (`apps/server/src/config.ts`).
 
-| Variable              | Required | Meaning                                                                                                  |
-| --------------------- | -------- | -------------------------------------------------------------------------------------------------------- |
-| `BOT_TOKEN`           | yes      | From BotFather                                                                                           |
-| `BOT_USERNAME`        | yes      | Without `@`; used in direct links                                                                        |
-| `MINI_APP_SHORT_NAME` | yes      | The `/newapp` short name; links are `https://t.me/<BOT_USERNAME>/<MINI_APP_SHORT_NAME>?startapp=…`       |
-| `PUBLIC_URL`          | yes      | HTTPS origin of this server; the webhook is `<PUBLIC_URL>/telegram/webhook`, the app `<PUBLIC_URL>/app/` |
-| `WEBHOOK_SECRET`      | yes      | ≥ 16 characters; sent by Telegram as `X-Telegram-Bot-Api-Secret-Token`                                   |
-| `DATABASE_URL`        | yes      | PostgreSQL 18                                                                                            |
-| `SESSION_SECRET`      | yes      | ≥ 32 characters; signs the Mini App session tokens (rotating it logs everyone out)                       |
-| `LICHESS_TOKEN`       | no       | Raises the import quota from 100 to 200 per hour                                                         |
-| `ROLES`               | no       | `api,bot,jobs,clock` (default all)                                                                       |
-| `LOG_LEVEL`           | no       | `info`                                                                                                   |
-| `PORT`                | no       | `3000`                                                                                                   |
-| `TELEGRAM_POLLING`    | no       | `true` for long polling in development (no public URL needed for the bot)                                |
-| `TELEGRAM_API_ROOT`   | no       | A local Bot API server or a test fake                                                                    |
-| `LICHESS_API_URL`     | no       | `https://lichess.org`                                                                                    |
-| `MINI_APP_DIR`        | no       | Directory of the built Mini App to serve under `/app/` (the Docker image presets it)                     |
-| `ENGINE_ENABLED`      | no       | `true`; the bot opponent. `false` hides it and refuses new bot games (no Stockfish needed)               |
-| `ENGINE_PATH`         | no       | `stockfish`, resolved on `PATH`; or a path to the binary                                                 |
-| `ENGINE_MOVETIME_MS`  | no       | `200`; the bot opponent's per-move thinking budget                                                       |
+| Variable                     | Required | Meaning                                                                                                           |
+| ---------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------- |
+| `BOT_TOKEN`                  | yes      | From BotFather                                                                                                    |
+| `BOT_USERNAME`               | yes      | Without `@`; used in direct links                                                                                 |
+| `MINI_APP_SHORT_NAME`        | yes      | The `/newapp` short name; links are `https://t.me/<BOT_USERNAME>/<MINI_APP_SHORT_NAME>?startapp=…`                |
+| `PUBLIC_URL`                 | yes      | HTTPS origin of this server; the webhook is `<PUBLIC_URL>/telegram/webhook`, the app `<PUBLIC_URL>/app/`          |
+| `WEBHOOK_SECRET`             | yes      | ≥ 16 characters; sent by Telegram as `X-Telegram-Bot-Api-Secret-Token`                                            |
+| `DATABASE_URL`               | yes      | PostgreSQL 18                                                                                                     |
+| `SESSION_SECRET`             | yes      | ≥ 32 characters; signs the Mini App session tokens (rotating it logs everyone out)                                |
+| `LICHESS_TOKEN`              | no       | Raises the import quota from 100 to 200 per hour                                                                  |
+| `ROLES`                      | no       | `api,bot,jobs,clock` (default all)                                                                                |
+| `LOG_LEVEL`                  | no       | `info`                                                                                                            |
+| `PORT`                       | no       | `3000`                                                                                                            |
+| `TELEGRAM_POLLING`           | no       | `true` for long polling in development (no public URL needed for the bot)                                         |
+| `TELEGRAM_API_ROOT`          | no       | A local Bot API server or a test fake                                                                             |
+| `LICHESS_API_URL`            | no       | `https://lichess.org`                                                                                             |
+| `MINI_APP_DIR`               | no       | Directory of the built Mini App to serve under `/app/` (the Docker image presets it)                              |
+| `ENGINE_ENABLED`             | no       | `true`; the bot opponent. `false` hides it and refuses new bot games (no Stockfish needed)                        |
+| `ENGINE_PATH`                | no       | `stockfish`, resolved on `PATH`; or a path to the binary                                                          |
+| `ENGINE_MOVETIME_MS`         | no       | `200`; the bot opponent's per-move thinking budget                                                                |
+| `DATABASE_RESET_ON_MISMATCH` | no       | Staging only: `true` wipes the database at boot when another branch's migrations are applied. Never in production |
 
 ## Deployment in one paragraph
 

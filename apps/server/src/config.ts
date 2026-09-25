@@ -23,6 +23,14 @@ export const ConfigSchema = z.object({
   PUBLIC_URL: z.url(),
   WEBHOOK_SECRET: z.string().min(16),
   DATABASE_URL: z.string().min(1),
+  /**
+   * Staging only: `true` wipes the database at boot when its applied migrations are not a prefix of
+   * this build's, so any branch can be deployed onto it (docs/deploy-dokploy.md). Never in production.
+   */
+  DATABASE_RESET_ON_MISMATCH: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
   SESSION_SECRET: z.string().min(32),
   LICHESS_TOKEN: z.string().min(1).optional(),
   ROLES: RolesSchema,

@@ -139,6 +139,54 @@ itself writes nothing to disk, so it needs no volume.
 the full suite on every pull request, and the end-to-end suite plus a Docker image smoke test on
 `main`, so a green `main` is a reasonable thing to deploy automatically.
 
+## A staging environment
+
+A second copy of the app, with a fixed domain, lets you try any branch inside Telegram before it
+reaches `main`. It needs its own everything:
+
+- **Its own bot.** Create a second bot in BotFather. Never give staging the production `BOT_TOKEN`:
+  the server registers its webhook at boot, so a staging deploy with the production token would
+  take production's webhook, and the live bot would stop receiving updates. Register the staging
+  bot's Mini App (step 6) against the staging domain.
+- **Its own database.** A separate PostgreSQL service, never the production one. Migrations run at
+  boot, so a branch with a new migration would apply it to whatever `DATABASE_URL` points at.
+- **Its own secrets.** A fresh `WEBHOOK_SECRET` and `SESSION_SECRET`.
+
+**Create the staging services from scratch; do not duplicate the production environment.**
+Duplicating copies each PostgreSQL service's volume name, so the staging database mounts
+production's data directory. Two PostgreSQL servers then write the same files at once, which
+corrupts data, and the staging app serves production's groups. If you did duplicate, check that the
+staging PostgreSQL service's volume mount does not name the production one, and
+replace any copied variables.
+
+Set it up with steps 1 to 6, using a staging subdomain, and add one more variable:
+
+| Variable | Value |
+|---|---|
+| `DATABASE_RESET_ON_MISMATCH` | `true` |
+
+**Why the reset.** Drizzle only compares a migration's timestamp with the newest one the database has
+applied. On a database that different branches take turns deploying to, that goes wrong three ways.
+A migration the next branch lacks stays applied. A branch's migration that is older than the newest
+applied one is skipped with no error. And a newer one stacks on a schema no branch actually has.
+With the flag on, the server compares the applied migrations with the build's, in order and by
+hash. If the database holds exactly the build's migrations or a leading part of them, it keeps its
+data and migrates forward as usual. Otherwise it wipes the database, migrates from empty, and logs
+a warning saying so. Deploying `main`, then a branch that adds a migration, keeps your test data;
+going back to `main` afterwards wipes it.
+
+**Never set `DATABASE_RESET_ON_MISMATCH` in production.** It is off unless set to `true`.
+
+**Choosing what staging runs.** The simplest arrangement is a `staging` branch that you never merge,
+with the staging application following it and auto-deploy on. Deploying a branch is then one push:
+
+```bash
+git push --force origin my-branch:staging
+```
+
+After a reset, the staging groups still hold pinned cards for games that no longer exist. Start new
+games rather than using those cards.
+
 ## When something is wrong
 
 | Symptom | Cause |
