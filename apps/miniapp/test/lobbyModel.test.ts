@@ -22,10 +22,10 @@ describe('scopedGames', () => {
     expect(finished.map((g) => g.id)).toEqual(['MineAaaaaa']);
   });
 
-  it('keeps everything in "all", the viewer’s move first', () => {
-    const { active, finished } = scopedGames(data, 'all', '1');
-    expect(active.map((g) => g.id)).toEqual(['MineBbbbbb', 'MineAaaaaa', 'TheirsAaaa']);
-    expect(finished).toHaveLength(2);
+  it('keeps only games the viewer is not in under "others"', () => {
+    const { active, finished } = scopedGames(data, 'others', '1');
+    expect(active.map((g) => g.id)).toEqual(['TheirsAaaa']);
+    expect(finished.map((g) => g.id)).toEqual(['TheirsAaaa']);
   });
 });
 

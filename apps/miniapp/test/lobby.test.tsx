@@ -83,14 +83,36 @@ describe('Lobby', () => {
     expect(r.text()).toContain('Bob challenges you');
   });
 
-  it('shows your games first and the whole group on request', async () => {
+  it('heads the games with Yours and Others, yours first', async () => {
     const r = open(lobby);
     await r.flush();
+    const head = r.root.querySelector('.games-head')!;
+    expect(head.querySelector('h2')?.textContent).toBe('Games');
+    expect([...head.querySelectorAll('.segmented button')].map((b) => b.textContent)).toEqual([
+      'Yours',
+      'Others',
+    ]);
     expect(ids(r.root)).toEqual(['GameBbbbbb', 'GameAaaaaa', 'GameCccccc']);
-    await r.click('[data-scope="all"]');
-    expect(ids(r.root)).toEqual(['GameBbbbbb', 'GameAaaaaa', 'GameWwwwww', 'GameCccccc']);
+    await r.click('[data-scope="others"]');
+    expect(ids(r.root)).toEqual(['GameWwwwww']);
     expect(r.root.querySelector('[data-game="GameWwwwww"] .tag')?.textContent).toBe('Watching');
+    expect(r.text()).toContain('Nobody else has finished a game here yet.');
     expect(window.__tg!.haptics).toContain('selection');
+  });
+
+  it('dims finished games only, not active ones waiting on someone else', async () => {
+    const r = open(lobby);
+    await r.flush();
+    const cls = (id: string) => r.root.querySelector(`[data-game="${id}"]`)!.className;
+    expect(cls('GameAaaaaa')).not.toContain('dim');
+    expect(cls('GameCccccc')).toContain('dim');
+  });
+
+  it('says when nobody else has a game running', async () => {
+    const r = open({ ...lobby, active: lobby.active.filter((g) => g.id !== 'GameWwwwww') });
+    await r.flush();
+    await r.click('[data-scope="others"]');
+    expect(r.text()).toContain('Nobody else has a game running here.');
   });
 
   it('ranks the viewer on the leaderboard chip and opens the leaderboard', async () => {

@@ -1436,6 +1436,29 @@ coords.squares:nth-of-type(even) :nth-child(even) {
   font-size: 26px;
 }
 
+.games-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.games-head h2 {
+  font: 24px/1.1 var(--display);
+  margin: 0;
+}
+
+.segmented.compact {
+  flex: none;
+}
+
+.segmented.compact button {
+  flex: none;
+  padding: 6px 14px;
+  font-size: 14px;
+}
+
 .move-text {
   color: var(--move-text);
   font-weight: 600;

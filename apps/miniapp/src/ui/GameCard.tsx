@@ -12,6 +12,8 @@ export function GameCard(props: {
   onOpen: (id: string) => void;
   /** The group's title, on lists that span groups. */
   context?: string;
+  /** Which cards to grey out: any not waiting on the viewer (default), or finished ones only. */
+  dim?: 'waiting' | 'finished';
 }) {
   const { game } = props;
   const viewerId = session.value?.user.id ?? null;
@@ -20,6 +22,7 @@ export function GameCard(props: {
   const pill = pillFor(game, viewerId, now);
   const opponent = role === null ? null : game[role === 'white' ? 'black' : 'white'];
   const yours = game.status === 'active' && game.yourTurn;
+  const dim = props.dim === 'finished' ? game.status === 'finished' : !yours;
   const rating = opponent
     ? opponent.isBot
       ? game.engineLevel
@@ -29,7 +32,7 @@ export function GameCard(props: {
     : '';
   return (
     <button
-      class={yours ? 'game-card' : 'game-card dim'}
+      class={dim ? 'game-card dim' : 'game-card'}
       data-game={game.id}
       onClick={() => props.onOpen(game.id)}
     >

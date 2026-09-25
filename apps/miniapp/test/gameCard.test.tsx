@@ -19,10 +19,14 @@ vi.mock('chessground/fen', async () => {
   };
 });
 
-const mount = (game: ReturnType<typeof gameSummary>, context?: string) => {
+const mount = (
+  game: ReturnType<typeof gameSummary>,
+  context?: string,
+  dim?: 'waiting' | 'finished',
+) => {
   const opened: string[] = [];
   const r = renderApp(
-    () => <GameCard game={game} context={context} onOpen={(id) => opened.push(id)} />,
+    () => <GameCard game={game} context={context} dim={dim} onOpen={(id) => opened.push(id)} />,
     () => ({ status: 200, body: {} }),
   );
   return { r, opened };
@@ -48,6 +52,29 @@ describe('GameCard', () => {
     const { r } = mount(gameSummary({ yourTurn: false, sideToMove: 'black' }));
     await r.flush();
     expect(r.root.querySelector('.game-card')!.className).toContain('dim');
+  });
+
+  it('dims only finished games when asked to', async () => {
+    const waiting = mount(
+      gameSummary({ yourTurn: false, sideToMove: 'black' }),
+      undefined,
+      'finished',
+    );
+    await waiting.r.flush();
+    expect(waiting.r.root.querySelector('.game-card')!.className).not.toContain('dim');
+    const done = mount(
+      gameSummary({
+        status: 'finished',
+        yourTurn: false,
+        finishedAt: '2026-09-20T12:00:00.000Z',
+        result: '1-0',
+        endReason: 'resignation',
+      }),
+      undefined,
+      'finished',
+    );
+    await done.r.flush();
+    expect(done.r.root.querySelector('.game-card')!.className).toContain('dim');
   });
 
   it('turns the board for black and names both sides for a spectator', async () => {

@@ -168,23 +168,27 @@ export function Lobby(props: { groupId: string }) {
           </div>
         </>
       ) : null}
-      <Segmented
-        value={scope}
-        onChange={setScope}
-        options={[
-          { value: 'mine', label: t('app.lobby.scope.mine'), 'data-scope': 'mine' },
-          { value: 'all', label: t('app.lobby.scope.all'), 'data-scope': 'all' },
-        ]}
-      />
+      <div class="games-head">
+        <h2>{t('app.lobby.games')}</h2>
+        <Segmented
+          compact
+          value={scope}
+          onChange={setScope}
+          options={[
+            { value: 'mine', label: t('app.lobby.scope.mine'), 'data-scope': 'mine' },
+            { value: 'others', label: t('app.lobby.scope.others'), 'data-scope': 'others' },
+          ]}
+        />
+      </div>
       <div class="section">{t('app.lobby.active')}</div>
       {active.length === 0 ? (
         <div class="card empty">
-          {t(scope === 'mine' ? 'app.lobby.no_active_mine' : 'app.lobby.no_active')}
+          {t(scope === 'mine' ? 'app.lobby.no_active_mine' : 'app.lobby.no_active_others')}
         </div>
       ) : (
         <div class="card">
           {active.map((game) => (
-            <GameCard key={game.id} game={game} onOpen={openGame} />
+            <GameCard key={game.id} game={game} dim="finished" onOpen={openGame} />
           ))}
         </div>
       )}
@@ -192,12 +196,12 @@ export function Lobby(props: { groupId: string }) {
       {finished.length > 0 ? (
         <div class="card">
           {finished.map((game) => (
-            <GameCard key={game.id} game={game} onOpen={openGame} />
+            <GameCard key={game.id} game={game} dim="finished" onOpen={openGame} />
           ))}
         </div>
       ) : data.finished.nextCursor === null ? (
         <div class="card empty">
-          {t(scope === 'mine' ? 'app.lobby.no_finished_mine' : 'app.lobby.no_finished')}
+          {t(scope === 'mine' ? 'app.lobby.no_finished_mine' : 'app.lobby.no_finished_others')}
         </div>
       ) : null}
       {data.finished.nextCursor ? (
