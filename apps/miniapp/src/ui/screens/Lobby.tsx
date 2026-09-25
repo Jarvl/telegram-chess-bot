@@ -20,7 +20,7 @@ import { toast } from '../toast';
 import { GroupAvatar } from '../Avatar';
 import { ErrorScreen, Loading } from './Status';
 
-export function Lobby(props: { groupId: string }) {
+export function Lobby(props: { groupId: string; scope?: LobbyScope }) {
   const { client, router, prefetched } = useApp();
   const initial = prefetched.lobby?.group.id === props.groupId ? prefetched.lobby : undefined;
   if (initial) delete prefetched.lobby;
@@ -29,7 +29,10 @@ export function Lobby(props: { groupId: string }) {
     () => client.get(`/api/groups/${props.groupId}`, LobbyDtoSchema),
     initial,
   );
-  const [scope, setScope] = useState<LobbyScope>('mine');
+  // Kept on the route entry, so a game opened from Others comes back to Others.
+  const scope = props.scope ?? 'mine';
+  const setScope = (next: LobbyScope) =>
+    router.replace({ name: 'lobby', groupId: props.groupId, scope: next });
   const [loadingMore, setLoadingMore] = useState(false);
 
   if (lobby.error) return <ErrorScreen onRetry={() => void lobby.reload()} />;

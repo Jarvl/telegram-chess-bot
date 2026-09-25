@@ -30,7 +30,7 @@ function Screen() {
     case 'groups':
       return <Groups />;
     case 'lobby':
-      return <Lobby key={route.groupId} groupId={route.groupId} />;
+      return <Lobby key={route.groupId} groupId={route.groupId} scope={route.scope} />;
     case 'leaderboard':
       return <Leaderboard key={route.groupId} groupId={route.groupId} />;
     case 'newGame':
