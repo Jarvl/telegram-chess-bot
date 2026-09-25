@@ -193,7 +193,6 @@ export const en = {
   'app.level.strong': 'Strong',
   'app.game.to_move': 'To move',
   'app.game.side_in_group': '{side} · {group}',
-  'app.game.latest': 'Latest',
   'app.game.premoves_cancelled': 'Premoves cancelled',
   'app.game.premoves_changed': 'Premoves changed on another device',
   'app.game.premove_current': 'Current position',

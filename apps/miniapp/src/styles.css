@@ -297,16 +297,6 @@ button {
   flex: none;
 }
 
-.badge {
-  font-size: 12px;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--move);
-  color: var(--move-ink);
-  white-space: nowrap;
-}
-
 .btn {
   display: inline-flex;
   align-items: center;
