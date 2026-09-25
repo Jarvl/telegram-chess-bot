@@ -57,6 +57,9 @@ function mount(
   return r;
 }
 
+const slider = (r: ReturnType<typeof mount>) =>
+  r.root.querySelector<HTMLInputElement>('.replay-controls input[type="range"]')!;
+
 beforeEach(() => {
   adapter = stubAdapter();
   FakeEventSource.reset();
@@ -236,7 +239,7 @@ describe('Game', () => {
     expect(r.calls.at(-1)?.path).toBe(`/api/games/${GAME}/draw/decline`);
   });
 
-  it('shows the result, rematch, analysis and PGN for a finished game, with the PGN link fallback', async () => {
+  it('ends a finished game with share, analyze, PGN and rematch in the bar, with the PGN link fallback', async () => {
     const finished = afterPlies(4, {
       viewerRole: 'black',
       status: 'finished',
@@ -247,11 +250,19 @@ describe('Game', () => {
     });
     const r = mount(finished, okRoute(finished), '7.0');
     await r.flush();
-    expect(r.root.querySelector('.result-title')?.textContent).toBe('You won');
-    expect(r.root.querySelector('.result-detail')?.textContent).toBe(
-      'Checkmate · 0-1 · 1500? → 1662?',
-    );
-    expect(r.root.querySelector('.toolbar button')?.getAttribute('data-action')).toBe('rematch');
+    const labels = [...r.root.querySelectorAll('.icon-bar button')].map((b) => [
+      b.getAttribute('data-action'),
+      b.textContent,
+    ]);
+    expect(labels).toEqual([
+      ['share', 'Share to group'],
+      ['analyse', 'Analyze'],
+      ['pgn', 'PGN'],
+      ['rematch', 'Rematch'],
+    ]);
+    // Telegram's own Close does what Done did.
+    expect(r.root.querySelector('[data-action="done"]')).toBeNull();
+    expect(r.root.querySelector('.toolbar')).toBeNull();
     expect(FakeEventSource.instances).toHaveLength(0);
     await r.click('[data-action="analyse"]');
     expect(window.__tg!.links).toContain('https://lichess.org/abcd1234');
@@ -267,6 +278,98 @@ describe('Game', () => {
     expect(r.root.querySelector('[data-action="latest"]')).toBeNull();
     await r.click('[data-ply="4"]');
     expect(adapter.positions.at(-1)?.lastMove).toEqual(['d8', 'h4']);
+  });
+
+  it('shows the result on the player bars in place of the clocks, with no result card', async () => {
+    const finished = afterPlies(4, {
+      viewerRole: 'black',
+      status: 'finished',
+      result: '0-1',
+      endReason: 'checkmate',
+      black: { ...gameDto().black, ratingAfter: 1662, provisionalAfter: true },
+    });
+    const r = mount(finished, okRoute(finished), '7.0');
+    await r.flush();
+    const white = r.root.querySelector('.player-bar[data-colour="white"]')!;
+    const black = r.root.querySelector('.player-bar[data-colour="black"]')!;
+    expect(r.root.querySelector('.result-card')).toBeNull();
+    expect(r.root.querySelector('.clock')).toBeNull();
+    expect(black.querySelector('.result-tag')?.textContent).toBe('Won');
+    expect(black.querySelector('.result-tag')?.className).toContain('won');
+    expect(black.querySelector('.sub')?.textContent).toBe('Checkmate');
+    expect(black.querySelector('.sub')?.className).toContain('reason');
+    expect(black.querySelector('.rating')?.textContent).toBe('1500? → 1662?');
+    expect(white.querySelector('.result-tag')?.textContent).toBe('Lost');
+    expect(white.querySelector('.sub')?.textContent).toBe('White · Chess Club');
+  });
+
+  it('tags both bars Draw with the reason under each name', async () => {
+    const finished = afterPlies(4, {
+      viewerRole: 'white',
+      status: 'finished',
+      result: '1/2-1/2',
+      endReason: 'draw_agreement',
+    });
+    const r = mount(finished, okRoute(finished), '7.0');
+    await r.flush();
+    for (const bar of r.root.querySelectorAll('.player-bar')) {
+      expect(bar.querySelector('.result-tag')?.textContent).toBe('Draw');
+      expect(bar.querySelector('.sub')?.textContent).toBe('Draw agreed');
+    }
+  });
+
+  it('tags both bars Voided for a voided game, and offers no rematch', async () => {
+    const finished = afterPlies(4, {
+      viewerRole: 'white',
+      status: 'finished',
+      result: '1-0',
+      endReason: 'resignation',
+      voided: true,
+    });
+    const r = mount(finished, okRoute(finished), '7.0');
+    await r.flush();
+    const tags = [...r.root.querySelectorAll('.result-tag')].map((tag) => tag.textContent);
+    expect(tags).toEqual(['Voided', 'Voided']);
+    expect(r.root.querySelector('[data-action="rematch"]')).toBeNull();
+  });
+
+  it('gives spectators of a finished game share, analyze and PGN, with Analyze dimmed without a link', async () => {
+    const finished = afterPlies(4, {
+      viewerRole: 'spectator',
+      status: 'finished',
+      result: '0-1',
+      endReason: 'checkmate',
+    });
+    const r = mount(finished, okRoute(finished), '7.0');
+    await r.flush();
+    const actions = [...r.root.querySelectorAll('.icon-bar button')].map((b) =>
+      b.getAttribute('data-action'),
+    );
+    expect(actions).toEqual(['share', 'analyse', 'pgn']);
+    expect(r.root.querySelector<HTMLButtonElement>('[data-action="analyse"]')?.disabled).toBe(true);
+  });
+
+  it('shows the replay slider in a game still being played, and holds moves while it looks back', async () => {
+    const r = mount(afterPlies(2, { viewerRole: 'white' }));
+    await r.flush();
+    const slider = r.root.querySelector<HTMLInputElement>('.replay-controls input[type="range"]')!;
+    expect(slider).not.toBeNull();
+    expect(slider.max).toBe('2');
+    expect(adapter.movables.at(-1)).toMatchObject({ colour: 'white' });
+    await r.click('[data-action="prev"]');
+    expect(adapter.positions.at(-1)?.lastMove).toEqual(['f2', 'f3']);
+    expect(adapter.movables.at(-1)).toMatchObject({ colour: 'none' });
+    await r.click('[data-action="next"]');
+    expect(adapter.positions.at(-1)?.lastMove).toEqual(['e7', 'e5']);
+    expect(adapter.movables.at(-1)).toMatchObject({ colour: 'white' });
+  });
+
+  it('shows the slider before the first move, with nothing to step through', async () => {
+    const r = mount(gameDto({ viewerRole: 'white' }));
+    await r.flush();
+    const slider = r.root.querySelector<HTMLInputElement>('.replay-controls input[type="range"]')!;
+    expect(slider.max).toBe('0');
+    expect(slider.disabled).toBe(true);
   });
 
   it('starts a fresh bot game on rematch when the finished game was against the engine', async () => {
@@ -306,8 +409,16 @@ describe('Game', () => {
       body: { ply: 1 },
     });
     expect(document.querySelector('.toast')?.textContent).toBe('Shared to Chess Club');
-    expect(r.root.querySelector('.icon-bar')).toBeNull();
-    expect(r.root.querySelector('.game')?.classList.contains('with-icon-bar')).toBe(false);
+    // The same icon bar as a player's, with its two buttons in two wide slots.
+    const labels = [...r.root.querySelectorAll('.icon-bar.two button')].map((b) => [
+      b.getAttribute('data-action'),
+      b.textContent,
+    ]);
+    expect(labels).toEqual([
+      ['share', 'Share to group'],
+      ['flip', 'Flip'],
+    ]);
+    expect(r.root.querySelector('.pill-btn[data-action="share"]')).toBeNull();
   });
 
   it('gives a player four fixed slots: share to group, flip, draw and resign', async () => {
@@ -323,8 +434,6 @@ describe('Game', () => {
       ['offer-draw', '½Draw'],
       ['resign', 'Resign'],
     ]);
-    // The board gives up the bar's extra height, so the bar clears the tab bar.
-    expect(r.root.querySelector('.game')?.classList.contains('with-icon-bar')).toBe(true);
     await r.click('[data-action="flip"]');
     expect(adapter.positions.at(-1)?.orientation).toBe('black');
     await r.click('[data-action="resign"]');
@@ -753,7 +862,7 @@ describe('Game premoves and Share position', () => {
     const r = mount(afterPlies(1, { viewerRole: 'white', premoves: ['g1h3', 'h3g5'] }));
     await r.flush();
     await r.click('[data-action="share"]');
-    await r.click('[data-action="premove-prev"]');
+    await r.click('[data-action="prev"]');
     await r.click('[data-action="share"]');
     const shares = r.calls.filter((c) => c.path === `/api/games/${GAME}/share`);
     expect(shares.map((c) => c.body)).toEqual([{ ply: 1 }, { ply: 1 }]);
@@ -793,7 +902,8 @@ describe('Game premoves', () => {
     });
     expect(window.__tg!.calls).not.toContain('MainButton.show');
     expect(r.root.querySelector('.move-list [data-premove="1"]')?.textContent).toBe('Nh3');
-    expect(r.root.querySelector('.premove-label')?.textContent).toBe('Premove 1 of 1');
+    expect(slider(r)).toMatchObject({ value: '2', max: '2' });
+    expect(slider(r).classList.contains('premove')).toBe(true);
     expect(adapter.highlights.at(-1)).toEqual(['g1', 'h3']);
     expect(r.root.querySelector('.board-wrap')?.classList.contains('premove')).toBe(true);
   });
@@ -809,26 +919,91 @@ describe('Game premoves', () => {
     expect(r.calls.find((c) => c.method === 'PUT')?.body).toMatchObject({ premoves: ['e7e8n'] });
   });
 
-  it('steps back through the chain, returns to the end on a board tap, and removes', async () => {
+  it('steps back through the chain on the slider, returns to the end on a board tap, and removes', async () => {
     const r = mount(waiting(['g1h3', 'h3g5']), echoPut(waiting(['g1h3', 'h3g5'])));
     await r.flush();
-    await r.click('[data-action="premove-prev"]');
-    expect(r.root.querySelector('.premove-label')?.textContent).toBe('Premove 1 of 2');
+    // One slider: the real move, then both premoves, standing at the chain's end.
+    expect(slider(r)).toMatchObject({ value: '3', max: '3' });
+    await r.click('[data-action="prev"]');
+    expect(slider(r).value).toBe('2');
+    expect(r.root.querySelector('[data-premove="1"]')?.getAttribute('aria-current')).toBe('true');
     expect(adapter.positions.at(-1)?.fen.split(' ')[0]).toBe(
       'rnbqkbnr/pppppppp/8/8/8/5P1N/PPPPP1PP/RNBQKB1R',
     );
     expect(adapter.movables.at(-1)?.colour).toBe('none');
     adapter.select('a4');
     await r.flush();
-    expect(r.root.querySelector('.premove-label')?.textContent).toBe('Premove 2 of 2');
+    expect(slider(r).value).toBe('3');
     await r.click('[data-action="premove-remove"]');
+    expect(window.__tg!.popups.at(-1)?.message).toBe('Remove this premove?');
+    window.__tg!.answerPopup('confirm');
+    await r.flush();
     expect(r.calls.find((c) => c.method === 'PUT')?.body).toEqual({
       base: ['g1h3', 'h3g5'],
       premoves: ['g1h3'],
       expectedPly: 1,
     });
     expect(r.root.querySelectorAll('.move-list [data-premove]')).toHaveLength(1);
-    expect(r.root.querySelector('.premove-label')?.textContent).toBe('Premove 1 of 1');
+    expect(slider(r)).toMatchObject({ value: '2', max: '2' });
+  });
+
+  it('asks before removing a premove with more after it, and Cancel keeps the chain', async () => {
+    const r = mount(waiting(['g1h3', 'h3g5', 'g5e6']), echoPut(waiting(['g1h3', 'h3g5', 'g5e6'])));
+    await r.flush();
+    await r.click('[data-premove="1"]');
+    await r.click('[data-action="premove-remove"]');
+    expect(window.__tg!.popups.at(-1)?.message).toBe('Remove this premove and the 2 after it?');
+    window.__tg!.answerPopup('cancel');
+    await r.flush();
+    expect(r.calls.filter((c) => c.method === 'PUT')).toHaveLength(0);
+    await r.click('[data-premove="2"]');
+    await r.click('[data-action="premove-remove"]');
+    expect(window.__tg!.popups.at(-1)?.message).toBe('Remove this premove and the next one?');
+  });
+
+  it('drops a confirmed Remove when the chain changed while the popup was open', async () => {
+    const r = mount(waiting(['g1h3', 'h3g5']), echoPut(waiting(['g1h3', 'h3g5'])));
+    await r.flush();
+    await r.click('[data-premove="1"]');
+    await r.click('[data-action="premove-remove"]');
+    // Another device replaces the chain; confirming must not remove from the new one.
+    FakeEventSource.instances[0]!.send('state', waiting(['b1c3', 'c3d5']), '1');
+    await r.flush();
+    window.__tg!.answerPopup('confirm');
+    await r.flush();
+    expect(r.calls.filter((c) => c.method === 'PUT')).toHaveLength(0);
+    expect(r.root.querySelectorAll('.move-list [data-premove]')).toHaveLength(2);
+  });
+
+  it('fills the slider green up to the real position and blue on through the shown premove', async () => {
+    const r = mount(waiting(['g1h3', 'h3g5']));
+    await r.flush();
+    // 1 real ply of 3: green to a third, blue to the knob at the end.
+    expect(slider(r).style.getPropertyValue('--real')).toBe('33.333%');
+    expect(slider(r).style.getPropertyValue('--at')).toBe('100%');
+    await r.click('[data-action="prev"]');
+    await r.click('[data-action="prev"]');
+    expect(slider(r).value).toBe('1');
+    expect(slider(r).classList.contains('premove')).toBe(false);
+    expect(slider(r).style.getPropertyValue('--at')).toBe('33.333%');
+  });
+
+  it('slides from an earlier move straight back into the chain', async () => {
+    const r = mount(waiting(['g1h3', 'h3g5']));
+    await r.flush();
+    const input = slider(r);
+    input.value = '0';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    await r.flush();
+    expect(adapter.positions.at(-1)?.lastMove).toBeNull();
+    // The premove stretch stays, so the track keeps its scale while you look back.
+    expect(slider(r).max).toBe('3');
+    expect(r.root.querySelectorAll('.move-list [data-premove]')).toHaveLength(2);
+    input.value = '2';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    await r.flush();
+    expect(r.root.querySelector('[data-premove="1"]')?.getAttribute('aria-current')).toBe('true');
+    expect(adapter.highlights.at(-1)).toEqual(['g1', 'h3']);
   });
 
   it('shows the chain from another device when it arrives over the stream', async () => {
@@ -1018,10 +1193,12 @@ describe('Game premoves', () => {
       return okRoute(waiting(['g1h3', 'h3g5']))(call);
     });
     await r.flush();
-    expect(r.root.querySelector('.premove-label')?.textContent).toBe('Premove 2 of 2');
+    expect(slider(r).value).toBe('3');
     await r.click('[data-action="premove-remove"]');
+    window.__tg!.answerPopup('confirm');
+    await r.flush();
     expect(document.querySelector('.toast')?.textContent).toContain("You're offline");
     expect(r.root.querySelectorAll('.move-list [data-premove]')).toHaveLength(2);
-    expect(r.root.querySelector('.premove-label')?.textContent).toBe('Premove 2 of 2');
+    expect(slider(r).value).toBe('3');
   });
 });

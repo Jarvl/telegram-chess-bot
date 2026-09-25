@@ -21,11 +21,17 @@ test('premoves queue without confirming, step, remove, and fire on the opponentâ
   await expect(bob.locator('[data-action="confirm-move"]')).toHaveCount(0);
   expect(await bob.evaluate(() => window.__tg!.calls)).not.toContain('MainButton.show');
 
-  await expect(bob.locator('.premove-label')).toHaveText('Premove 2 of 2');
-  await bob.locator('[data-action="premove-prev"]').click();
-  await expect(bob.locator('.premove-label')).toHaveText('Premove 1 of 2');
-  await bob.locator('[data-action="premove-next"]').click();
+  // One slider: no real moves yet, then the two premoves, standing at the chain's end.
+  const slider = bob.locator('.replay-controls input[type="range"]');
+  await expect(slider).toHaveAttribute('max', '2');
+  await expect(slider).toHaveValue('2');
+  await expect(slider).toHaveClass(/premove/);
+  await bob.locator('[data-action="prev"]').click();
+  await expect(bob.locator('[data-premove="1"]')).toHaveAttribute('aria-current', 'true');
+  await bob.locator('[data-action="next"]').click();
+  await expect(bob.locator('[data-premove="2"]')).toHaveAttribute('aria-current', 'true');
   await bob.locator('[data-action="premove-remove"]').click();
+  await bob.evaluate(() => window.__tg!.answerPopup('confirm'));
   await expect(bob.locator('.move-list [data-premove]')).toHaveCount(1);
   // Chips show before the save lands; Alice's move can only fire what the server already holds.
   await expect.poll(async () => (await harnessGame(gameId)).premoves).toEqual(['e7e5']);
@@ -78,6 +84,7 @@ test('the chain follows the player across two devices', async ({ browser }) => {
     timeout: 10_000,
   });
   await laptop.locator('[data-action="premove-remove"]').click();
+  await laptop.evaluate(() => window.__tg!.answerPopup('confirm'));
   await expect(phone.locator('.move-list [data-premove]')).toHaveCount(0, { timeout: 10_000 });
   await phoneContext.close();
   await laptopContext.close();

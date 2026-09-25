@@ -2,7 +2,8 @@
 
 Status: accepted for planning, 2026-09-24. Implements the premove behaviour of the Chess Goat
 prototype (`Chess Goat Prototype.dc.html`: `onPremoveSquare`, `firePremove`, `premoveBoard`, the
-premove stepper and the premove chips in the move strip). Replaces "No premoves" in §2 of the
+premove stepper and the premove chips in the move strip). The stepper later became part of the
+game's one replay slider (see Slider). Replaces "No premoves" in §2 of the
 [technical design](./2026-09-20-group-chess-technical-design.md). The prototype's Share Position
 changes are not part of this spec.
 
@@ -231,8 +232,13 @@ blank line and `t('dm.premoves_cancelled')`. The buttons are unchanged.
 - `premoves: Signal<string[]>`: the DTO's queue, including optimistic appends and truncations.
 - `premoveStep: Signal<number | null>`: `null` is the end of the chain, `0` is the current
   position, and `k` is the position after premove `k`.
-- `premoveMode` (computed): the game is active, the viewer is a player, it is not their turn,
-  they are on the latest ply (`isLatest`), and no move is pending.
+- `premoveOpen` (computed): the game is active, the viewer is a player, it is not their turn,
+  and no move is pending. It holds while an earlier ply is shown.
+- `premoveMode` (computed): `premoveOpen`, on the latest ply (`isLatest`).
+- `timelineEnd` and `timelineAt` (computed), and `viewTimeline(i)`: the one slider's range and
+  position (see Slider). `timelineEnd` is `plyCount`, plus the queue's length while
+  `premoveOpen`. `timelineAt` is `plyCount + shownStep` in premove mode and the shown ply
+  otherwise.
 - `boardView` (computed): in premove mode, the imagined position after `premoveStep ?? n`
   premoves, with the real last move highlighted. Otherwise it is `position`. `position` itself
   stays the real position, so the clock, check haptics, Share (which sends the real ply) and
@@ -308,29 +314,33 @@ asked.
 
 ### Move strip (`MoveList`)
 
-In premove mode, after the real moves, each premove adds a hint-coloured `…` for the opponent's
+While `premoveOpen`, after the real moves, each premove adds a hint-coloured `…` for the opponent's
 reply and then a chip with the premove's label. Move numbers continue across both.
 
 - A chip is outlined in `--pm` with `--pm` text. The chip for the step being viewed is filled
   `--pm` with white text.
-- Tapping a chip views that step. Tapping the last real move views step 0. That move loses its
-  current-move emphasis while a premove is being viewed.
+- Tapping a chip views that step, from an earlier ply too. Tapping the last real move views
+  step 0. That move loses its current-move emphasis while a premove is being viewed.
+- The chip being viewed is followed by a small ✕ (`--pm` on `--pm-soft`), the only Remove. It
+  asks first, in the native popup with a destructive Remove: "Remove this premove?", "… and the
+  next one?" or "… and the {n} after it?". Confirmed, it sends `PUT /premoves` with
+  `premoves: base.slice(0, k - 1)`, truncates the queue optimistically, and moves the view to
+  step k−1. Failures are handled as for queuing.
 - The strip scrolls to its end when a premove is added.
 
-### Stepper (`ui/game/PremoveBar.tsx`)
+### Slider (`GameView` replay controls)
 
-It shows under the move strip only in premove mode with a non-empty queue:
+There is no separate premove stepper. The game's one replay slider runs from the start position
+through the real plies and, while `premoveOpen`, on through the queue: index `plyCount + k` is
+premove step k, and `plyCount` itself is step 0, the real position. It stands at the chain's end
+by default, as the board does. ◀ and ▶ step through the whole range.
 
-```
-[◀]  Current position | Premove k of n   [Remove]  [▶]
-```
-
-- ◀ and ▶ step through 0…n, and each is dimmed at its end.
-- The label is `--text` at step 0 and `--pm` otherwise.
-- **Remove** shows for k ≥ 1. It sends `PUT /premoves` with `premoves: base.slice(0, k - 1)`,
-  truncates the queue optimistically, and moves the view to step k−1. Failures are handled as
-  for queuing.
-- Stepping plays the selection haptic, and Remove plays the light one.
+- An earlier ply keeps the premove stretch on the slider (and the chips in the strip), so the
+  track keeps its scale while dragging across it; sliding back past the last real move returns
+  to the chain.
+- The track is drawn in CSS: `--acc` up to the real position, `--pm` from there to the knob when a
+  premove is shown, then the empty track. The knob is `--pm` on a premove and `--acc` otherwise.
+- Every change of position plays the selection haptic.
 
 ### Notices
 

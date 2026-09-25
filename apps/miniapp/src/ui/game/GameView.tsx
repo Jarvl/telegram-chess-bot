@@ -31,15 +31,13 @@ import {
   type MoveEvent,
   type MoveState,
 } from '../../state/moveMachine';
-import { noteServerTime, prefs, session } from '../../state/session';
+import { noteServerTime, prefs } from '../../state/session';
 import { useApp } from '../context';
 import { confirmDialog } from '../dialog';
 import { toast } from '../toast';
 import { Board } from './Board';
 import { MoveList } from './MoveList';
 import { PlayerBar } from './PlayerBar';
-import { PremoveBar } from './PremoveBar';
-import { resultDetail, resultForViewer } from './result';
 import { useClock } from './useClock';
 
 /** A send answered within this shows nothing; a slower one greys the board under a spinner. */
@@ -484,6 +482,25 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
     )
       await action('abort');
   };
+  const removePremove = async (step: number): Promise<void> => {
+    const chain = store.premoves.value;
+    const ply = store.dto.value.plyCount;
+    const after = chain.length - step;
+    const message =
+      after === 0
+        ? t('app.game.premove_remove_confirm')
+        : after === 1
+          ? t('app.game.premove_remove_confirm_next')
+          : t('app.game.premove_remove_confirm_rest', { n: after });
+    if (
+      !(await confirmDialog(message, { confirmLabel: t('app.game.premove_remove'), danger: true }))
+    )
+      return;
+    // The chain can fire or change on another device while the popup is open; step k of that
+    // chain is not the premove that was asked about, so the answer no longer applies.
+    if (!sameList(store.premoves.value, chain) || store.dto.value.plyCount !== ply) return;
+    await editPremoves(chain.slice(0, step - 1), step - 1);
+  };
   const rematch = async (): Promise<void> => {
     try {
       if (dto.engineLevel !== null) {
@@ -529,14 +546,23 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
     isPlayer && dto.status === 'active' && (dto.claims.threefold || dto.claims.fiftyMove);
   const busy = moveState.kind !== 'idle';
   const playing = isPlayer && dto.status === 'active';
+  const finished = dto.status === 'finished';
   // Draw waits for the second move, when the last slot turns from Abort to Resign, and the bot
   // never takes one (spec §8).
   const early = dto.plyCount < 2;
   const drawOpen = canOffer && !early && dto.engineLevel === null;
   const moveButtons = moveState.kind === 'pendingConfirm' && (inPage.confirm || inPage.cancel);
 
+  const end = store.timelineEnd.value;
+  const at = store.timelineAt.value;
+  const view = (index: number): void => {
+    if (store.viewTimeline(index)) tg.hapticSelection();
+  };
+  // The fill runs green to the real position, then blue through a shown premove (see styles.css).
+  const percent = (index: number): string => `${end ? +((index / end) * 100).toFixed(3) : 0}%`;
+
   return (
-    <div class={playing ? 'game with-icon-bar' : 'game'}>
+    <div class="game">
       <PlayerBar dto={dto} colour={top} now={now} />
       <Board
         store={store}
@@ -580,44 +606,40 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
         ) : null}
       </Board>
       <PlayerBar dto={dto} colour={orientation} now={now} />
-      <MoveList store={store} locked={moveState.kind === 'pendingConfirm'} />
-      <PremoveBar
+      <MoveList
         store={store}
-        onRemove={(step) => void editPremoves(store.premoves.value.slice(0, step - 1), step - 1)}
+        locked={moveState.kind === 'pendingConfirm'}
+        onRemove={(step) => void removePremove(step)}
       />
-      {dto.status === 'finished' ? (
-        <div class="replay-controls">
-          <button
-            class="pill-btn"
-            data-action="prev"
-            onClick={() => store.viewPly(store.position.value.ply - 1)}
-          >
-            ◀
-          </button>
-          <input
-            type="range"
-            min={0}
-            max={dto.plyCount}
-            value={store.position.value.ply}
-            onInput={(event) => store.viewPly(Number(event.currentTarget.value))}
-          />
-          <button
-            class="pill-btn"
-            data-action="next"
-            onClick={() => store.viewPly(store.position.value.ply + 1)}
-          >
-            ▶
-          </button>
-        </div>
-      ) : null}
-      {dto.status === 'finished' ? (
-        <div class="result-card" role="status">
-          <span class="result-title">
-            {dto.voided ? t('app.game.voided') : resultForViewer(dto)}
-          </span>
-          {resultDetail(dto) ? <span class="result-detail">{resultDetail(dto)}</span> : null}
-        </div>
-      ) : null}
+      {/* One slider in every game: the real moves, then on through the queued premoves. */}
+      <div class="replay-controls">
+        <button
+          class="pill-btn"
+          data-action="prev"
+          disabled={end === 0}
+          onClick={() => view(at - 1)}
+        >
+          ◀
+        </button>
+        <input
+          type="range"
+          class={at > dto.plyCount ? 'premove' : undefined}
+          min={0}
+          max={end}
+          value={at}
+          disabled={end === 0}
+          style={{ '--real': percent(Math.min(at, dto.plyCount)), '--at': percent(at) }}
+          onInput={(event) => view(Number(event.currentTarget.value))}
+        />
+        <button
+          class="pill-btn"
+          data-action="next"
+          disabled={end === 0}
+          onClick={() => view(at + 1)}
+        >
+          ▶
+        </button>
+      </div>
       {offerFromOpponent && dto.status === 'active' ? (
         <div class="banner">
           <span class="grow">{t('app.game.draw_offer_from', { name: dto[offer!.by].name })}</span>
@@ -717,36 +739,44 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
             </button>
           )}
         </div>
-      ) : (
-        <div class="toolbar">
-          {dto.status === 'finished' && isPlayer && !dto.voided ? (
-            <button class="pill-btn primary" data-action="rematch" onClick={() => void rematch()}>
+      ) : finished ? (
+        // The same four slots after the game, Share still first so it does not move.
+        <div class="icon-bar">
+          <button class="bar-btn" data-action="share" onClick={() => void share()}>
+            <ShareIcon />
+            {t('app.game.share_to_group')}
+          </button>
+          <button
+            class="bar-btn"
+            data-action="analyse"
+            disabled={!dto.lichessUrl && !dto.analysisUrl}
+            onClick={analyse}
+          >
+            <AnalyzeIcon />
+            {t('app.game.analyze')}
+          </button>
+          <button class="bar-btn" data-action="pgn" onClick={() => void pgn()}>
+            <DownloadIcon />
+            {t('app.game.pgn')}
+          </button>
+          {isPlayer && !dto.voided ? (
+            <button class="bar-btn accent" data-action="rematch" onClick={() => void rematch()}>
+              <RematchIcon />
               {t('app.game.rematch')}
             </button>
           ) : null}
-          <button class="pill-btn" data-action="share" onClick={() => void share()}>
-            {t('app.game.share')}
+        </div>
+      ) : (
+        // A spectator of a live game has only these two, so they split the bar between them.
+        <div class="icon-bar two">
+          <button class="bar-btn" data-action="share" onClick={() => void share()}>
+            <ShareIcon />
+            {t('app.game.share_to_group')}
           </button>
-          {!isPlayer ? (
-            <button class="pill-btn" data-action="flip" onClick={() => store.flip()}>
-              {t('app.game.flip')}
-            </button>
-          ) : null}
-          {dto.status === 'finished' && (dto.lichessUrl || dto.analysisUrl) ? (
-            <button class="pill-btn" data-action="analyse" onClick={analyse}>
-              {t('app.game.analyse')}
-            </button>
-          ) : null}
-          {dto.status === 'finished' ? (
-            <button class="pill-btn" data-action="pgn" onClick={() => void pgn()}>
-              {t('app.game.pgn')}
-            </button>
-          ) : null}
-          {dto.status === 'finished' && session.value?.launchedFrom?.kind === 'game' ? (
-            <button class="pill-btn" data-action="done" onClick={() => tg.close()}>
-              {t('app.game.done')}
-            </button>
-          ) : null}
+          <button class="bar-btn" data-action="flip" onClick={() => store.flip()}>
+            <FlipIcon />
+            {t('app.game.flip')}
+          </button>
         </div>
       )}
     </div>
@@ -777,6 +807,31 @@ function FlipIcon() {
   return (
     <svg {...ICON}>
       <path d="M7 20V4M3 8l4-4 4 4M17 4v16M13 16l4 4 4-4" />
+    </svg>
+  );
+}
+
+function AnalyzeIcon() {
+  return (
+    <svg {...ICON}>
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="M16 16l5 5" />
+    </svg>
+  );
+}
+
+function DownloadIcon() {
+  return (
+    <svg {...ICON}>
+      <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />
+    </svg>
+  );
+}
+
+function RematchIcon() {
+  return (
+    <svg {...ICON}>
+      <path d="M4 12a8 8 0 0 1 13.7-5.6L20 9M20 4v5h-5M20 12a8 8 0 0 1-13.7 5.6L4 15M4 20v-5h5" />
     </svg>
   );
 }

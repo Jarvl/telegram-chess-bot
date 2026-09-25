@@ -738,7 +738,12 @@ button {
 }
 
 /* Game screen (Task 5) */
+/* Every game has the replay slider row (38px) under the moves, and the icon bar, which stands 20px
+   taller than the pill row the 200px budget was set for. The board gives both back, plus the 10px
+   the budget already ran short by on a 667px phone, so the bar clears the tab bar. */
 .game {
+  --replay-row: 48px;
+  --icon-bar-extra: 20px;
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -749,7 +754,10 @@ button {
   position: relative;
   width: min(
     100vw,
-    calc(var(--stable-height) - 200px - var(--board-reserve) - var(--icon-bar-extra, 0px))
+    calc(
+      var(--stable-height) - 200px - var(--board-reserve) - var(--replay-row) -
+        var(--icon-bar-extra)
+    )
   );
   max-width: 640px;
   min-width: 280px;
@@ -861,6 +869,11 @@ button {
   font-weight: 600;
 }
 
+.player-bar .sub.reason {
+  color: var(--text);
+  font-weight: 600;
+}
+
 .clock {
   font-variant-numeric: tabular-nums;
   padding: 6px 12px;
@@ -885,6 +898,26 @@ button {
 .clock.urgent {
   background: var(--urgent);
   color: #fff;
+}
+
+/* A finished game's result, in the clock's place (7a in the toolbar design). */
+.result-tag {
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--hint);
+  font-weight: 700;
+  min-width: 64px;
+  text-align: center;
+}
+
+.result-tag.won {
+  background: var(--acc);
+  color: var(--acc-ink);
+}
+
+.result-tag.draw {
+  color: var(--text);
 }
 
 .move-list {
@@ -920,9 +953,10 @@ button {
   padding-left: 6px;
 }
 
+/* The opponent's unknown reply: tight, so each premove costs little width in the strip. */
 .move-list .premove-gap {
   color: var(--hint);
-  padding: 3px 7px;
+  padding: 3px 1px;
 }
 
 .move-list .premove-number {
@@ -941,31 +975,14 @@ button {
   box-shadow: none;
 }
 
-.premove-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 2px 16px 4px;
-}
-
-.premove-bar .premove-label {
-  flex: 1;
-  min-width: 0;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.premove-bar .premove-label.pending {
-  color: var(--pm);
-}
-
-.premove-bar .pill-btn[data-action='premove-remove'] {
+/* Removes the shown premove and the ones after it, after asking. */
+.move-list button.premove-remove {
+  padding: 3px 8px;
+  border-radius: 999px;
   background: var(--pm-soft);
   color: var(--pm);
-}
-
-.premove-bar .pill-btn:disabled {
-  opacity: 0.35;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .replay-controls {
@@ -975,28 +992,56 @@ button {
   padding: 0 12px;
 }
 
+/* One slider for the real moves and the queued premoves. A native range can only fill in one
+   colour, so the track is drawn here: green up to the real position (--real), premove blue from
+   there to the knob (--at), and the empty track after it. */
 .replay-controls input[type='range'] {
   flex: 1;
+  min-width: 0;
+  height: 6px;
+  margin: 0;
+  border-radius: 3px;
+  appearance: none;
+  -webkit-appearance: none;
+  background: linear-gradient(
+    to right,
+    var(--acc) 0 var(--real),
+    var(--pm) var(--real) var(--at),
+    var(--sep-strong) var(--at) 100%
+  );
+  --knob: var(--acc);
 }
 
-.result-card {
-  margin: 6px 16px;
-  padding: 14px;
-  border-radius: 16px;
-  background: var(--hero-bg);
-  color: var(--hero-ink);
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+.replay-controls input[type='range'].premove {
+  --knob: var(--pm);
 }
 
-.result-title {
-  font: 24px/1.15 var(--display);
+.replay-controls input[type='range']:disabled {
+  opacity: 0.4;
 }
 
-.result-detail {
-  font-size: 14px;
-  color: var(--hero-sub);
+.replay-controls input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--knob);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 30%);
+}
+
+.replay-controls input[type='range']::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--knob);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 30%);
+}
+
+.replay-controls input[type='range']::-moz-range-track {
+  background: transparent;
 }
 
 .banner {
@@ -1028,12 +1073,6 @@ button {
   padding: 6px 16px;
 }
 
-/* The icon bar stands 20px taller than the pill row the board's 200px budget was set for, so the
-   board gives that back rather than pushing the bar under the tab bar. */
-.game.with-icon-bar {
-  --icon-bar-extra: 20px;
-}
-
 /* Share gets the wider slot: its label is the longest, and it is the most used. */
 .icon-bar {
   display: grid;
@@ -1043,6 +1082,10 @@ button {
   padding: 4px;
   border-radius: 18px;
   background: var(--card);
+}
+
+.icon-bar.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .bar-btn {
@@ -1065,6 +1108,11 @@ button {
 
 .bar-btn.danger {
   color: var(--destructive);
+}
+
+.bar-btn.accent {
+  color: var(--acc-text);
+  font-weight: 700;
 }
 
 .bar-btn:disabled {

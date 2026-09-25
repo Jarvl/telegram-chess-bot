@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GameStore } from '../src/state/game';
 import { MoveList } from '../src/ui/game/MoveList';
-import { PremoveBar } from '../src/ui/game/PremoveBar';
 import { afterPlies } from './support/gameFixtures';
 import { renderApp } from './support/render';
 
@@ -40,29 +39,36 @@ describe('MoveList premove chips', () => {
   });
 });
 
-describe('PremoveBar', () => {
-  it('steps through the chain and removes from the viewed premove on', async () => {
+describe('MoveList premove removal', () => {
+  it('puts a remove button on the selected premove chip only, and hands it the step', async () => {
     const store = waiting(['g1h3', 'h3g5']);
     const removed: number[] = [];
-    const r = renderApp(() => <PremoveBar store={store} onRemove={(k) => removed.push(k)} />, ok);
+    const r = renderApp(() => <MoveList store={store} onRemove={(k) => removed.push(k)} />, ok);
     await r.flush();
-    expect(r.root.querySelector('.premove-label')?.textContent).toBe('Premove 2 of 2');
-    expect(r.root.querySelector<HTMLButtonElement>('[data-action="premove-next"]')?.disabled).toBe(
-      true,
-    );
-    await r.click('[data-action="premove-prev"]');
-    expect(r.root.querySelector('.premove-label')?.textContent).toBe('Premove 1 of 2');
+    const buttons = () => r.root.querySelectorAll('[data-action="premove-remove"]');
+    expect(buttons()).toHaveLength(1);
+    expect(buttons()[0]?.previousElementSibling?.getAttribute('data-premove')).toBe('2');
+    await r.click('[data-premove="1"]');
+    expect(buttons()).toHaveLength(1);
+    expect(buttons()[0]?.previousElementSibling?.getAttribute('data-premove')).toBe('1');
     await r.click('[data-action="premove-remove"]');
     expect(removed).toEqual([1]);
-    await r.click('[data-action="premove-prev"]');
-    expect(r.root.querySelector('.premove-label')?.textContent).toBe('Current position');
-    expect(r.root.querySelector('[data-action="premove-remove"]')).toBeNull();
-    expect(window.__tg!.haptics).toContain('selection');
+    await r.click('[data-ply="1"]');
+    expect(buttons()).toHaveLength(0);
   });
 
-  it('is hidden with an empty chain and outside premove mode', async () => {
-    const r = renderApp(() => <PremoveBar store={waiting([])} onRemove={() => undefined} />, ok);
+  it('keeps the chips while an earlier move is shown, and a chip brings the chain back', async () => {
+    const store = waiting(['g1h3', 'h3g5']);
+    const r = renderApp(() => <MoveList store={store} />, ok);
     await r.flush();
-    expect(r.root.querySelector('.premove-bar')).toBeNull();
+    store.viewTimeline(0);
+    await r.flush();
+    expect(r.root.querySelectorAll('[data-premove]')).toHaveLength(2);
+    expect(r.root.querySelector('[data-premove][aria-current="true"]')).toBeNull();
+    expect(r.root.querySelector('[data-action="premove-remove"]')).toBeNull();
+    await r.click('[data-premove="1"]');
+    expect(store.isLatest.value).toBe(true);
+    expect(store.shownStep.value).toBe(1);
+    expect(window.__tg!.haptics).toContain('selection');
   });
 });

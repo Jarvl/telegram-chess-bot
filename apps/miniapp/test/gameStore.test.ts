@@ -230,6 +230,47 @@ describe('GameStore premoves', () => {
   });
 });
 
+describe('GameStore timeline', () => {
+  // After 1. f3 it is Black's move; White has queued Nh3 and Ng5.
+  const chained = () =>
+    new GameStore(afterPlies(1, { viewerRole: 'white', premoves: ['g1h3', 'h3g5'] }));
+
+  it('runs through the real moves, then on through the premoves, starting at the chain end', () => {
+    const store = chained();
+    expect(store.timelineEnd.value).toBe(3);
+    expect(store.timelineAt.value).toBe(3);
+    expect(store.viewTimeline(2)).toBe(true);
+    expect(store.shownStep.value).toBe(1);
+    expect(store.viewTimeline(1)).toBe(true);
+    expect(store.shownStep.value).toBe(0);
+    expect(store.isLatest.value).toBe(true);
+    expect(store.viewTimeline(1)).toBe(false);
+  });
+
+  it('keeps the premove stretch while an earlier real move is shown, and comes back into it', () => {
+    const store = chained();
+    store.viewTimeline(0);
+    expect(store.position.value.ply).toBe(0);
+    expect(store.premoveMode.value).toBe(false);
+    expect(store.premoveOpen.value).toBe(true);
+    expect(store.timelineEnd.value).toBe(3);
+    expect(store.timelineAt.value).toBe(0);
+    store.viewTimeline(2);
+    expect(store.isLatest.value).toBe(true);
+    expect(store.shownStep.value).toBe(1);
+    expect(store.timelineAt.value).toBe(2);
+  });
+
+  it('ends at the last real move when premoves are not possible', () => {
+    const store = new GameStore(afterPlies(2, { viewerRole: 'white' }));
+    expect(store.timelineEnd.value).toBe(2);
+    store.viewTimeline(1);
+    expect(store.timelineAt.value).toBe(1);
+    const watching = new GameStore(afterPlies(1, { viewerRole: 'spectator' }));
+    expect(watching.timelineEnd.value).toBe(1);
+  });
+});
+
 describe('diffNotices premoves', () => {
   it('tells a played premove from a cancelled chain', () => {
     const before = afterPlies(1, { viewerRole: 'white', premoves: ['g2g4'] });
