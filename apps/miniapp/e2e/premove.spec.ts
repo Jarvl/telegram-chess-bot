@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { dragMove, openApp, seed } from './support';
+import { dragMove, harnessGame, openApp, seed } from './support';
 
 test('premoves queue without confirming, step, remove, and fire on the opponentâ€™s move', async ({
   browser,
@@ -27,6 +27,8 @@ test('premoves queue without confirming, step, remove, and fire on the opponentâ
   await bob.locator('[data-action="premove-next"]').click();
   await bob.locator('[data-action="premove-remove"]').click();
   await expect(bob.locator('.move-list [data-premove]')).toHaveCount(1);
+  // Chips show before the save lands; Alice's move can only fire what the server already holds.
+  await expect.poll(async () => (await harnessGame(gameId)).premoves).toEqual(['e7e5']);
 
   const aliceContext = await browser.newContext();
   const alice = await aliceContext.newPage();
@@ -50,6 +52,7 @@ test('a cancelled chain shows a toast', async ({ browser }) => {
   // Qh4 through the e7 pawn: allowed as a premove, illegal when it fires.
   await dragMove(bob, 'd8', 'h4', 'black');
   await expect(bob.locator('.move-list [data-premove="1"]')).toHaveText('Qh4');
+  await expect.poll(async () => (await harnessGame(gameId)).premoves).toEqual(['d8h4']);
   const aliceContext = await browser.newContext();
   const alice = await aliceContext.newPage();
   await openApp(alice, { user: world.users.alice.telegram, startParam: `g_${gameId}` });

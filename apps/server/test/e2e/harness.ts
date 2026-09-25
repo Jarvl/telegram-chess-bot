@@ -194,7 +194,13 @@ async function main(): Promise<void> {
             return reply(
               row ? 200 : 404,
               row
-                ? { status: row.status, fen: row.fen, plyCount: row.plyCount, result: row.result }
+                ? {
+                    status: row.status,
+                    fen: row.fen,
+                    plyCount: row.plyCount,
+                    result: row.result,
+                    premoves: row.premoves,
+                  }
                 : {},
             );
           }

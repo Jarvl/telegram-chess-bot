@@ -48,9 +48,13 @@ export async function seed(
   return (await response.json()) as Seed;
 }
 
-export async function harnessGame(
-  publicId: string,
-): Promise<{ status: string; fen: string; plyCount: number; result: string | null }> {
+export async function harnessGame(publicId: string): Promise<{
+  status: string;
+  fen: string;
+  plyCount: number;
+  result: string | null;
+  premoves: string[];
+}> {
   return (await (await fetch(`${HARNESS}/games/${publicId}`)).json()) as never;
 }
 
