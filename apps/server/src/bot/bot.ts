@@ -64,7 +64,7 @@ export async function createBot(deps: Deps, config: Config): Promise<Bot> {
   );
   bot.api.config.use(apiThrottler());
   await bot.init();
-  const linkLimiter = new RateLimiter(1, 60_000);
+  const linkLimiter = new RateLimiter(20, 60_000);
   // Pre-checkout answers get their own client without the message throttler: bot.api's queue is
   // shared with the job worker's sends, and a backlog there could push the answer past
   // Telegram's 10-second pre-checkout deadline.
@@ -148,12 +148,19 @@ export async function createBot(deps: Deps, config: Config): Promise<Bot> {
   const linkCommand =
     (kind: 'lobby' | 'settings') =>
     async (ctx: Context & { chat: GroupChat; msg: NonNullable<Context['msg']> }) => {
-      if (!ctx.from || ctx.from.is_bot) return;
-      // /chess and /settings share one link per group per minute (spec §7.8).
-      if (!linkLimiter.allow(`link:${ctx.chat.id}`)) return;
+      // Anonymous admins and people posting as a channel arrive from a bot account with
+      // sender_chat set. The link needs nobody's identity, so they get it too.
+      const anonymous = ctx.msg.sender_chat !== undefined;
+      if (!ctx.from || (ctx.from.is_bot && !anonymous) || ctx.msg.is_automatic_forward) return;
+      // /chess and /settings share 20 links per person per group per minute (spec §7.8); anonymous
+      // senders share one budget per chat they post as.
+      const sender = ctx.msg.sender_chat?.id ?? ctx.from.id;
+      if (!linkLimiter.allow(`link:${ctx.chat.id}:${sender}`)) return;
       const group = await ensureGroup(deps.db, chatInfo(ctx.chat));
-      const user = await ensureUser(deps.db, userInfo(ctx.from));
-      await touchMember(deps.db, group.id, user.id);
+      if (!anonymous) {
+        const user = await ensureUser(deps.db, userInfo(ctx.from));
+        await touchMember(deps.db, group.id, user.id);
+      }
       const threadId = ctx.msg.is_topic_message ? (ctx.msg.message_thread_id ?? null) : null;
       const groupId = group.publicId;
       await sendLine(
