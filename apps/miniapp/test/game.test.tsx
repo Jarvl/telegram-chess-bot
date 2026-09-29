@@ -300,7 +300,7 @@ describe('Game', () => {
     expect(black.querySelector('.sub')?.className).toContain('reason');
     expect(black.querySelector('.rating')?.textContent).toBe('1500? → 1662?');
     expect(white.querySelector('.result-tag')?.textContent).toBe('Lost');
-    expect(white.querySelector('.sub')?.textContent).toBe('White · Chess Club');
+    expect(white.querySelector('.sub')).toBeNull();
   });
 
   it('tags both bars Draw with the reason under each name', async () => {
@@ -471,7 +471,7 @@ describe('Game', () => {
     expect(r.calls.at(-1)?.path).toBe(`/api/games/${GAME}/abort`);
   });
 
-  it('marks your bar and clock gold on your move, and names the waiting side', async () => {
+  it('marks your bar and clock gold on your move, and leaves the waiting side plain', async () => {
     const r = mount(afterPlies(2, { viewerRole: 'white' }));
     await r.flush();
     const mine = r.root.querySelector('.player-bar[data-colour="white"]')!;
@@ -480,8 +480,53 @@ describe('Game', () => {
     expect(mine.querySelector('.sub')?.textContent).toBe('Your move');
     expect(mine.querySelector('.clock')?.className).toContain('yours');
     expect(theirs.className).not.toContain('yours');
-    expect(theirs.querySelector('.sub')?.textContent).toBe('Black · Chess Club');
+    expect(theirs.querySelector('.sub')).toBeNull();
     expect(theirs.querySelector('.avatar')?.textContent).toBe('B');
+  });
+
+  it('names the group and terms once, above the top bar', async () => {
+    const r = mount(afterPlies(2, { viewerRole: 'white' }));
+    await r.flush();
+    const meta = r.root.querySelector('.game > .game-meta');
+    expect(meta?.textContent).toBe('Chess Club · 1 day per move · Rated');
+    expect(meta?.nextElementSibling?.classList.contains('player-bar')).toBe(true);
+  });
+
+  it('shows the pieces each side took, and +N only for the side ahead', async () => {
+    // Black has taken a knight and a pawn; white has taken the queen.
+    const fen = 'rnb1kbnr/pppppppp/8/8/8/8/PPPPPPP1/RNBQKB1R w KQkq - 0 5';
+    const r = mount(gameDto({ fen, plyCount: 8, version: 8 }));
+    await r.flush();
+    const white = r.root.querySelector('.player-bar[data-colour="white"]')!;
+    const black = r.root.querySelector('.player-bar[data-colour="black"]')!;
+    const taken = (bar: Element) =>
+      [...bar.querySelectorAll('.captured piece')].map((p) => p.className);
+    expect(taken(white)).toEqual(['queen black']);
+    expect(taken(black)).toEqual(['knight white', 'pawn white']);
+    expect(white.querySelector('.lead')?.textContent).toBe('+5');
+    expect(black.querySelector('.lead')).toBeNull();
+    expect(white.querySelector('.sub')?.textContent).toBe('Your move');
+  });
+
+  it('counts material from the position being replayed', async () => {
+    const r = mount(
+      gameDto({
+        status: 'finished',
+        result: '1-0',
+        endReason: 'resignation',
+        fen: 'rnb1kbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 0 5',
+        plyCount: 8,
+        version: 8,
+      }),
+    );
+    await r.flush();
+    const white = () => r.root.querySelector('.player-bar[data-colour="white"]')!;
+    expect(white().querySelector('.lead')?.textContent).toBe('+9');
+    slider(r).value = '0';
+    slider(r).dispatchEvent(new Event('input'));
+    await r.flush();
+    expect(white().querySelector('.captured')).toBeNull();
+    expect(white().querySelector('.lead')).toBeNull();
   });
 
   it('shows the bot as the goat with its level', async () => {
