@@ -115,16 +115,14 @@ describe('GroupSettingsSchema', () => {
       defaultTimePerMove: 259200,
       ratedDefault: true,
       allowOpenChallenges: true,
-      leaderboardMinGames: 5,
       cardTopicMode: 'origin',
       fixedTopicId: null,
     });
   });
 
-  it.each([-1, 101])('rejects %d as a leaderboard minimum', (value) => {
+  it.each([0, -1])('rejects %d as a fixed topic id', (value) => {
     expect(
-      GroupSettingsSchema.safeParse({ ...GROUP_SETTINGS_DEFAULTS, leaderboardMinGames: value })
-        .success,
+      GroupSettingsSchema.safeParse({ ...GROUP_SETTINGS_DEFAULTS, fixedTopicId: value }).success,
     ).toBe(false);
   });
 });

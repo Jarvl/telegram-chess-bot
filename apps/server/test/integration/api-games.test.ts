@@ -468,12 +468,11 @@ describe('admin routes', () => {
     ).toBe(200);
     const updated = await api.request('PUT', `/api/groups/${group.publicId}/settings`, {
       token: tokens.carol,
-      body: { leaderboardMinGames: 3 },
+      body: { ratedDefault: false },
     });
     expect(
-      ((await updated.json()) as { settings: { leaderboardMinGames: number } }).settings
-        .leaderboardMinGames,
-    ).toBe(3);
+      ((await updated.json()) as { settings: { ratedDefault: boolean } }).settings.ratedDefault,
+    ).toBe(false);
     expect(
       (
         await api.request('PUT', `/api/groups/${group.publicId}/settings`, {

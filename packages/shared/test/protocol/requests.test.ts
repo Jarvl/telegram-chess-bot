@@ -87,15 +87,13 @@ describe('PrefsUpdateRequestSchema', () => {
 
 describe('GroupSettingsUpdateRequestSchema', () => {
   it('accepts a single field', () => {
-    expect(GroupSettingsUpdateRequestSchema.parse({ leaderboardMinGames: 3 })).toEqual({
-      leaderboardMinGames: 3,
+    expect(GroupSettingsUpdateRequestSchema.parse({ ratedDefault: false })).toEqual({
+      ratedDefault: false,
     });
   });
 
   it('still enforces the range of each field', () => {
-    expect(GroupSettingsUpdateRequestSchema.safeParse({ leaderboardMinGames: -1 }).success).toBe(
-      false,
-    );
+    expect(GroupSettingsUpdateRequestSchema.safeParse({ fixedTopicId: -1 }).success).toBe(false);
   });
 });
 

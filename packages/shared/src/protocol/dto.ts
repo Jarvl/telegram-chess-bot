@@ -172,7 +172,6 @@ export const GroupSettingsSchema = z.object({
   defaultTimePerMove: TimePerMoveSchema,
   ratedDefault: z.boolean(),
   allowOpenChallenges: z.boolean(),
-  leaderboardMinGames: z.number().int().min(0).max(100),
   cardTopicMode: z.enum(['origin', 'fixed']),
   fixedTopicId: z.number().int().positive().nullable(),
 });
@@ -183,7 +182,6 @@ export const GROUP_SETTINGS_DEFAULTS: GroupSettings = {
   defaultTimePerMove: 259200,
   ratedDefault: true,
   allowOpenChallenges: true,
-  leaderboardMinGames: 5,
   cardTopicMode: 'origin',
   fixedTopicId: null,
 };

@@ -105,7 +105,7 @@ export async function buildLobby(
     activeGames(deps.db, group.id, viewer.id),
     listFinished(deps, group.id, viewer.id, null),
     pendingChallenges(deps.db, group.id, viewer.id),
-    getLeaderboard(deps.db, group.id, settings.leaderboardMinGames),
+    getLeaderboard(deps.db, group.id),
   ]);
   return {
     group: { id: group.publicId, title: group.title },
