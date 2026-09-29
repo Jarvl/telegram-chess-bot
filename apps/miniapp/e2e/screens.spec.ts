@@ -48,6 +48,11 @@ for (const colorScheme of ['light', 'dark'] as const) {
     await page.locator('[data-action="leaderboard"]').click();
     await expect(page.locator('[data-player]')).toHaveCount(2);
     await expect(page.locator('[data-player] .flair')).toHaveCount(2);
+    // Alice, the viewer, wears three flair as well. Her own row's name, which "(you)" is part of,
+    // must keep a real width beside them and her rating (Review Focus 1): `fits` only checks that
+    // the page does not scroll sideways.
+    const yourName = await page.locator('.player-row.you .name').boundingBox();
+    expect(yourName?.width ?? 0).toBeGreaterThanOrEqual(60);
     await fits(page);
     await shot(page, `${colorScheme}-leaderboard`);
 

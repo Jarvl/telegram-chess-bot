@@ -267,9 +267,10 @@ button {
   color: var(--hint);
 }
 
-/* A primary line whose leading name ellipsises while trailing badges (a rating, "(you)") stay
-   fully visible — same shrink technique as `.game-card .who`: the name's own `overflow: hidden`
-   zeroes out its flex auto-minimum, so it alone gives way as the row narrows. */
+/* A primary line whose leading name ellipsises while trailing badges (flair, a rating) stay fully
+   visible — same shrink technique as `.game-card .who`: the name's own `overflow: hidden` zeroes
+   out its flex auto-minimum, so it alone gives way as the row narrows. Anything that should give
+   way with the name, such as the leaderboard's "(you)", is part of the name's text. */
 .name-row {
   display: flex;
   align-items: baseline;
@@ -281,11 +282,6 @@ button {
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.name-row .you {
-  font-weight: 600;
   white-space: nowrap;
 }
 

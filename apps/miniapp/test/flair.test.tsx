@@ -81,7 +81,7 @@ describe('flair beside names', () => {
     );
     expect(r.root.querySelector('.name-row .name')?.nextElementSibling?.textContent).toBe('🤝');
   });
-  it('follows “(you)” on your own leaderboard row', () => {
+  it('follows your name and “(you)” on your own leaderboard row', () => {
     const entry = {
       ...playerRef('1', 'Alice', { flair: ['draws_10'] }),
       gamesPlayed: 3,
@@ -91,11 +91,9 @@ describe('flair beside names', () => {
       () => <PlayerRow entry={entry} rank={1} you onOpen={() => {}} />,
       ok,
     ).root.querySelector('.name-row')!;
-    expect([...row.children].map((child) => child.className)).toEqual([
-      'name',
-      'you',
-      'flair',
-      'rating',
-    ]);
+    expect([...row.children].map((child) => child.className)).toEqual(['name', 'flair', 'rating']);
+    // "(you)" is part of the name's text, as in the prototype, so the two ellipsise together and
+    // leave the flair and the rating whole.
+    expect(row.querySelector('.name')?.textContent).toBe('Alice (you)');
   });
 });
