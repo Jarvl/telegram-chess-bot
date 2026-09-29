@@ -13,6 +13,14 @@ About screen repeats it.
 
 # Font attribution
 
-The text on shared-position images is drawn with Noto Sans, Noto Emoji, Noto Sans Symbols 2 and
-Noto Sans CJK SC, under the SIL Open Font License 1.1. `apps/server/fonts/README.md` lists each
+The text on shared-position images is drawn with Noto Sans, Noto Emoji, Noto Sans Symbols 2,
+Noto Sans CJK SC and Young Serif, under the SIL Open Font License 1.1. `apps/server/fonts/README.md` lists each
 file's source and copyright; `apps/server/fonts/OFL.txt` is the licence.
+
+# Emoji attribution
+
+The trophy, skull and scales badges in `emoji.ts` are Noto Color Emoji images by Google, from
+[googlefonts/noto-emoji](https://github.com/googlefonts/noto-emoji) (`2D/svg`, tag
+`v2026-09-24-unicode18_0`) under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0),
+regenerated with `scripts/vendor-snapshot-art.mjs`. The only change is removing each file's XML
+declaration and comments.
