@@ -274,6 +274,8 @@ export const en = {
   'app.player.challenge': 'Challenge',
   'app.player.games': '{count} games',
   'app.settings.title': 'Settings',
+  'app.settings.flair': 'Flair',
+  'app.settings.flair_unlocked': '{percent}% unlocked',
   'app.settings.notifications': 'Receive turn notifications',
   'app.settings.move_confirmations': 'Move confirmations',
   'app.settings.move_confirmations.always': 'Always',

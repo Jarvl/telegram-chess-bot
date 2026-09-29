@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createApiClient } from '../src/api/client';
-import { loadMyFlair, myFlair, saveWornFlair, wearFlair } from '../src/state/flair';
+import {
+  loadMyFlair,
+  myFlair,
+  saveWornFlair,
+  unlockedPercent,
+  wearFlair,
+} from '../src/state/flair';
 import { flairEarnedLabel } from '../src/ui/format';
 import { fakeFetch, type FakeRoute } from './support/fakeFetch';
 
@@ -41,6 +47,17 @@ describe('wearFlair', () => {
     const worn = ['rank_1500', 'draws_10'];
     wearFlair(worn, 0, 'draws_10');
     expect(worn).toEqual(['rank_1500', 'draws_10']);
+  });
+});
+
+describe('unlockedPercent', () => {
+  it('counts the earned flair the catalog knows, out of the whole catalog', () => {
+    const earned = ['rank_1500', 'en_passant_win', 'draws_10', 'retired_flair'].map((id) => ({
+      id,
+      earnedAt: '2026-04-10T12:00:00.000Z',
+      opponent: '@tom',
+    }));
+    expect(unlockedPercent({ worn: [], earned })).toBe(21);
   });
 });
 

@@ -1,4 +1,10 @@
-import { FlairDtoSchema, MAX_WORN_FLAIR, type FlairDto } from '@group-chess/shared';
+import {
+  FLAIR,
+  FlairDtoSchema,
+  MAX_WORN_FLAIR,
+  flairById,
+  type FlairDto,
+} from '@group-chess/shared';
 import { signal } from '@preact/signals';
 import type { ApiClient } from '../api/client';
 
@@ -30,6 +36,16 @@ export function wearFlair(worn: readonly string[], slot: number, id: string): st
     slots[slot] = id;
   }
   return slots.filter((entry) => entry !== undefined);
+}
+
+/**
+ * The share of the catalog the viewer has earned, as a rounded percentage (flair spec §5.2). An
+ * earned id this build's catalog does not know is not counted: the server can be a deploy ahead
+ * of an app still open, and the share must never pass 100.
+ */
+export function unlockedPercent(flair: FlairDto): number {
+  const known = flair.earned.filter((entry) => flairById(entry.id) !== undefined).length;
+  return Math.round((100 * known) / FLAIR.length);
 }
 
 /** Counts the saves so far; only the latest may settle `myFlair`. */

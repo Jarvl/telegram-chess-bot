@@ -6,12 +6,15 @@ import {
   type MoveConfirmations,
   type Prefs,
 } from '@group-chess/shared';
+import { useEffect } from 'preact/hooks';
 import { z } from 'zod';
 import { AUTHOR_URL, BRAND, REPO_URL } from '../../brand';
+import { loadMyFlair, myFlair, unlockedPercent } from '../../state/flair';
 import { prefs } from '../../state/session';
 import { useApp } from '../context';
 import { Switch } from '../controls';
 import { choiceDialog, confirmDialog, infoDialog } from '../dialog';
+import { Flair } from '../Flair';
 import { SupportCard } from '../SupportCard';
 import { toast } from '../toast';
 
@@ -28,8 +31,14 @@ const CONFIRMATION_LABEL: Record<MoveConfirmations, MessageKey> = {
 };
 
 export function Settings() {
-  const { client, tg } = useApp();
+  const { client, tg, router } = useApp();
   const current = prefs.value;
+  const flair = myFlair.value;
+  // Fills in the Flair row's share unlocked and worn emojis. A failed load leaves the row as it
+  // is: it keeps working, and the Flair screen shows its own error (flair spec §5.2).
+  useEffect(() => {
+    void loadMyFlair(client).catch(() => undefined);
+  }, [client]);
   // Turn notifications are DMs, which need the user's leave (spec §6.1 step 4).
   const askToMessage = async () => {
     const granted = await tg.requestWriteAccess();
@@ -79,6 +88,24 @@ export function Settings() {
     <div class="screen">
       <h1 class="title">{t('app.settings.title')}</h1>
       <div class="card">
+        <button
+          class="field pick"
+          data-action="flair"
+          onClick={() => router.push({ name: 'flair' })}
+        >
+          <span class="grow">
+            <span class="primary">{t('app.settings.flair')}</span>
+            {flair ? (
+              <span class="secondary">
+                {t('app.settings.flair_unlocked', { percent: unlockedPercent(flair) })}
+              </span>
+            ) : null}
+          </span>
+          {flair ? <Flair ids={flair.worn} /> : null}
+          <span class="chevron" aria-hidden="true">
+            ›
+          </span>
+        </button>
         <button
           class="field pick"
           data-pref="moveConfirmations"

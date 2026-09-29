@@ -313,6 +313,11 @@ button {
   font-size: 15px;
 }
 
+/* The Settings row (flair spec §5.2). */
+.field .flair {
+  font-size: 16px;
+}
+
 /* The player page's name line. The title stays a bare h1 holding only the name; the flair follows
    it, and drops beneath a long name that leaves it no room. */
 .player-name {
