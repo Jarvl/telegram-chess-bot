@@ -3,6 +3,7 @@ import { eq, sql } from 'drizzle-orm';
 import type { DbOrTx } from '../db/client';
 import { users, type UserRow } from '../db/schema';
 import { DomainError } from './errors';
+import { queuePhotoRefresh } from './photos';
 
 export type TelegramUserInfo = {
   telegramUserId: number;
@@ -27,6 +28,7 @@ export async function ensureUser(tx: DbOrTx, info: TelegramUserInfo): Promise<Us
     })
     .returning();
   if (!row) throw new Error('ensureUser returned no row');
+  await queuePhotoRefresh(tx, row);
   return row;
 }
 

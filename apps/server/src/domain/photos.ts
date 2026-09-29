@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
 import type { DbOrTx } from '../db/client';
-import { userPhotos, users, type UserPhotoRow } from '../db/schema';
+import { userPhotos, users, type UserPhotoRow, type UserRow } from '../db/schema';
+import { enqueue } from '../jobs/queue';
 
 /** Profile photos spec: a user seen again after this long has their photo checked again. */
 export const PHOTO_REFRESH_SECONDS = 86_400;
@@ -18,6 +19,26 @@ export function avatarUrl(hash: string): string {
 export async function getPhotoRow(tx: DbOrTx, userId: number): Promise<UserPhotoRow | null> {
   const [row] = await tx.select().from(userPhotos).where(eq(userPhotos.userId, userId));
   return row ?? null;
+}
+
+/** Queues a photo check for a person the bot has not checked within a day (profile photos spec). */
+export async function queuePhotoRefresh(
+  tx: DbOrTx,
+  user: Pick<UserRow, 'id' | 'isEngine' | 'deletedAt'>,
+): Promise<void> {
+  if (user.isEngine || user.deletedAt) return;
+  const [row] = await tx
+    .select({
+      fresh: sql<boolean>`${userPhotos.checkedAt} > now() - make_interval(secs => ${PHOTO_REFRESH_SECONDS})`,
+    })
+    .from(userPhotos)
+    .where(eq(userPhotos.userId, user.id));
+  if (row?.fresh) return;
+  await enqueue(tx, {
+    kind: 'fetch_user_photo',
+    payload: { userId: user.id },
+    dedupKey: `photo:${user.id}`,
+  });
 }
 
 /** The current photo, or null for "checked, none"; `users.photo_hash` follows in the same write. */
