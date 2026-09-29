@@ -207,7 +207,8 @@ Server code lives in `apps/server/src/flair/`:
 - `rules.ts`: one evaluator per rule kind (§1.4).
 - `history.ts`: loads counted games.
 - `award.ts`: the job's logic.
-- `worn.ts`: slot filling and `PUT` validation.
+- `worn.ts`: slot filling (§3.3).
+- `profile.ts`: the `GET` answer and the `PUT` validation and write (§4).
 - `introductions.ts`: records introductions (§3.1).
 
 The job handler is `jobs/handlers/flair.ts`.
