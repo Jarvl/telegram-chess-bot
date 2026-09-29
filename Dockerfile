@@ -6,7 +6,9 @@ ENV PATH=$PNPM_HOME:$PATH
 # A shared cache, not root's home: the runtime runs as `node`, which must find this pnpm already
 # prepared (for `pnpm run refund-tip`) instead of downloading it on first use.
 ENV COREPACK_HOME=/corepack
-RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
+# Node 25+ no longer bundles corepack, so install a pinned copy from npm first.
+RUN npm install -g corepack@0.36.0 \
+    && corepack enable && corepack prepare pnpm@10.33.0 --activate
 WORKDIR /app
 
 FROM base AS build
