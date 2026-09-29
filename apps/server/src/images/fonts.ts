@@ -16,6 +16,7 @@ const FONTS = [
   { file: 'NotoEmoji-Regular.ttf', name: 'Noto Emoji', weight: 400 },
   { file: 'NotoSansSymbols2-Regular.ttf', name: 'Noto Sans Symbols 2', weight: 400 },
   { file: 'NotoSansCJKsc-Regular.otf', name: 'Noto Sans CJK SC', weight: 400 },
+  { file: 'YoungSerif-Regular.ttf', name: 'Young Serif', weight: 400 },
 ] as const;
 
 export const FONT_FILES: readonly string[] = FONTS.map((font) => font.file);

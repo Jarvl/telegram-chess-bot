@@ -60,7 +60,7 @@ describe('fetchFonts', () => {
 });
 
 describe('FONT_MANIFEST', () => {
-  it('pins six fonts by https URL and sha256', () => {
+  it('pins seven fonts by https URL and sha256', () => {
     expect(FONT_MANIFEST.map((entry) => entry.file)).toEqual([
       'NotoSans-Regular.ttf',
       'NotoSans-SemiBold.ttf',
@@ -68,6 +68,7 @@ describe('FONT_MANIFEST', () => {
       'NotoEmoji-Regular.ttf',
       'NotoSansSymbols2-Regular.ttf',
       'NotoSansCJKsc-Regular.otf',
+      'YoungSerif-Regular.ttf',
     ]);
     for (const entry of FONT_MANIFEST) {
       expect(entry.url).toMatch(/^https:\/\//);
