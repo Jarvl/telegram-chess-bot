@@ -53,6 +53,23 @@ describe('the flair catalog', () => {
     });
   });
 
+  it('gives every rating exactly one rung', () => {
+    const ladder = FLAIR.filter((f) => f.category === 'rank');
+    const bands = ladder.flatMap(({ rule }) => (rule.kind === 'held' ? [rule] : []));
+    expect(bands).toHaveLength(ladder.length);
+
+    // Open at both ends, and every other rung starts one rating above the rung before it. A null
+    // max below the top becomes NaN, which no min equals.
+    expect(bands[0]?.min).toBeNull();
+    expect(bands.at(-1)?.max).toBeNull();
+    expect(bands.slice(1).map((b) => b.min)).toEqual(
+      bands.slice(0, -1).map((b) => (b.max ?? NaN) + 1),
+    );
+
+    // A rung whose min is above its max would let the bands overlap and still meet end to end.
+    expect(bands.filter((b) => b.min !== null && b.max !== null && b.min > b.max)).toEqual([]);
+  });
+
   it('describes each flair in the prototype’s words', () => {
     expect(FLAIR.map((f) => t(flairDescriptionKey(f.id)))).toEqual([
       'Held a rating under 1200',
