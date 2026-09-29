@@ -37,7 +37,7 @@ export type Seed = {
 export async function seed(
   scenario: 'none' | 'fresh' | 'opening' | 'promotion' | 'finished' | 'ranked',
   prefs: Record<string, Record<string, unknown>> = {},
-  options: { groupTitle?: string; bobName?: string } = {},
+  options: { groupTitle?: string; bobName?: string; flair?: boolean } = {},
 ): Promise<Seed> {
   const response = await fetch(`${HARNESS}/seed`, {
     method: 'POST',

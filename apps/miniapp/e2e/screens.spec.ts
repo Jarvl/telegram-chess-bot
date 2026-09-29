@@ -23,9 +23,15 @@ async function shot(page: Page, name: string): Promise<void> {
 
 for (const colorScheme of ['light', 'dark'] as const) {
   test(`every main screen fits at 390 px (${colorScheme})`, async ({ page }) => {
-    const world = await seed('ranked', {}, { groupTitle: LONG_TITLE, bobName: LONG_NAME });
+    const world = await seed(
+      'ranked',
+      {},
+      { groupTitle: LONG_TITLE, bobName: LONG_NAME, flair: true },
+    );
     await openApp(page, { user: world.users.alice.telegram, colorScheme });
     await expect(page.locator('.title')).toHaveText('Your games');
+    // Alice's card shows her opponent's flair: Bob's three, whose name is long (Review Focus 5).
+    await expect(page.locator('.game-card .flair')).toHaveText('🧑‍🦼♟️🪤');
     await fits(page);
     await shot(page, `${colorScheme}-games`);
 
@@ -41,6 +47,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
 
     await page.locator('[data-action="leaderboard"]').click();
     await expect(page.locator('[data-player]')).toHaveCount(2);
+    await expect(page.locator('[data-player] .flair')).toHaveCount(2);
     await fits(page);
     await shot(page, `${colorScheme}-leaderboard`);
 
@@ -55,12 +62,14 @@ for (const colorScheme of ['light', 'dark'] as const) {
     // Not `.cg-wrap`: the games list's own MiniBoard thumbnails carry that class too, so the
     // locator would still be ambiguous for an instant while the list screen unmounts.
     await expect(page.locator('cg-board')).toBeVisible();
+    await expect(page.locator('.player-bar .flair')).toHaveCount(2);
     await fits(page);
     await shot(page, `${colorScheme}-game`);
 
     await page.locator('[data-nav="settings"]').click();
     await expect(page.locator('[data-action="about"]')).toBeVisible();
     await expect(page.locator('[data-card="support"]')).toBeVisible();
+    await expect(page.locator('[data-action="flair"] .flair')).toHaveText('🧑‍🦯👑🔥');
     await fits(page);
     await shot(page, `${colorScheme}-settings`);
 
@@ -69,5 +78,10 @@ for (const colorScheme of ['light', 'dark'] as const) {
     await expect(page.locator('.tip-hint.bad')).toBeVisible();
     await fits(page);
     await shot(page, `${colorScheme}-settings-tip`);
+
+    await page.locator('[data-action="flair"]').click();
+    await expect(page.locator('.flair-slot')).toHaveCount(3);
+    await fits(page);
+    await shot(page, `${colorScheme}-flair`);
   });
 }
