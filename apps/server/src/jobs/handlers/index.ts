@@ -1,6 +1,6 @@
 import type { Deps } from '../../domain/deps';
 import type { JobHandlers } from '../types';
-import { awardFlairHandler } from './flair';
+import { awardFlairHandler, backfillFlairHandler } from './flair';
 import { ensurePruneScheduled, pruneHandler } from './prune';
 import { rebuildRatingsHandler } from './rebuildRatings';
 
@@ -15,6 +15,7 @@ export { telegramJobHandlers, type TelegramHandlerContext } from './telegram';
 export function coreJobHandlers(deps: Deps): JobHandlers {
   return {
     award_flair: awardFlairHandler(deps),
+    backfill_flair: backfillFlairHandler(deps),
     rebuild_ratings: rebuildRatingsHandler(deps),
     prune: pruneHandler(deps),
   };

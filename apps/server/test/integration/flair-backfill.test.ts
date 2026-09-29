@@ -5,17 +5,23 @@ import {
   type FlairEntry,
   type GameResult,
 } from '@group-chess/shared';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { flairBackfills, games, userFlair, users, type GameRow } from '../../src/db/schema';
+import { flairBackfills, games, jobs, userFlair, users, type GameRow } from '../../src/db/schema';
 import {
+  backfillDedupKey,
   backfillPlayer,
+  canRunBackfill,
+  enqueueFlairBackfill,
   pendingBackfills,
   runFlairBackfill,
   type BackfillPair,
 } from '../../src/flair/backfill';
+import { enqueue } from '../../src/jobs/queue';
+import { coreJobHandlers } from '../../src/jobs/handlers';
+import { JobWorker } from '../../src/jobs/worker';
 import { LINES, play } from '../helpers/chess';
-import { openTestDb, truncateAll } from '../helpers/db';
+import { openTestDb, testDeps, truncateAll } from '../helpers/db';
 import {
   insertGame,
   insertGroup,
@@ -25,6 +31,7 @@ import {
 } from '../helpers/fixtures';
 
 const { db, close } = openTestDb();
+const deps = testDeps(db);
 const day = (n: number) => new Date(Date.UTC(2026, 1, n, 12));
 
 beforeEach(() => truncateAll(db));
@@ -246,6 +253,87 @@ describe('runFlairBackfill', () => {
     };
     await expect(runFlairBackfill(db, draws, { backfillOne })).rejects.toThrow('boom');
     expect(await earned(alice.id)).toEqual([['draws_10', tenth.id]]);
+    expect(await recorded()).toEqual([]);
+  });
+});
+
+describe('backfillDedupKey', () => {
+  it('names the pairs sorted by id', () => {
+    expect(
+      backfillDedupKey([
+        { id: 'rank_1200', version: 1 },
+        { id: 'draws_10', version: 2 },
+      ]),
+    ).toBe('flair:backfill:draws_10@2,rank_1200@1');
+  });
+});
+
+describe('canRunBackfill', () => {
+  it('runs only pairs this build knows, at a version it has reached', () => {
+    expect(canRunBackfill([{ id: 'draws_10', version: 1 }])).toBe(true);
+    expect(canRunBackfill([{ id: 'retired_flair', version: 1 }])).toBe(false);
+    expect(canRunBackfill([{ id: 'draws_10', version: 2 }])).toBe(false);
+  });
+});
+
+describe('enqueueFlairBackfill', () => {
+  const backfillJobs = async () =>
+    (await db.select().from(jobs)).filter((job) => job.kind === 'backfill_flair');
+
+  it('enqueues one job for the pending set, and none when nothing is pending', async () => {
+    await enqueueFlairBackfill(db);
+    await enqueueFlairBackfill(db);
+    const pending = await pendingBackfills(db);
+    expect((await backfillJobs()).map((job) => [job.dedupKey, job.payload])).toEqual([
+      [backfillDedupKey(pending), { flair: pending }],
+    ]);
+
+    await db.delete(jobs);
+    await db
+      .insert(flairBackfills)
+      .values(pending.map((pair) => ({ flairId: pair.id, version: pair.version })));
+    await enqueueFlairBackfill(db);
+    expect(await backfillJobs()).toEqual([]);
+  });
+});
+
+describe('backfill_flair', () => {
+  const worker = () =>
+    new JobWorker({ db, log: deps.log, handlers: coreJobHandlers(deps), workerId: 'w' });
+
+  it('backfills from the job and records the pairs', async () => {
+    const { group, alice, bob } = await players();
+    const tenth = await tenDraws(group.id, alice.id, bob.id, 2);
+    await enqueue(db, {
+      kind: 'backfill_flair',
+      payload: { flair: [{ id: 'draws_10', version: 1 }] },
+      dedupKey: 'flair:backfill:draws_10@1',
+    });
+    await worker().runOnce();
+    expect(await earned(alice.id)).toEqual([['draws_10', tenth.id]]);
+    expect(await recorded()).toEqual([['draws_10', 1]]);
+    const [job] = await db.select().from(jobs);
+    expect(job!.doneAt).not.toBeNull();
+  });
+
+  it('leaves a job from a newer build for a newer worker', async () => {
+    await enqueue(db, {
+      kind: 'backfill_flair',
+      payload: { flair: [{ id: 'retired_flair', version: 1 }] },
+      dedupKey: 'flair:backfill:retired_flair@1',
+    });
+    await worker().runOnce();
+    const [job] = await db
+      .select({
+        doneAt: jobs.doneAt,
+        attempts: jobs.attempts,
+        waitSeconds: sql<number>`extract(epoch from ${jobs.runAt} - now())::float`,
+      })
+      .from(jobs);
+    expect(job!.doneAt).toBeNull();
+    expect(job!.attempts).toBe(0);
+    expect(job!.waitSeconds).toBeGreaterThan(25);
+    expect(job!.waitSeconds).toBeLessThanOrEqual(30);
     expect(await recorded()).toEqual([]);
   });
 });

@@ -15,6 +15,7 @@ import { startScanners } from './clock/scanners';
 import type { Config, Role } from './config';
 import { createDb } from './db/client';
 import { runMigrations } from './db/migrate';
+import { enqueueFlairBackfill } from './flair/backfill';
 import type { Deps } from './domain/deps';
 import type { Engine } from './engine/engine';
 import { uciEngine } from './engine/uci';
@@ -92,6 +93,9 @@ export async function startServer(
   });
   if (reset) log.warn('the database had migrations this build lacks, so it was wiped and rebuilt');
   const { db, close } = createDb(config.DATABASE_URL);
+  // Backfill spec §3: flair not yet backfilled at this build's versions is queued; boot does not
+  // wait for it.
+  await enqueueFlairBackfill(db);
   const deps: Deps = { db, bus: new LocalBus(), log };
   const metrics = new Metrics({ db });
 

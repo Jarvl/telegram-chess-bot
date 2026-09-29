@@ -3,6 +3,7 @@ import { and, eq, exists, inArray, isNotNull, isNull, or, sql } from 'drizzle-or
 import type { Db, DbOrTx } from '../db/client';
 import { flairBackfills, games, userFlair, users } from '../db/schema';
 import { listMoves } from '../domain/games';
+import { enqueue } from '../jobs/queue';
 import { COUNTED, loadCountedGames } from './history';
 import { earliestQualifying } from './walk';
 
@@ -26,6 +27,38 @@ export async function pendingBackfills(db: DbOrTx): Promise<BackfillPair[]> {
   return FLAIR.flatMap((flair) => {
     const version = flairBackfillVersion(flair);
     return (done.get(flair.id) ?? 0) < version ? [{ id: flair.id, version }] : [];
+  });
+}
+
+/** Backfill spec §3: `flair:backfill:` and the pairs as `id@version`, sorted by id. */
+export function backfillDedupKey(pairs: readonly BackfillPair[]): string {
+  const sorted = [...pairs].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return `flair:backfill:${sorted.map((pair) => `${pair.id}@${pair.version}`).join(',')}`;
+}
+
+/**
+ * Backfill spec §4.1: whether this build can run a backfill of `pairs`. A job enqueued by a newer
+ * build can name a flair this one lacks or a version above its own, and is left for a newer worker.
+ */
+export function canRunBackfill(pairs: readonly BackfillPair[]): boolean {
+  return pairs.every((pair) => {
+    const flair = flairById(pair.id);
+    return flair !== undefined && pair.version <= flairBackfillVersion(flair);
+  });
+}
+
+/**
+ * Backfill spec §3: queues a backfill of whatever is pending, if anything. Boots of the same build
+ * compute the same key and share one job; `rearm: false` leaves a job that is retrying as it is.
+ */
+export async function enqueueFlairBackfill(db: DbOrTx): Promise<void> {
+  const pairs = await pendingBackfills(db);
+  if (pairs.length === 0) return;
+  await enqueue(db, {
+    kind: 'backfill_flair',
+    payload: { flair: pairs },
+    dedupKey: backfillDedupKey(pairs),
+    rearm: false,
   });
 }
 
