@@ -559,6 +559,12 @@ button {
   color: var(--hint);
 }
 
+/* A field's label with a line beneath it (the Settings "Flair" row) keeps the regular weight of the
+   one-line labels around it, not the bold of a list's `.grow > .primary` line. */
+.field .grow > .primary {
+  font-weight: 400;
+}
+
 .field select,
 .field input[type='number'] {
   font: inherit;
@@ -1034,13 +1040,6 @@ button {
   display: flex;
   flex-direction: column;
   line-height: 1.2;
-}
-
-.player-bar .name {
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .player-bar .rating {

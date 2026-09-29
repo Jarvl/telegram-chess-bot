@@ -104,12 +104,12 @@ describe('Flair screen', () => {
     ]);
     expect(lines('rank_1800')).toEqual(['Held a rating of 1800 or more']);
   });
-  it('marks the dot of an empty slot as empty', async () => {
+  it('marks the dot of an empty slot as empty, and hides it from screen readers', async () => {
     const r = await open();
-    const empty = [...r.root.querySelectorAll('[data-slot] .flair-slot-emoji')].map((el) =>
-      el.matches('.empty'),
-    );
-    expect(empty).toEqual([false, false, true]);
+    const emojis = [...r.root.querySelectorAll('[data-slot] .flair-slot-emoji')];
+    expect(emojis.map((el) => el.matches('.empty'))).toEqual([false, false, true]);
+    // The dot only draws the empty slot; "Slot 3" is what a screen reader should say.
+    expect(emojis.map((el) => el.getAttribute('aria-hidden'))).toEqual([null, null, 'true']);
   });
   it('selects a slot with a haptic, moves the ring to it and saves nothing', async () => {
     const r = await open();

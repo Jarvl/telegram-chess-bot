@@ -44,7 +44,13 @@ function SlotTile(props: {
       aria-pressed={props.selected}
       onClick={props.onSelect}
     >
-      <span class={emoji ? 'flair-slot-emoji' : 'flair-slot-emoji empty'}>{emoji ?? '·'}</span>
+      {/* An empty slot's dot only draws the gap, so screen readers skip it and say "Slot N". */}
+      <span
+        class={emoji ? 'flair-slot-emoji' : 'flair-slot-emoji empty'}
+        aria-hidden={emoji ? undefined : 'true'}
+      >
+        {emoji ?? '·'}
+      </span>
       <span class="flair-slot-label">{t('app.flair.slot', { n: props.index + 1 })}</span>
     </button>
   );

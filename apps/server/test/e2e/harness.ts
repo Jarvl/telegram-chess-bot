@@ -60,7 +60,17 @@ async function main(): Promise<void> {
   if (!url) throw new Error('TEST_DATABASE_URL must be set for the e2e harness');
   await runMigrations(url);
   const { db, close } = openTestDb();
-  await truncateAll(db);
+  /**
+   * Empties every table and records the flair introductions again. The truncate empties
+   * `flair_introductions`, which the server records only at boot, and a flair only sees games that
+   * finish after its introduction (spec §1.5): without them, a game that ends during a test would
+   * earn nothing. So every truncate here goes through this.
+   */
+  const wipe = async (): Promise<void> => {
+    await truncateAll(db);
+    await recordFlairIntroductions(db);
+  };
+  await wipe();
   const fake = await FakeTelegram.start();
   for (const user of Object.values(TELEGRAM_USERS)) fake.members.set(user.id, 'member');
   fake.admins = [TELEGRAM_USERS.alice.id];
@@ -82,11 +92,7 @@ async function main(): Promise<void> {
   );
 
   const seed = async (request: SeedRequest) => {
-    await truncateAll(db);
-    // The truncate empties `flair_introductions`, which the running server recorded at boot; a
-    // flair only sees games that finish after its introduction (spec §1.5), so put them back or
-    // a game that ends during a test would earn nothing.
-    await recordFlairIntroductions(db);
+    await wipe();
     fake.reset();
     for (const user of Object.values(TELEGRAM_USERS)) fake.members.set(user.id, 'member');
     fake.admins = [TELEGRAM_USERS.alice.id];
@@ -205,7 +211,7 @@ async function main(): Promise<void> {
         try {
           if (path === '/health') return reply(200, { ok: true });
           if (path === '/reset') {
-            await truncateAll(db);
+            await wipe();
             fake.reset();
             return reply(200, { ok: true });
           }
