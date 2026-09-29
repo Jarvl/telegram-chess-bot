@@ -15,6 +15,7 @@ export const JOB_KINDS = [
   'lichess_import',
   'rebuild_ratings',
   'prune',
+  'fetch_user_photo',
 ] as const;
 
 export type JobKind = (typeof JOB_KINDS)[number];
