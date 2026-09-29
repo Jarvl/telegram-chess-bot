@@ -4,9 +4,11 @@ import {
   FLAIR_CATEGORIES,
   flairById,
   flairCategoryKey,
+  flairBackfillVersion,
   flairDescriptionKey,
   streak,
   total,
+  type FlairDefinition,
 } from '../../src/flair/catalog';
 import { t } from '../../src/i18n';
 
@@ -66,6 +68,25 @@ describe('the flair catalog', () => {
       draws_10: { kind: 'total', result: 'draw', count: 10, rated: false },
       scholars_mate_loss: { kind: 'lost', pattern: 'scholars_mate' },
     });
+  });
+
+  it('gives every flair a backfill version, 1 unless its entry says otherwise', () => {
+    const flair: FlairDefinition = {
+      id: 'x',
+      emoji: '🧪',
+      category: 'feat',
+      rule: total('draw', 1),
+    };
+    expect(flairBackfillVersion(flair)).toBe(1);
+    expect(flairBackfillVersion({ ...flair, backfill: 3 })).toBe(3);
+  });
+
+  it('writes a backfill version only when it is an integer of at least 2', () => {
+    for (const flair of FLAIR as readonly FlairDefinition[])
+      if (flair.backfill !== undefined) {
+        expect(Number.isInteger(flair.backfill)).toBe(true);
+        expect(flair.backfill).toBeGreaterThanOrEqual(2);
+      }
   });
 
   it('gives every rating exactly one rung', () => {
