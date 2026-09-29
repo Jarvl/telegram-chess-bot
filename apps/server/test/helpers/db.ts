@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { LocalBus } from '../../src/bus/bus';
-import { createDb, type Db } from '../../src/db/client';
+import { createDb, type Db, type Tx } from '../../src/db/client';
 import type { Deps } from '../../src/domain/deps';
 import { createLogger } from '../../src/logger';
 
@@ -24,4 +24,38 @@ export async function truncateAll(db: Db): Promise<void> {
 
 export function testDeps(db: Db): Deps {
   return { db, bus: new LocalBus(), log: createLogger('fatal') };
+}
+
+/**
+ * Runs `work` in a transaction and leaves the transaction open, holding every lock `work` took,
+ * until `commit()` is called: so a test can meet those locks from another session.
+ */
+export async function holdOpen(
+  db: Db,
+  work: (tx: Tx) => Promise<unknown>,
+): Promise<{ commit: () => Promise<void> }> {
+  let release!: () => void;
+  const released = new Promise<void>((resolve) => (release = resolve));
+  let worked!: () => void;
+  const hasWorked = new Promise<void>((resolve) => (worked = resolve));
+  const done = db.transaction(async (tx) => {
+    await work(tx);
+    worked();
+    await released;
+  });
+  await Promise.race([hasWorked, done]);
+  return {
+    commit: async () => {
+      release();
+      await done;
+    },
+  };
+}
+
+/** Runs `work` in a transaction that fails, rather than waits, when a lock keeps it over a second. */
+export function withoutWaiting(db: Db, work: (tx: Tx) => Promise<unknown>): Promise<void> {
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`set local lock_timeout = '1s'`);
+    await work(tx);
+  });
 }

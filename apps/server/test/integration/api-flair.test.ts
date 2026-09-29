@@ -2,8 +2,9 @@ import { FlairDtoSchema } from '@group-chess/shared';
 import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { userFlair, users, type UserRow } from '../../src/db/schema';
+import { setWornFlair } from '../../src/flair/profile';
 import { startTestApi, type TestApi } from '../helpers/api';
-import { openTestDb, truncateAll } from '../helpers/db';
+import { holdOpen, openTestDb, truncateAll, withoutWaiting } from '../helpers/db';
 import { insertGame, insertGroup, insertUser } from '../helpers/fixtures';
 
 const { db, close } = openTestDb();
@@ -52,8 +53,8 @@ const wornOf = async (user: Pick<UserRow, 'id'>) =>
 /**
  * Resolves once exactly `count` sessions of this database are waiting for a lock.
  * (`pg_stat_activity` covers the whole server, and other test databases share it.) It mirrors the
- * helper in `flair-award.test.ts` without its `for update` filter, because `DELETE /api/me` waits
- * in an `update`.
+ * helper in `flair-award.test.ts` without its filter on the award's `for no key update`, because
+ * `DELETE /api/me` waits in an `update`.
  */
 async function waitForLockWaiters(count: number): Promise<void> {
   for (let attempt = 0; attempt < 250; attempt += 1) {
@@ -68,8 +69,8 @@ async function waitForLockWaiters(count: number): Promise<void> {
 
 /**
  * An award in flight (flair spec §3.2). Like `awardFlairForGame` it takes the player's row lock
- * first and holds it until `commit()` is called, then stores `flairId` as earned in `gameId`,
- * appends it to the worn list it read under the lock, and commits.
+ * (`for no key update`) first and holds it until `commit()` is called, then stores `flairId` as
+ * earned in `gameId`, appends it to the worn list it read under the lock, and commits.
  */
 async function startAward(userId: number, gameId: number, flairId: string) {
   let commit!: () => void;
@@ -81,7 +82,7 @@ async function startAward(userId: number, gameId: number, flairId: string) {
       .select({ worn: users.flairWorn })
       .from(users)
       .where(eq(users.id, userId))
-      .for('update');
+      .for('no key update');
     holding();
     await mayCommit;
     await tx.insert(userFlair).values({ userId, flairId, gameId, earnedAt: AUG_12 });
@@ -194,9 +195,9 @@ describe('DELETE /api/me', () => {
   });
 });
 
-// The two blocks below add what the tests above leave open: the join names the other player for
-// either colour, and the order of the row lock and the reads and writes in `setWornFlair` and
-// `deleteMyData` (flair spec §3.4, §4 and §6).
+// The blocks below add what the tests above leave open: the join names the other player for either
+// colour, the order of the row lock and the reads and writes in `setWornFlair` and `deleteMyData`,
+// and the strength of that lock (flair spec §3.2, §3.4, §4 and §6).
 
 describe('GET /api/me/flair for a game played with either colour', () => {
   it('names the other player of each earning game, whichever colour the player had', async () => {
@@ -258,5 +259,22 @@ describe('a request that arrives while an award for the player is in flight', ()
     expect(flair.worn).toEqual(['draws_10', 'en_passant_win']);
     expect(flair.earned.map(({ id }) => id)).toEqual(['rank_1500', 'en_passant_win', 'draws_10']);
     expect(await wornOf(alice)).toEqual(['draws_10', 'en_passant_win']);
+  });
+});
+
+describe('the row lock of a change to the worn list', () => {
+  it('lets a game with the player be created while the change holds their row', async () => {
+    const { alice, bob } = await setup();
+    const group = await insertGroup(db);
+    // The change has been made but not committed, so it still holds the player's row.
+    const change = await holdOpen(db, (tx) => setWornFlair(tx, alice.id, ['rank_1500']));
+    try {
+      // A new game's foreign keys lock its players' rows `for key share`, which the change's lock
+      // must let through: `for update` would hold the game back until the change committed.
+      await withoutWaiting(db, (tx) => insertGame(tx, group.id, alice.id, bob.id));
+    } finally {
+      await change.commit();
+    }
+    expect(await wornOf(alice)).toEqual(['rank_1500']);
   });
 });

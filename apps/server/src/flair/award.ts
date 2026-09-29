@@ -40,12 +40,14 @@ export async function awardFlairForGame(
     moves: await listMoves(tx, game.id),
     introductions: await loadIntroductions(tx),
   };
-  // Both players' rows are locked before anything is read about either, in ascending id order
-  // whatever their colours: spec §3.2 asks for the lock, not for an order, and two awards for the
-  // same pair of players with the colours reversed would otherwise each hold one row while waiting
-  // for the other's. A `PUT` of the worn list (which locks one row) and another award for either
-  // player wait here too, and everything read below is read after the locks, so it sees what they
-  // committed (spec §6).
+  // Both players' rows are locked before anything is read about either, in one statement and in
+  // ascending id order whatever their colours (spec §3.2 step 2): two awards for the same pair of
+  // players with the colours reversed would otherwise each hold one row while waiting for the
+  // other's. A `PUT` of the worn list, Delete my data and another award for either player lock
+  // these rows too, so they take turns with this, and everything read below is read after the
+  // locks, so it sees what they committed (spec §6). `for no key update` is enough for that, and
+  // unlike `for update` it lets through the `for key share` locks of foreign-key checks: games,
+  // ratings and other rows that refer to either player can still be written while this runs.
   const locked = await tx
     .select({
       id: users.id,
@@ -56,7 +58,7 @@ export async function awardFlairForGame(
     .from(users)
     .where(inArray(users.id, [game.whiteId, game.blackId]))
     .orderBy(users.id)
-    .for('update');
+    .for('no key update');
   for (const side of ['white', 'black'] as const) {
     const userId = side === 'white' ? game.whiteId : game.blackId;
     const player = locked.find((row) => row.id === userId);
@@ -64,7 +66,7 @@ export async function awardFlairForGame(
   }
 }
 
-/** Flair spec §3.2 step 2: scores one player of the game, stores what they earned and wears it. */
+/** Flair spec §3.2 step 3: scores one player of the game, stores what they earned and wears it. */
 async function awardToPlayer(
   tx: DbOrTx,
   { game, finishedAt, moves, introductions }: Scoring,

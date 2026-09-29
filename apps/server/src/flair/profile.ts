@@ -55,6 +55,8 @@ export async function loadFlairDto(tx: DbOrTx, userId: number): Promise<FlairDto
  * The player's row is locked before anything is read or written, as the award job locks it (spec
  * §3.2): an award for the same player waits for this to commit and then fills the free slots from
  * the list left here, and this reads the flair the player holds after any award before it (spec §6).
+ * Like the award's, the lock is `for no key update`, which lets through the `for key share` locks
+ * of foreign-key checks, so rows that refer to the player can still be written meanwhile.
  */
 export async function setWornFlair(
   tx: DbOrTx,
@@ -65,7 +67,7 @@ export async function setWornFlair(
     .select({ id: users.id })
     .from(users)
     .where(eq(users.id, userId))
-    .for('update');
+    .for('no key update');
   if (!locked) throw new DomainError('not_found', 'user not found', { userId });
 
   const refuse = (reason: 'duplicate' | 'unknown' | 'not_earned') =>

@@ -230,8 +230,10 @@ The handler runs in one transaction:
 1. **Read the game.** If it no longer counts (for example it was voided before the job ran), stop.
    Otherwise read its moves once.
 2. **Lock both players' user rows** in one statement, in ascending id order
-   (`select … where id in (white, black) order by id for update`), so two award jobs for games
-   between the same pair can never deadlock.
+   (`select … where id in (white, black) order by id for no key update`), so two award jobs for
+   games between the same pair can never deadlock. `for no key update` still makes a `PUT` of the
+   worn list, Delete my data and other awards take turns with the job, but not the foreign-key
+   checks of rows that refer to either player (new games, ratings), which take `for key share`.
 3. **For each player, white then black:**
    1. Skip them if they are deleted or the bot.
    2. Take the flair they do not hold whose introduction is at or before the game's

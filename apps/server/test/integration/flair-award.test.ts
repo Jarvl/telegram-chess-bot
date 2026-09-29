@@ -14,7 +14,7 @@ import { awardFlairForGame } from '../../src/flair/award';
 import { coreJobHandlers } from '../../src/jobs/handlers';
 import { JobWorker } from '../../src/jobs/worker';
 import { LINES, play, PROMOTION_FEN } from '../helpers/chess';
-import { openTestDb, testDeps, truncateAll } from '../helpers/db';
+import { holdOpen, openTestDb, testDeps, truncateAll, withoutWaiting } from '../helpers/db';
 import {
   insertGame,
   insertGroup,
@@ -78,24 +78,24 @@ const worn = async (userId: number) =>
 const introduce = (flairIds: readonly string[], at: Date = LAUNCH) =>
   db.insert(flairIntroductions).values(flairIds.map((flairId) => ({ flairId, introducedAt: at })));
 /**
- * Resolves once exactly `count` sessions of this database are waiting for a row lock taken by a
- * `select … for update`. (`pg_stat_activity` covers the whole server, and other test databases
- * share it.)
+ * Resolves once exactly `count` sessions of this database are waiting for a row lock in a
+ * `select … for no key update`, the statement that locks the players' rows in an award.
+ * (`pg_stat_activity` covers the whole server, and other test databases share it.)
  */
 async function waitForLockWaiters(count: number): Promise<void> {
   for (let attempt = 0; attempt < 100; attempt += 1) {
     const [row] = await db.execute(sql`
       select count(*)::int as waiting from pg_stat_activity
       where datname = current_database() and state = 'active' and wait_event_type = 'Lock'
-        and query ilike '%for update%'`);
+        and query ilike '%for no key update%'`);
     if (row?.waiting === count) return;
     await new Promise((resolve) => setTimeout(resolve, 20));
   }
   throw new Error(`${count} session(s) never came to wait for a row lock`);
 }
 /**
- * A change to a player's worn list in flight, as a `PUT` makes it: it holds the player's row until
- * `commit()` is called, then saves `wearing` with it.
+ * A change to a player's worn list in flight, as a `PUT` makes it: it holds the player's row, with
+ * the lock `setWornFlair` takes, until `commit()` is called, then saves `wearing` with it.
  */
 async function startWearing(userId: number, wearing: string[]) {
   let commit!: () => void;
@@ -103,7 +103,7 @@ async function startWearing(userId: number, wearing: string[]) {
   let holding!: () => void;
   const isHolding = new Promise<void>((resolve) => (holding = resolve));
   const done = db.transaction(async (tx) => {
-    await tx.select({ id: users.id }).from(users).where(eq(users.id, userId)).for('update');
+    await tx.select({ id: users.id }).from(users).where(eq(users.id, userId)).for('no key update');
     holding();
     await mayCommit;
     await tx.update(users).set({ flairWorn: wearing }).where(eq(users.id, userId));
@@ -398,5 +398,21 @@ describe('award_flair', () => {
     expect(await earned(bob.id)).toEqual([['en_passant_win', second.id]]);
     // The award fills slots from the list the change left (spec §6).
     expect(await worn(alice.id)).toEqual(['rank_1500', 'queenside_castle_win']);
+  });
+
+  it('lets a game with either player be created while it holds their rows', async () => {
+    await introduce(['en_passant_win']);
+    const { group, alice, bob } = await players();
+    const game = await finished(group.id, alice.id, bob.id, 2, '1-0', { line: LINES.enPassant });
+    // The award has run but not committed, so it still holds both players' rows.
+    const award = await holdOpen(db, (tx) => awardFlairForGame(tx, game.id));
+    try {
+      // A new game's foreign keys lock its players' rows `for key share`, which the award's lock
+      // must let through: `for update` would hold the game back until the award committed.
+      await withoutWaiting(db, (tx) => insertGame(tx, group.id, bob.id, alice.id));
+    } finally {
+      await award.commit();
+    }
+    expect(await earned(alice.id)).toEqual([['en_passant_win', game.id]]);
   });
 });
