@@ -23,6 +23,7 @@ const activeGame = {
     rating: 1520,
     provisional: false,
     isBot: false,
+    flair: [],
     ratingAfter: null,
     provisionalAfter: null,
   },
@@ -33,6 +34,7 @@ const activeGame = {
     rating: 1498,
     provisional: true,
     isBot: false,
+    flair: [],
     ratingAfter: null,
     provisionalAfter: null,
   },
@@ -152,6 +154,7 @@ const summary = {
     rating: 1520,
     provisional: false,
     isBot: false,
+    flair: [],
   },
   black: {
     id: '2',
@@ -160,6 +163,7 @@ const summary = {
     rating: 1500,
     provisional: true,
     isBot: true,
+    flair: [],
   },
   status: 'active',
   timePerMove: null,
@@ -198,6 +202,21 @@ describe('PlayerRefSchema', () => {
     const withoutFlag: Record<string, unknown> = { ...summary.white };
     delete withoutFlag.isBot;
     expect(PlayerRefSchema.safeParse(withoutFlag).success).toBe(false);
+  });
+
+  const ref = {
+    id: '1',
+    name: 'Alice',
+    username: null,
+    rating: 1500,
+    provisional: true,
+    isBot: false,
+  };
+  it('reads a missing flair list as none', () => {
+    expect(PlayerRefSchema.parse(ref).flair).toEqual([]);
+  });
+  it('refuses more than three worn flair', () => {
+    expect(PlayerRefSchema.safeParse({ ...ref, flair: ['a', 'b', 'c', 'd'] }).success).toBe(false);
   });
 });
 

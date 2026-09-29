@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MAX_WORN_FLAIR } from '../flair/catalog';
 import {
   ChallengeStatusSchema,
   ColourChoiceSchema,
@@ -33,6 +34,8 @@ export const PlayerRefSchema = z.object({
   provisional: z.boolean(),
   /** The bot opponent: drawn as the Chess Goat mark, with its level instead of a rating. */
   isBot: z.boolean(),
+  /** Worn flair ids in slot order; the app skips ids it does not know. */
+  flair: z.array(z.string()).max(MAX_WORN_FLAIR).default([]),
 });
 
 export type PlayerRef = z.infer<typeof PlayerRefSchema>;

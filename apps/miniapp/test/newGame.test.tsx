@@ -14,6 +14,7 @@ const bob = {
   rating: 1520,
   provisional: false,
   isBot: false,
+  flair: [],
 };
 
 const players = { players: [bob], settings, bot: null };
@@ -39,6 +40,7 @@ const challenge = {
     rating: 1500,
     provisional: true,
     isBot: false,
+    flair: [],
   },
   opponent: null,
   timePerMove: 28800,

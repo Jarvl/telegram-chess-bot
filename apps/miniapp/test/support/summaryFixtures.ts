@@ -1,7 +1,16 @@
 import { INITIAL_FEN, type GameSummary, type PlayerRef } from '@group-chess/shared';
 
 export function playerRef(id: string, name: string, overrides: Partial<PlayerRef> = {}): PlayerRef {
-  return { id, name, username: null, rating: 1500, provisional: true, isBot: false, ...overrides };
+  return {
+    id,
+    name,
+    username: null,
+    rating: 1500,
+    provisional: true,
+    isBot: false,
+    flair: [],
+    ...overrides,
+  };
 }
 
 /** An active game between Alice (id 1, white, the session user) and Bob (id 2), Alice to move. */

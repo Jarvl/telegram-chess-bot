@@ -10,8 +10,24 @@ import { AFTER_E4, gameDto } from './support/gameFixtures';
 
 const summary = (id: string, yourTurn: boolean, status: 'active' | 'finished' = 'active') => ({
   id,
-  white: { id: '1', name: 'Alice', username: null, rating: 1500, provisional: true, isBot: false },
-  black: { id: '2', name: 'Bob', username: null, rating: 1500, provisional: true, isBot: false },
+  white: {
+    id: '1',
+    name: 'Alice',
+    username: null,
+    rating: 1500,
+    provisional: true,
+    isBot: false,
+    flair: [],
+  },
+  black: {
+    id: '2',
+    name: 'Bob',
+    username: null,
+    rating: 1500,
+    provisional: true,
+    isBot: false,
+    flair: [],
+  },
   status,
   timePerMove: 86400 as const,
   rated: true,
