@@ -8,8 +8,8 @@ for tokens, layout and brand.
 ## What this is
 
 Flair is an emoji earned in play and worn beside a player's name. There are 14 at launch in three
-categories: a rank ladder (the ratings you have held), feats (things you did in a game you won)
-and dubious honours (things done to you). Each player wears up to three, chosen on a Flair screen
+categories: a rank ladder (the ratings you have held), feats (things you achieved in play, such as
+winning with an en passant capture or drawing ten games) and dubious honours (things done to you). Each player wears up to three, chosen on a Flair screen
 reached from Settings, and everyone sees them beside the name in game lists, on the game screen,
 on the leaderboard and on the player page.
 
@@ -55,7 +55,8 @@ Delivered as one PR against `main`.
 adds almost nothing to the Mini App bundle.
 
 ```ts
-export type FlairCategory = 'rank' | 'feat' | 'dubious';
+export const FLAIR_CATEGORIES = ['rank', 'feat', 'dubious'] as const; // display order
+export type FlairCategory = (typeof FLAIR_CATEGORIES)[number];
 export type MovePattern = 'en_passant' | 'castle_queenside' | 'promotion' | 'scholars_mate';
 export type PlayerResult = 'win' | 'draw' | 'loss';
 
@@ -73,7 +74,6 @@ export type FlairDefinition = {
   rule: FlairRule;
 };
 
-export const FLAIR_CATEGORIES = ['rank', 'feat', 'dubious'] as const;
 export const FLAIR = [/* §1.2, in display order */] as const satisfies readonly FlairDefinition[];
 export type FlairId = (typeof FLAIR)[number]['id'];
 ```
