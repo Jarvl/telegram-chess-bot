@@ -196,7 +196,7 @@ Primary key `(user_id, flair_id)`. New flair never needs a migration.
 **`users.flair_worn`**: `text[]`, not null, default `'{}'`. The worn ids in slot order, at most 3.
 
 **`flair_introductions`**: `flair_id` text primary key; `introduced_at` timestamptz, not null,
-default `now()`. Dropped by migration `0008`, which adds `flair_backfills` ([backfill spec](./2026-09-29-flair-backfill-design.md) §2).
+default `now()`. No longer read since migration `0008`, which adds `flair_backfills`; a later release drops it ([backfill spec](./2026-09-29-flair-backfill-design.md) §2).
 
 ## 3. Awarding
 

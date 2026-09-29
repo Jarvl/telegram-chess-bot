@@ -1,5 +1,5 @@
 {
-  "id": "3ea5eb4c-0b25-49c0-8e9f-e75ee0a4110f",
+  "id": "6f9796ab-ff76-447b-8be0-cc6089e285f3",
   "prevId": "a1a63854-cdb8-4e54-8c82-81b13a2493fa",
   "version": "7",
   "dialect": "postgresql",
@@ -340,6 +340,32 @@
         },
         "completed_at": {
           "name": "completed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.flair_introductions": {
+      "name": "flair_introductions",
+      "schema": "",
+      "columns": {
+        "flair_id": {
+          "name": "flair_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "introduced_at": {
+          "name": "introduced_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,

@@ -1,5 +1,5 @@
 import { FLAIR, flairBackfillVersion, flairById, type FlairEntry } from '@group-chess/shared';
-import { and, eq, exists, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
+import { and, eq, exists, gt, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import type { Db, DbOrTx } from '../db/client';
 import { flairBackfills, games, userFlair, users } from '../db/schema';
 import { listMoves } from '../domain/games';
@@ -10,11 +10,15 @@ import { earliestQualifying } from './walk';
 /** A flair to backfill and the catalog version it is backfilled at (backfill spec §1). */
 export type BackfillPair = { id: string; version: number };
 
-/** What a backfill did: the players it walked and, per flair id, the awards added and moved. */
+/**
+ * What one run of a backfill did: the players it walked and, per flair id, the awards added and
+ * moved. `next` is the last player walked when players remain, and null once the backfill is done.
+ */
 export type BackfillSummary = {
   players: number;
   added: Record<string, number>;
   moved: Record<string, number>;
+  next: number | null;
 };
 
 /**
@@ -100,15 +104,20 @@ export async function backfillPlayer(
 }
 
 /**
- * Backfill spec §4.2–§4.3: backfills `pairs` for every player who is not the bot, has not deleted
- * their data and has a counted game, one at a time in id order. Then it sweeps the rows of players
- * who deleted their data meanwhile and records the pairs as done, so a run that did not finish
- * leaves them pending. `backfillOne` is a seam for tests.
+ * Backfill spec §4.2–§4.3: backfills `pairs` for the players who are not the bot, have not deleted
+ * their data and have a counted game, one at a time in id order: those after `afterUserId`, at most
+ * `limit` of them. When none remain after them, it sweeps the rows of players who deleted their
+ * data meanwhile and records the pairs as done, so a backfill that did not finish leaves them
+ * pending. `backfillOne` is a seam for tests.
  */
 export async function runFlairBackfill(
   db: Db,
   pairs: readonly BackfillPair[],
-  { backfillOne = backfillPlayer }: { backfillOne?: typeof backfillPlayer } = {},
+  {
+    afterUserId = 0,
+    limit,
+    backfillOne = backfillPlayer,
+  }: { afterUserId?: number; limit?: number; backfillOne?: typeof backfillPlayer } = {},
 ): Promise<BackfillSummary> {
   const flair = pairs.flatMap((pair) => {
     const entry = flairById(pair.id);
@@ -119,6 +128,7 @@ export async function runFlairBackfill(
     .from(users)
     .where(
       and(
+        gt(users.id, afterUserId),
         eq(users.isEngine, false),
         isNull(users.deletedAt),
         exists(
@@ -129,8 +139,11 @@ export async function runFlairBackfill(
         ),
       ),
     )
-    .orderBy(users.id);
-  const summary: BackfillSummary = { players: eligible.length, added: {}, moved: {} };
+    .orderBy(users.id)
+    .limit(limit ?? Number.MAX_SAFE_INTEGER);
+  const more = limit !== undefined && eligible.length === limit;
+  const next = more ? eligible.at(-1)!.id : null;
+  const summary: BackfillSummary = { players: eligible.length, added: {}, moved: {}, next };
   const tally = (into: Record<string, number>, ids: readonly string[]) => {
     for (const id of ids) into[id] = (into[id] ?? 0) + 1;
   };
@@ -139,6 +152,7 @@ export async function runFlairBackfill(
     tally(summary.added, added);
     tally(summary.moved, moved);
   }
+  if (more) return summary;
 
   // The walk takes no lock, so it can write for a player whose Delete my data commits meanwhile.
   await db

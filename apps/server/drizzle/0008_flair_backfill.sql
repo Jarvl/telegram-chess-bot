@@ -3,5 +3,3 @@ CREATE TABLE "flair_backfills" (
 	"version" integer NOT NULL,
 	"completed_at" timestamp with time zone DEFAULT now() NOT NULL
 );
---> statement-breakpoint
-DROP TABLE "flair_introductions" CASCADE;

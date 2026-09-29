@@ -19,6 +19,7 @@ import {
 } from '../../src/flair/backfill';
 import { enqueue } from '../../src/jobs/queue';
 import { coreJobHandlers } from '../../src/jobs/handlers';
+import { backfillFlairHandler } from '../../src/jobs/handlers/flair';
 import { JobWorker } from '../../src/jobs/worker';
 import { LINES, play } from '../helpers/chess';
 import { openTestDb, testDeps, truncateAll } from '../helpers/db';
@@ -200,6 +201,7 @@ describe('runFlairBackfill', () => {
       players: 2,
       added: { draws_10: 2 },
       moved: {},
+      next: null,
     });
     expect(await earned(alice.id)).toEqual([['draws_10', tenth.id]]);
     expect(await earned(bob.id)).toEqual([['draws_10', tenth.id]]);
@@ -242,6 +244,23 @@ describe('runFlairBackfill', () => {
     await db.insert(flairBackfills).values({ flairId: 'draws_10', version: 3 });
     await runFlairBackfill(db, draws);
     expect(await recorded()).toEqual([['draws_10', 3]]);
+  });
+
+  it('walks a chunk of players at a time, and records only after the last', async () => {
+    const { group, alice, bob } = await players();
+    const carol = await insertUser(db);
+    await tenDraws(group.id, alice.id, bob.id, 2);
+    const tenth = await tenDraws(group.id, bob.id, carol.id, 12);
+
+    const first = await runFlairBackfill(db, draws, { limit: 2 });
+    expect(first).toMatchObject({ players: 2, next: bob.id });
+    expect(await earned(carol.id)).toEqual([]);
+    expect(await recorded()).toEqual([]);
+
+    const rest = await runFlairBackfill(db, draws, { afterUserId: bob.id, limit: 2 });
+    expect(rest).toMatchObject({ players: 1, next: null });
+    expect(await earned(carol.id)).toEqual([['draws_10', tenth.id]]);
+    expect(await recorded()).toEqual([['draws_10', 1]]);
   });
 
   it('records nothing when a player fails, and keeps earlier players’ awards', async () => {
@@ -314,6 +333,40 @@ describe('backfill_flair', () => {
     expect(await recorded()).toEqual([['draws_10', 1]]);
     const [job] = await db.select().from(jobs);
     expect(job!.doneAt).not.toBeNull();
+  });
+
+  it('runs a chunk per lease, keeping its place in the payload, without counting attempts', async () => {
+    const { group, alice, bob } = await players();
+    const tenth = await tenDraws(group.id, alice.id, bob.id, 2);
+    await enqueue(db, {
+      kind: 'backfill_flair',
+      payload: { flair: [{ id: 'draws_10', version: 1 }] },
+      dedupKey: 'flair:backfill:draws_10@1',
+    });
+    const chunked = new JobWorker({
+      db,
+      log: deps.log,
+      handlers: { backfill_flair: backfillFlairHandler(deps, { chunk: 1 }) },
+      workerId: 'w',
+    });
+
+    await chunked.runOnce();
+    const [waiting] = await db.select().from(jobs);
+    expect(waiting!.doneAt).toBeNull();
+    expect(waiting!.attempts).toBe(0);
+    expect(waiting!.payload).toEqual({
+      flair: [{ id: 'draws_10', version: 1 }],
+      afterUserId: alice.id,
+    });
+    expect(await earned(alice.id)).toEqual([['draws_10', tenth.id]]);
+    expect(await earned(bob.id)).toEqual([]);
+    expect(await recorded()).toEqual([]);
+
+    for (let i = 0; i < 3 && (await db.select().from(jobs))[0]!.doneAt === null; i += 1)
+      await chunked.runOnce();
+    expect((await db.select().from(jobs))[0]!.doneAt).not.toBeNull();
+    expect(await earned(bob.id)).toEqual([['draws_10', tenth.id]]);
+    expect(await recorded()).toEqual([['draws_10', 1]]);
   });
 
   it('leaves a job from a newer build for a newer worker', async () => {

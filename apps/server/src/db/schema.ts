@@ -233,6 +233,15 @@ export const userFlair = pgTable(
 );
 
 /**
+ * No longer read (backfill spec §2). Kept until a later release drops it, because the previous
+ * image still writes it at boot and must be able to start after a rollback.
+ */
+export const flairIntroductions = pgTable('flair_introductions', {
+  flairId: text().primaryKey(),
+  introducedAt: tz().notNull().defaultNow(),
+});
+
+/**
  * Backfill spec §2: the highest backfill version completed for each flair id. A catalog flair
  * whose version is above its row, or that has no row, is pending.
  */

@@ -67,8 +67,9 @@ Migration `0008_flair_backfill`:
 | `version` | integer, not null | The highest version completed |
 | `completed_at` | timestamptz, not null, default `now()` | When it last completed |
 
-**`flair_introductions` is dropped.** With every flair retroactive it has no reader.
-`recordFlairIntroductions` and `loadIntroductions` are deleted.
+**`flair_introductions` is no longer read**, but migration `0008` keeps it: the previous image
+writes it at boot, so dropping it now would stop a rollback from starting. A later release drops
+it. `recordFlairIntroductions` and `loadIntroductions` are deleted.
 
 A catalog flair is **pending** when `flair_backfills` has no row for its id, or the row's `version`
 is below `flairBackfillVersion(flair)`. `pendingBackfills(db)` in `apps/server/src/flair/backfill.ts`
@@ -111,8 +112,11 @@ records a pair it could not evaluate.
 ### 4.2 The walk
 
 The job lists the eligible players: not the bot, not deleted, and with at least one counted game.
-It processes them one at a time in ascending id order. Nothing is locked, and each player's writes
-are a single statement.
+It processes them one at a time in ascending id order, **50 per run**. The worker runs its jobs one
+at a time, so after each chunk the job stores the last player's id in its payload (`afterUserId`)
+and returns `{ outcome: 'retry', delayMs: 0 }`: other due jobs such as bot moves and messages run
+before the next chunk, no attempt is counted, and a retry after a failure resumes from the saved
+player. Nothing is locked, and each player's writes are a single statement.
 
 For each player:
 
@@ -146,7 +150,7 @@ same `earned_at`, and then the row on record stays.
 
 ### 4.3 Finishing
 
-After the last player:
+After the last chunk:
 
 1. **Sweep.** Delete `user_flair` rows whose user is deleted. The walk takes no lock, so it can
    insert a row for a player whose Delete my data commits at the same moment. Nobody could see such
@@ -182,7 +186,7 @@ live award got there first.
 | A deploy while a backfill is running | A different pending set and key: its own job. Overlapping work is idempotent |
 | An older build's worker leases the job | `retry` after 30 s (§4.1). Nothing is recorded |
 | A rule or detector throws for one player | The job retries with the queue's backoff, then fails and is logged (`jobs_failed_total{kind="backfill_flair"}`). Players already processed keep their awards. The pairs stay pending and the next boot enqueues them again |
-| The job is retried after a partial run | The walk rewrites nothing that is already right, so players already processed are unchanged |
+| The job is retried after a partial run | It resumes after the last chunk saved. Rewalking a player changes nothing that is already right |
 | A player deletes their data during the backfill | The sweep removes any row inserted after their deletion (§4.3) |
 | A live award and the backfill for the same player at once | Both write `user_flair` with conflict handling. The earliest qualifying game wins (§5) |
 | A flair removed from the catalog | Never pending; its `flair_backfills` row is ignored |
