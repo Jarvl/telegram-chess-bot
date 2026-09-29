@@ -4,7 +4,6 @@ import type { DbOrTx } from '../db/client';
 import { userFlair, users, type GameRow, type UserRow } from '../db/schema';
 import { listMoves, requireGameById } from '../domain/games';
 import { isCountedGame, loadCountedGames } from './history';
-import { loadIntroductions } from './introductions';
 import type { StoredMove } from './patterns';
 import { ruleHolds } from './rules';
 import { fillFreeSlots } from './worn';
@@ -14,7 +13,6 @@ type Scoring = {
   game: GameRow;
   finishedAt: Date;
   moves: readonly StoredMove[];
-  introductions: ReadonlyMap<string, Date>;
 };
 
 /** A player's row as it was when the award locked it. */
@@ -38,7 +36,6 @@ export async function awardFlairForGame(
     game,
     finishedAt: game.finishedAt,
     moves: await listMoves(tx, game.id),
-    introductions: await loadIntroductions(tx),
   };
   // Both players' rows are locked before anything is read about either, in one statement and in
   // ascending id order whatever their colours (spec §3.2 step 2): two awards for the same pair of
@@ -69,7 +66,7 @@ export async function awardFlairForGame(
 /** Flair spec §3.2 step 3: scores one player of the game, stores what they earned and wears it. */
 async function awardToPlayer(
   tx: DbOrTx,
-  { game, finishedAt, moves, introductions }: Scoring,
+  { game, finishedAt, moves }: Scoring,
   side: Colour,
   player: LockedPlayer,
   random: () => number,
@@ -82,32 +79,18 @@ async function awardToPlayer(
     .from(userFlair)
     .where(eq(userFlair.userId, userId));
   const held = new Set(heldRows.map((row) => row.flairId));
-  // A flair is only earnable from games that finished at or after its introduction (spec §1.5).
-  const candidates = FLAIR.flatMap((flair) => {
-    const introducedAt = introductions.get(flair.id);
-    return introducedAt !== undefined && introducedAt <= finishedAt && !held.has(flair.id)
-      ? [{ flair, introducedAt }]
-      : [];
-  });
+  // Every flair not yet held is a candidate, scored on the player's whole history (backfill spec §5).
+  const candidates = FLAIR.filter((flair) => !held.has(flair.id));
   if (candidates.length === 0) return;
 
-  // One load serves every candidate: from the earliest introduction, each flair windows it below.
-  const from = new Date(Math.min(...candidates.map(({ introducedAt }) => introducedAt.getTime())));
-  const counted = await loadCountedGames(tx, userId, { from, through: game });
+  const counted = await loadCountedGames(tx, userId, { through: game });
   const current = counted.at(-1);
   // The rules need this game last (spec §1.6). It is missing if it was voided since it was read.
   if (current === undefined || current.id !== game.id) return;
 
   const earned = candidates
-    .filter(({ flair, introducedAt }) =>
-      ruleHolds(flair.rule, {
-        game: current,
-        history: counted.filter((past) => past.finishedAt >= introducedAt),
-        moves,
-        side,
-      }),
-    )
-    .map(({ flair }) => flair.id);
+    .filter((flair) => ruleHolds(flair.rule, { game: current, history: counted, moves, side }))
+    .map((flair) => flair.id);
   if (earned.length === 0) return;
 
   const inserted = await tx

@@ -57,6 +57,13 @@
       "when": 1790711953775,
       "tag": "0007_flair",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790720859672,
+      "tag": "0008_flair_backfill",
+      "breakpoints": true
     }
   ]
 }

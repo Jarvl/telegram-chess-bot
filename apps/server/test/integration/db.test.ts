@@ -5,7 +5,6 @@ import { runMigrations } from '../../src/db/migrate';
 import { jobs, tips, userFlair, users } from '../../src/db/schema';
 import { listMoves, requireGameById } from '../../src/domain/games';
 import { storePhoto } from '../../src/domain/photos';
-import { loadIntroductions } from '../../src/flair/introductions';
 import { openTestDb, truncateAll } from '../helpers/db';
 import { insertGame, insertGroup, insertUser } from '../helpers/fixtures';
 import { FIXTURE_JPEG } from '../helpers/photos';
@@ -30,7 +29,7 @@ describe('database', () => {
   });
 
   it("truncates while a flair award holds its players' rows, without deadlocking", async () => {
-    // The award job reads the game, its moves and the introductions, locks both players' `users`
+    // The award job reads the game and its moves, locks both players' `users`
     // rows, then writes `user_flair`; truncateAll must take those tables in that order.
     const group = await insertGroup(db);
     const white = await insertUser(db);
@@ -40,7 +39,6 @@ describe('database', () => {
     await db.transaction(async (tx) => {
       await requireGameById(tx, game.id);
       await listMoves(tx, game.id);
-      await loadIntroductions(tx);
       await tx
         .select()
         .from(users)
@@ -65,7 +63,7 @@ describe('database', () => {
       'admin_actions',
       'board_images',
       'challenges',
-      'flair_introductions',
+      'flair_backfills',
       'games',
       'group_members',
       'groups',

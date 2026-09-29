@@ -1,5 +1,5 @@
 import type { GameResult, PlayerResult } from '@group-chess/shared';
-import { and, asc, eq, gte, inArray, isNull, lt, lte, or } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, lt, lte, or } from 'drizzle-orm';
 import type { DbOrTx } from '../db/client';
 import { games, type GameRow } from '../db/schema';
 import type { CountedGame } from './rules';
@@ -30,8 +30,10 @@ export function isCountedGame(
   );
 }
 
-/** `isCountedGame` as a condition on `games`. */
-const COUNTED = and(
+/**
+ * `isCountedGame` as a condition on `games`; the backfill lists players by it (backfill spec §4.2).
+ */
+export const COUNTED = and(
   eq(games.status, 'finished'),
   isNull(games.voidedAt),
   inArray(games.result, [...DECIDED_RESULTS]),
@@ -45,20 +47,20 @@ function resultFor(result: DecidedResult, white: boolean): PlayerResult {
 }
 
 /**
- * The player's counted games (flair spec §1.3) from `window.from` (inclusive) up to and including
- * `window.through`, oldest first. The order and the cut both use `(finished_at, id)`, so of games
+ * The player's counted games (flair spec §1.3), oldest first: all of them, or with `through` those
+ * up to and including that game. The order and the cut both use `(finished_at, id)`, so of games
  * that finished at the same instant the lower ids come first and any above `through` are left out.
  * A rule therefore sees no game after the one it is scored at, and that game, when it counts, is
- * the last entry (spec §1.6).
+ * the last entry (spec §1.6). Every earlier game counts, however long ago (backfill spec §5).
  */
 export async function loadCountedGames(
   tx: DbOrTx,
   userId: number,
-  window: { from: Date; through: Pick<GameRow, 'id' | 'finishedAt'> },
+  window: { through?: Pick<GameRow, 'id' | 'finishedAt'> } = {},
 ): Promise<CountedGame[]> {
-  const { from, through } = window;
-  const throughAt = through.finishedAt;
-  if (throughAt === null) throw new Error(`game ${through.id} has no finish time`);
+  const { through } = window;
+  const throughAt = through?.finishedAt;
+  if (through && throughAt === null) throw new Error(`game ${through.id} has no finish time`);
   const rows = await tx
     .select({
       id: games.id,
@@ -74,11 +76,12 @@ export async function loadCountedGames(
       and(
         or(eq(games.whiteId, userId), eq(games.blackId, userId)),
         COUNTED,
-        gte(games.finishedAt, from),
-        or(
-          lt(games.finishedAt, throughAt),
-          and(eq(games.finishedAt, throughAt), lte(games.id, through.id)),
-        ),
+        through && throughAt
+          ? or(
+              lt(games.finishedAt, throughAt),
+              and(eq(games.finishedAt, throughAt), lte(games.id, through.id)),
+            )
+          : undefined,
       ),
     )
     .orderBy(asc(games.finishedAt), asc(games.id));
@@ -89,7 +92,7 @@ export async function loadCountedGames(
         (row): row is typeof row & { finishedAt: Date; result: DecidedResult } =>
           row.finishedAt !== null && isDecided(row.result),
       )
-      .map((row) => {
+      .map((row): CountedGame => {
         const white = row.whiteId === userId;
         return {
           id: row.id,
@@ -98,6 +101,7 @@ export async function loadCountedGames(
           result: resultFor(row.result, white),
           // The rating this side left the game with, unrounded; null when the game left none.
           ratingAfter: white ? row.whiteRatingAfter : row.blackRatingAfter,
+          side: white ? 'white' : 'black',
         };
       })
   );

@@ -17,6 +17,7 @@ const game = (id: number, result: PlayerResult, over: Partial<CountedGame> = {})
   rated: true,
   result,
   ratingAfter: null,
+  side: 'white',
   ...over,
 });
 /** Scores the last game of `history`. */

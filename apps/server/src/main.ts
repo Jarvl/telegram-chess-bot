@@ -18,7 +18,6 @@ import { runMigrations } from './db/migrate';
 import type { Deps } from './domain/deps';
 import type { Engine } from './engine/engine';
 import { uciEngine } from './engine/uci';
-import { recordFlairIntroductions } from './flair/introductions';
 import { loadFonts } from './images/fonts';
 import {
   coreJobHandlers,
@@ -93,8 +92,6 @@ export async function startServer(
   });
   if (reset) log.warn('the database had migrations this build lacks, so it was wiped and rebuilt');
   const { db, close } = createDb(config.DATABASE_URL);
-  // Flair spec §3.1: a flair counts only games that finish after the first boot that knows it.
-  await recordFlairIntroductions(db);
   const deps: Deps = { db, bus: new LocalBus(), log };
   const metrics = new Metrics({ db });
 

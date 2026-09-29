@@ -10,7 +10,6 @@ import { games, ratings, userFlair, users } from '../../src/db/schema';
 import { runMigrations } from '../../src/db/migrate';
 import { touchMember } from '../../src/domain/members';
 import { storePhoto } from '../../src/domain/photos';
-import { recordFlairIntroductions } from '../../src/flair/introductions';
 import { startServer } from '../../src/main';
 import { testConfig } from '../helpers/config';
 import { openTestDb, truncateAll } from '../helpers/db';
@@ -64,17 +63,7 @@ async function main(): Promise<void> {
   if (!url) throw new Error('TEST_DATABASE_URL must be set for the e2e harness');
   await runMigrations(url);
   const { db, close } = openTestDb();
-  /**
-   * Empties every table and records the flair introductions again. The truncate empties
-   * `flair_introductions`, which the server records only at boot, and a flair only sees games that
-   * finish after its introduction (spec §1.5): without them, a game that ends during a test would
-   * earn nothing. So every truncate here goes through this.
-   */
-  const wipe = async (): Promise<void> => {
-    await truncateAll(db);
-    await recordFlairIntroductions(db);
-  };
-  await wipe();
+  await truncateAll(db);
   const fake = await FakeTelegram.start();
   for (const user of Object.values(TELEGRAM_USERS)) fake.members.set(user.id, 'member');
   fake.admins = [TELEGRAM_USERS.alice.id];
@@ -96,7 +85,7 @@ async function main(): Promise<void> {
   );
 
   const seed = async (request: SeedRequest) => {
-    await wipe();
+    await truncateAll(db);
     fake.reset();
     for (const user of Object.values(TELEGRAM_USERS)) fake.members.set(user.id, 'member');
     fake.admins = [TELEGRAM_USERS.alice.id];
@@ -220,7 +209,7 @@ async function main(): Promise<void> {
         try {
           if (path === '/health') return reply(200, { ok: true });
           if (path === '/reset') {
-            await wipe();
+            await truncateAll(db);
             fake.reset();
             return reply(200, { ok: true });
           }
