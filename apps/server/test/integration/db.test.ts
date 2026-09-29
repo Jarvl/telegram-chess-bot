@@ -21,6 +21,7 @@ describe('database', () => {
       'admin_actions',
       'board_images',
       'challenges',
+      'flair_introductions',
       'games',
       'group_members',
       'groups',
@@ -30,6 +31,7 @@ describe('database', () => {
       'shares',
       'telegram_updates',
       'tips',
+      'user_flair',
       'users',
     ]);
   });
@@ -67,6 +69,9 @@ describe('database', () => {
     expect(row?.passed).toBe(true);
     expect(game.publicId).toHaveLength(10);
   });
+
+  it('starts a user with no worn flair', async () =>
+    expect((await insertUser(db)).flairWorn).toEqual([]));
 });
 
 describe('tips table', () => {
