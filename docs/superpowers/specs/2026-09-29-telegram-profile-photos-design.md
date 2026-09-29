@@ -44,7 +44,7 @@ Telegram's 160×160 JPEG is about 5–15 KB.
 |---|---|---|
 | `user_id` | bigint, primary key, references `users.id` | One row per user once checked. |
 | `file_unique_id` | text, nullable | Telegram's stable id for the photo. |
-| `hash` | text, nullable, unique | Lowercase hex SHA-256 of `bytes`. |
+| `hash` | text, nullable, indexed (not unique) | Lowercase hex SHA-256 of `bytes`. Two users can have byte-identical photos, so a unique index would fail the second one's fetch. |
 | `bytes` | bytea, nullable | The 160×160 JPEG. |
 | `checked_at` | timestamptz, not null | When Telegram was last asked. |
 
@@ -115,8 +115,8 @@ logged or sent to a client.
 - Responds `200` with `Content-Type: image/jpeg` and
   `Cache-Control: public, max-age=31536000, immutable`. The URL changes whenever the photo does, so
   a year-long cache is safe. The global `X-Content-Type-Options: nosniff` already applies.
-- No session means no per-user rate limit. The hash cannot be guessed, and the lookup is a unique
-  index read.
+- No session means no per-user rate limit. The hash cannot be guessed, and the lookup is an indexed
+  read; any row with the hash will do, since the bytes are identical.
 - The Mini App's CSP already allows `img-src 'self'`; it does not change.
 
 ### `PlayerRef.photoUrl`
