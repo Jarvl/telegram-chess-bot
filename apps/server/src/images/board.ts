@@ -61,6 +61,17 @@ function origin(file: number, rank: number, orientation: Colour): { x: number; y
   return { x: column * SQUARE, y: row * SQUARE };
 }
 
+/** A square's top-left corner in the rendered image, in pixels. */
+export function squarePixel(
+  file: number,
+  rank: number,
+  orientation: Colour,
+): { x: number; y: number } {
+  const { x, y } = origin(file, rank, orientation);
+  const scale = IMAGE_SIZE / (8 * SQUARE);
+  return { x: x * scale, y: y * scale };
+}
+
 const rect = (cls: string | null, x: number, y: number, fill: string): string =>
   `<rect ${cls ? `class="${cls}" ` : ''}x="${x}" y="${y}" width="${SQUARE}" height="${SQUARE}" fill="${fill}"/>`;
 
