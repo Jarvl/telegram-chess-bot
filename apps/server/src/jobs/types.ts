@@ -13,6 +13,7 @@ export const JOB_KINDS = [
   'send_message',
   'engine_move',
   'lichess_import',
+  'award_flair',
   'rebuild_ratings',
   'prune',
 ] as const;

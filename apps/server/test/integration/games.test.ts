@@ -221,6 +221,7 @@ describe('resign, abort, void', () => {
       ['edit_card', `card:g:${game.publicId}`, { gameId: game.id }],
       ['send_result_photo', `result:g:${game.publicId}`, { gameId: game.id }],
       ['lichess_import', `lichess:${game.publicId}`, { gameId: game.id }],
+      ['award_flair', `flair:g:${game.publicId}`, { gameId: game.id }],
     ]);
   });
 
