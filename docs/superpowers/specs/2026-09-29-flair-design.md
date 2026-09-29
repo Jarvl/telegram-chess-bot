@@ -45,6 +45,7 @@ Delivered as one PR against `main`.
   its template, and are not used.
 - **Leaderboard rows**: the prototype's lobby lists people; the app's lobby has a Leaderboard link
   instead, so leaderboard flair appears on the Leaderboard screen.
+- **Earned dates read month first** ("Aug 12", en-US) where the prototype shows "12 Aug" (§5.5).
 
 ## 1. The catalog
 
@@ -291,7 +292,8 @@ before the flair does: flair is `flex: none`, using the `.name-row` technique.
 | `PlayerRow` on the Leaderboard screen | 15 px | After the name |
 | The player page header | 20 px | After the name |
 
-Flair is drawn with a letter-spacing of 1 px (2 px on the player page), as in the prototype.
+The emojis sit 1 px apart (2 px on the player page), as in the prototype, spaced with a flex
+`gap` rather than `letter-spacing`, which can split ZWJ sequences such as 🧑‍🦼.
 
 ### 5.2 The Settings row
 
@@ -321,8 +323,8 @@ on mount, with the usual Loading and ErrorScreen states.
     greyscale at 45% opacity when locked;
   - the description, in `--hint` when locked;
   - when earned, a line in `--acc-text`: "Earned Jan 2026" for the rank ladder,
-    "Earned vs @tom_rook · 12 Aug" for the other categories, with the year added when it is not
-    the current year;
+    "Earned vs @tom_rook · Aug 12" for the other categories, with the year added when it is not
+    the current year ("Dec 30, 2025");
   - on the right: a ✓ badge (in the selected slot), a "Slot N" chip (worn in another slot), an
     empty ring (earned, not worn) or a "Locked" chip.
 - **Tapping an earned row** gives a selection haptic and applies the slot logic (§5.4). The app
@@ -356,8 +358,11 @@ New strings in `en.ts`:
 - `flair.category.*` (§1.2)
 - the 14 `flair.<id>` descriptions
 
-Dates are formatted as `en-GB`: short month and year for the rank ladder, day and short month
-otherwise.
+Dates are formatted with `Intl.DateTimeFormat('en-US')`, month first: `{ month: 'short', year:
+'numeric' }` for the rank ladder ("Jan 2026"), `{ month: 'short', day: 'numeric' }` otherwise
+("Aug 12"), with `year: 'numeric'` added when the date is not in the current year
+("Dec 30, 2025"). en-US is used because its abbreviations match the prototype's ("Sep"; en-GB
+gives "Sept").
 
 `app.settings.delete_confirm` gains nothing: flair is part of "your data".
 
@@ -429,7 +434,7 @@ redesign's tokens; the chips reuse `.tag`.
   - the 390 px no-overflow screens spec covers the Flair screen in light and dark;
   - it also covers a game screen and a leaderboard whose players wear three flair and have long
     names;
-  - the fake API serves `GET` and `PUT /api/me/flair`.
+  - the end-to-end harness can seed earned and worn flair for its players.
 - **Gates:** the full check suite passes (lint, format, typecheck, tests, bundle budget,
   licences), followed by a visual pass in the browser against the prototype.
 
