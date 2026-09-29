@@ -11,8 +11,10 @@ export function openTestDb(): ReturnType<typeof createDb> {
 }
 
 export async function truncateAll(db: Db): Promise<void> {
+  // `user_photos` is left to the cascade from `users`: listing it first would lock it before
+  // `users`, the reverse of the photo job's order, and the two could deadlock.
   await db.execute(
-    sql`truncate table user_photos, tips, admin_actions, shares, board_images, moves, games, challenges, ratings, group_members, jobs, telegram_updates, groups, users restart identity cascade`,
+    sql`truncate table tips, admin_actions, shares, board_images, moves, games, challenges, ratings, group_members, jobs, telegram_updates, groups, users restart identity cascade`,
   );
   // The engine user is created by migration 0002, not by any test — truncating `users`
   // removes it, so put it back to keep the helper's contract "empty database, plus the

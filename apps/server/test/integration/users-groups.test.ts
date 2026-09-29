@@ -224,6 +224,18 @@ describe('photo refresh', () => {
     expect(await pendingFetches()).toHaveLength(1);
   });
 
+  it('leaves a pending fetch and its backoff alone when the user is seen again', async () => {
+    const user = await ensureUser(db, alice);
+    await db
+      .update(jobs)
+      .set({ runAt: sql`now() + interval '1 hour'`, attempts: 3, lastError: 'telegram 429' })
+      .where(eq(jobs.dedupKey, `photo:${user.id}`));
+    await ensureUser(db, alice);
+    const [job] = await pendingFetches();
+    expect(job).toMatchObject({ attempts: 3, lastError: 'telegram 429' });
+    expect(job!.runAt.getTime()).toBeGreaterThan(Date.now() + 30 * 60_000);
+  });
+
   it('never queues the engine user', async () => {
     const [engine] = await db.select().from(users).where(eq(users.isEngine, true));
     await queuePhotoRefresh(db, engine!);

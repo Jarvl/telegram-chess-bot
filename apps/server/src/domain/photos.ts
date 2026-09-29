@@ -38,6 +38,8 @@ export async function queuePhotoRefresh(
     kind: 'fetch_user_photo',
     payload: { userId: user.id },
     dedupKey: `photo:${user.id}`,
+    // A pending check keeps its backoff: seeing the user again is not a new reason to ask Telegram.
+    rearm: false,
   });
 }
 
