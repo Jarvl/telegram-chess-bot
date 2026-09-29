@@ -2,6 +2,7 @@ import type { RegisterRoutes } from '../app';
 import { adminRoutes } from './admin';
 import { challengeRoutes } from './challenges';
 import { eventsRoutes } from './events';
+import { flairRoutes } from './flair';
 import { gamesRoutes } from './games';
 import { groupsRoutes } from './groups';
 import { tipRoutes } from './tips';
@@ -14,4 +15,5 @@ export const gameRoutes: RegisterRoutes[] = [
   eventsRoutes,
   adminRoutes,
   tipRoutes,
+  flairRoutes,
 ];

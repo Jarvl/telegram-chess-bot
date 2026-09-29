@@ -1,6 +1,6 @@
 import { and, eq, or, sql } from 'drizzle-orm';
 import { dbNow } from '../db/client';
-import { challenges, games, groupMembers, users } from '../db/schema';
+import { challenges, games, groupMembers, userFlair, users } from '../db/schema';
 import type { Deps } from './deps';
 import { colourOf } from './gameDto';
 import { finishGame } from './games';
@@ -60,11 +60,16 @@ export async function deleteMyData(deps: Deps, userId: number): Promise<void> {
         username: null,
         firstName: 'Deleted player',
         prefs: {},
+        flairWorn: [],
         dmAllowed: false,
         writeAccessAskedAt: null,
         deletedAt: now,
       })
       .where(eq(users.id, userId));
+    // Flair spec §3.4. The update above takes the row lock, which an award job for this player also
+    // holds while it inserts `user_flair` rows. Deleting only after it has the lock means such a job
+    // has committed and this sees its rows; a job that starts later finds `deleted_at` set (§3.2).
+    await tx.delete(userFlair).where(eq(userFlair.userId, userId));
     await tx.update(groupMembers).set({ status: 'left' }).where(eq(groupMembers.userId, userId));
     return publicIds;
   });
