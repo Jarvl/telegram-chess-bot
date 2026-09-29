@@ -31,8 +31,8 @@ jobs:
     env:
       TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/group_chess_test
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
@@ -41,7 +41,7 @@ jobs:
       - run: pnpm lint
       - run: pnpm format:check
       - run: pnpm typecheck
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: |
             apps/server/fonts/*.ttf

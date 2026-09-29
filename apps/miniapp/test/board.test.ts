@@ -45,7 +45,20 @@ describe('boardConfig', () => {
     );
     expect(config.movable?.color).toBeUndefined();
     expect(config.viewOnly).toBe(true);
-    expect(config.check).toBe(true);
+    expect(config.check).toBe('black');
+  });
+
+  it('marks the checked king, not the turn colour, when they differ (premove mode)', () => {
+    // White's knight just checked from a7; White is premoving, so the turn colour is White.
+    const fen = '2kr3r/Npp1n1bp/2q1p1p1/3p1p2/3P4/3BP3/PPP2PPP/R1BQ1RK1 b - - 1 16';
+    const config = boardConfig(
+      { fen, lastMove: ['b5', 'a7'], check: true, orientation: 'white', turnColour: 'white' },
+      { colour: 'white', dests: new Map() },
+      false,
+      () => undefined,
+    );
+    expect(config.turnColor).toBe('white');
+    expect(config.check).toBe('black');
   });
 });
 

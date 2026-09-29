@@ -112,7 +112,7 @@ describe('LaunchRouteSchema', () => {
 describe('GroupSettingsSchema', () => {
   it('accepts the defaults', () => {
     expect(GroupSettingsSchema.parse(GROUP_SETTINGS_DEFAULTS)).toEqual({
-      defaultTimePerMove: 86400,
+      defaultTimePerMove: 259200,
       ratedDefault: true,
       allowOpenChallenges: true,
       leaderboardMinGames: 5,

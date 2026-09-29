@@ -34,6 +34,7 @@ import {
 import { noteServerTime, prefs } from '../../state/session';
 import { useApp } from '../context';
 import { confirmDialog } from '../dialog';
+import { termsLabel } from '../format';
 import { toast } from '../toast';
 import { Board } from './Board';
 import { MoveList } from './MoveList';
@@ -553,6 +554,8 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
   const drawOpen = canOffer && !early && dto.engineLevel === null;
   const moveButtons = moveState.kind === 'pendingConfirm' && (inPage.confirm || inPage.cancel);
 
+  // Material counts real moves up to the shown ply: never a pending move or a shown premove.
+  const shownFen = store.position.value.fen;
   const end = store.timelineEnd.value;
   const at = store.timelineAt.value;
   const view = (index: number): void => {
@@ -563,7 +566,13 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
 
   return (
     <div class="game">
-      <PlayerBar dto={dto} colour={top} now={now} />
+      <div class="game-meta">
+        {t('app.game.meta', {
+          group: dto.group.title,
+          terms: termsLabel(dto.timePerMove, dto.rated),
+        })}
+      </div>
+      <PlayerBar dto={dto} colour={top} fen={shownFen} now={now} />
       <Board
         store={store}
         onMove={onDrop}
@@ -605,7 +614,7 @@ export function GameView(props: { initial: GameDto; onReload: () => Promise<Game
           </div>
         ) : null}
       </Board>
-      <PlayerBar dto={dto} colour={orientation} now={now} />
+      <PlayerBar dto={dto} colour={orientation} fen={shownFen} now={now} />
       <MoveList
         store={store}
         locked={moveState.kind === 'pendingConfirm'}

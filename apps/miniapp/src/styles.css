@@ -740,10 +740,12 @@ button {
 /* Game screen (Task 5) */
 /* Every game has the replay slider row (38px) under the moves, and the icon bar, which stands 20px
    taller than the pill row the 200px budget was set for. The board gives both back, plus the 10px
-   the budget already ran short by on a 667px phone, so the bar clears the tab bar. */
+   the budget already ran short by on a 667px phone, so the bar clears the tab bar. The group and
+   terms line above the top bar (23px) and the 6px each bar's material line adds come off it too. */
 .game {
   --replay-row: 48px;
   --icon-bar-extra: 20px;
+  --meta-rows: 34px;
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -756,7 +758,7 @@ button {
     100vw,
     calc(
       var(--stable-height) - 200px - var(--board-reserve) - var(--replay-row) -
-        var(--icon-bar-extra)
+        var(--icon-bar-extra) - var(--meta-rows)
     )
   );
   max-width: 640px;
@@ -851,8 +853,62 @@ button {
   font-size: 14px;
 }
 
-.player-bar .sub {
+.game-meta {
+  padding: 6px 16px 0;
   font-size: 12px;
+  color: var(--hint);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Captured pieces, the +N lead and the move/result text. Always 18px tall, so the bar keeps its
+   height as pieces come and go. */
+.player-bar .line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 18px;
+  margin-top: 2px;
+  font-size: 12px;
+  min-width: 0;
+}
+
+.player-bar .captured {
+  display: flex;
+  flex: none;
+  padding-right: 7px;
+}
+
+.player-bar .captured piece {
+  position: static;
+  display: block;
+  width: 18px;
+  height: 18px;
+  margin-right: -7px;
+  transform: none;
+  background-size: cover;
+}
+
+/* A thin halo keeps the overlapping pieces apart, and black ones legible on a dark page. */
+.player-bar .captured piece.black {
+  filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.9))
+    drop-shadow(0 0 1px rgba(255, 255, 255, 0.6));
+}
+
+.player-bar .captured piece.white {
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.5));
+}
+
+.player-bar .lead {
+  flex: none;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.player-bar .sub {
+  min-width: 0;
   color: var(--hint);
   white-space: nowrap;
   overflow: hidden;

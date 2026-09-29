@@ -1,12 +1,14 @@
 # syntax=docker/dockerfile:1.7
 # Spec §4.4: multi-stage — build the Mini App, then a runtime image with the server and the bundle.
-FROM node:22-bookworm-slim AS base
+FROM node:26-bookworm-slim AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 # A shared cache, not root's home: the runtime runs as `node`, which must find this pnpm already
 # prepared (for `pnpm run refund-tip`) instead of downloading it on first use.
 ENV COREPACK_HOME=/corepack
-RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
+# Node 25+ no longer bundles corepack, so install a pinned copy from npm first.
+RUN npm install -g corepack@0.36.0 \
+    && corepack enable && corepack prepare pnpm@10.33.0 --activate
 WORKDIR /app
 
 FROM base AS build

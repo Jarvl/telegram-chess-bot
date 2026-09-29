@@ -136,7 +136,7 @@ describe('/challenge', () => {
       challengerId: people[0]!.id,
       opponentId: people[1]!.id,
       threadId: 77,
-      timePerMove: 86400,
+      timePerMove: 259200,
       rated: true,
       challengerColour: 'random',
     });
