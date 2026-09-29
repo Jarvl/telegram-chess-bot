@@ -1,3 +1,4 @@
+import { FLAIR } from '@group-chess/shared';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createApiClient } from '../src/api/client';
 import {
@@ -51,13 +52,21 @@ describe('wearFlair', () => {
 });
 
 describe('unlockedPercent', () => {
+  const earning = (ids: readonly string[]) =>
+    ids.map((id) => ({ id, earnedAt: '2026-04-10T12:00:00.000Z', opponent: '@tom' }));
   it('counts the earned flair the catalog knows, out of the whole catalog', () => {
-    const earned = ['rank_1500', 'en_passant_win', 'draws_10', 'retired_flair'].map((id) => ({
-      id,
-      earnedAt: '2026-04-10T12:00:00.000Z',
-      opponent: '@tom',
-    }));
-    expect(unlockedPercent({ worn: [], earned })).toBe(21);
+    const earned = earning(['rank_1500', 'en_passant_win', 'draws_10', 'retired_flair']);
+    // Three of the four are in the catalog, whatever its size (21% of the 14 at launch).
+    expect(unlockedPercent({ worn: [], earned })).toBe(Math.round((100 * 3) / FLAIR.length));
+  });
+  it('is 0 with nothing earned and 100 with every flair in the catalog earned', () => {
+    expect(unlockedPercent({ worn: [], earned: [] })).toBe(0);
+    const everything = FLAIR.map((flair) => flair.id);
+    expect(unlockedPercent({ worn: [], earned: earning(everything) })).toBe(100);
+    // An id the catalog no longer has cannot take the share past 100.
+    expect(unlockedPercent({ worn: [], earned: earning([...everything, 'retired_flair']) })).toBe(
+      100,
+    );
   });
 });
 

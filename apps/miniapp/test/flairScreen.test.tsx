@@ -56,7 +56,7 @@ describe('Flair screen', () => {
       'Feats',
       'Dubious honours',
     ]);
-    expect(r.root.querySelectorAll('[data-flair]')).toHaveLength(14);
+    expect(r.root.querySelectorAll('[data-flair]')).toHaveLength(FLAIR.length);
     expect(row(r, 'rank_1500').textContent).toContain('Earned Apr 2026');
     expect(row(r, 'rank_1500').querySelector('.flair-check')).not.toBeNull();
     expect(row(r, 'en_passant_win').textContent).toContain('Earned vs @tom_rook · Aug 12');
@@ -158,8 +158,15 @@ describe('Flair screen', () => {
     const disabled = [...r.root.querySelectorAll<HTMLButtonElement>('[data-flair]')]
       .filter((button) => button.disabled)
       .map((button) => button.getAttribute('data-flair'));
+    // Rows are listed by category, in `FLAIR_CATEGORIES` order, and in catalog order within each: a
+    // flair added at the end of the catalog is still listed with its own category.
     expect(disabled).toEqual(
-      FLAIR.map((flair) => flair.id).filter((id) => !EARNED.some((earned) => earned.id === id)),
+      FLAIR_CATEGORIES.flatMap((category) =>
+        FLAIR.filter(
+          (flair) =>
+            flair.category === category && !EARNED.some((earned) => earned.id === flair.id),
+        ).map((flair) => flair.id),
+      ),
     );
   });
   it('groups the rows by category, in catalog order', async () => {

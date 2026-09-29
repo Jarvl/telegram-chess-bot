@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { t } from '@group-chess/shared';
+import { FLAIR, t } from '@group-chess/shared';
 import { myFlair } from '../src/state/flair';
 import { prefs } from '../src/state/session';
 import { Settings } from '../src/ui/screens/Settings';
@@ -248,7 +248,8 @@ describe('Settings', () => {
     expect(flairRow().textContent).toContain('Flair');
     expect(flairRow().textContent).not.toContain('unlocked');
     await r.flush();
-    expect(flairRow().textContent).toContain('21% unlocked');
+    // FLAIR_DTO has earned three of the catalog's flair, whatever its size (21% of the 14 at launch).
+    expect(flairRow().textContent).toContain(`${Math.round((100 * 3) / FLAIR.length)}% unlocked`);
     expect(flairRow().querySelector('.flair')?.textContent).toBe('🚶👑');
     await r.click('[data-action="flair"]');
     expect(r.app.router.current.value).toEqual({ name: 'flair' });

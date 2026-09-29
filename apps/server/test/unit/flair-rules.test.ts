@@ -79,6 +79,13 @@ describe('won and lost', () => {
         at([game(1, 'draw')], { moves: play(PROMOTION_FEN, 'e7e8q'), side: 'black' }),
       ),
     ).toBe(false);
+    // The pattern has to be the opponent's: White promoted and still lost, and Black did not.
+    expect(
+      ruleHolds(
+        lost('promotion'),
+        at([game(1, 'loss')], { moves: play(PROMOTION_FEN, 'e7e8q'), side: 'white' }),
+      ),
+    ).toBe(false);
   });
 });
 
@@ -133,6 +140,12 @@ describe('streak', () => {
       ruleHolds(five, at([...ratedWins(1, 2, 3, 4, 5), game(6, 'loss'), game(7, 'win')])),
     ).toBe(false);
   });
+  it('runs on the rule’s own result, not only on wins', () =>
+    // Two losses in a row, the second casual, which a streak that does not ask for rated games
+    // counts.
+    expect(
+      ruleHolds(streak('loss', 2), at([game(1, 'loss'), game(2, 'loss', { rated: false })])),
+    ).toBe(true));
 });
 
 describe('total', () => {
@@ -147,6 +160,14 @@ describe('total', () => {
     expect(ruleHolds(ten, at([...ratedWins(1, 2, 3, 4, 5, 6, 7, 8, 9), game(10, 'draw')]))).toBe(
       false,
     );
+  });
+  it('counts the draws in a row or not', () => {
+    // Twenty games alternating a win and a draw: the last is the tenth draw, and no two draws are
+    // next to each other, so a total that counted only a run would never reach ten.
+    const alternating = Array.from({ length: 20 }, (_, i) =>
+      game(i + 1, i % 2 === 0 ? 'win' : 'draw'),
+    );
+    expect(ruleHolds(ten, at(alternating))).toBe(true);
   });
   it('counts only rated games when the rule asks', () => {
     const rated = total('draw', 2, { rated: true });
