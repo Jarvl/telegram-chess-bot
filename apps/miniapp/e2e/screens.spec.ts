@@ -71,3 +71,12 @@ for (const colorScheme of ['light', 'dark'] as const) {
     await shot(page, `${colorScheme}-settings-tip`);
   });
 }
+
+test("shows a player's Telegram photo on the game screen", async ({ page }) => {
+  const world = await seed('opening', {}, { alicePhoto: true });
+  await openApp(page, { user: world.users.bob.telegram, startParam: `g_${world.game!.publicId}` });
+  const photo = page.locator('.player-bar[data-colour="white"] img.photo');
+  await expect(photo).toBeVisible();
+  expect(await photo.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
+  await expect(page.locator('.player-bar[data-colour="black"] img.photo')).toHaveCount(0);
+});
