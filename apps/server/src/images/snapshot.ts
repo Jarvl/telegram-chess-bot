@@ -81,9 +81,16 @@ function avatar(value: SnapshotAvatar): El {
       color: '#ffffff',
       fontSize: 32,
       fontWeight: 700,
+      position: 'relative',
       ...round,
     },
-    [value.initial],
+    [
+      value.initial,
+      // Profile photos spec: the Telegram photo covers the initial, which shows without one.
+      ...(value.photo
+        ? [picture(value.photo, AVATAR, { position: 'absolute', left: 0, top: 0, ...round })]
+        : []),
+    ],
   );
 }
 

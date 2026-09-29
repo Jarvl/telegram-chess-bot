@@ -16,9 +16,9 @@ already know.
 - **In:** every person avatar in the Mini App — game player bars, game cards, challenge rows,
   leaderboard, player page, new-game picker, group settings (members and blocked users). They all
   render through the one `Avatar` component and receive players through the one `toPlayerRef`.
-- **Out:** the share and result images. They are being reworked in a separate PR, which can read
-  the photos this spec stores (see [Later](#later)). Group avatars (`GroupAvatar`) and the bot's
-  Chess Goat mark (`BotMark`) are unchanged.
+  The share and result images too (see [Share and result images](#share-and-result-images)).
+- **Out:** group avatars (`GroupAvatar`) and the bot's Chess Goat mark (`BotMark`), which are
+  unchanged.
 
 ## Behaviour
 
@@ -190,9 +190,10 @@ the rendered avatar.
 
 `docs/testing.md` counts are updated.
 
-## Later
+## Share and result images
 
-The share and result image rework can embed a player's photo by reading `user_photos.bytes`
-through `users.photo_hash` and passing it to Satori as a data URI. The snapshot cache already keys
-on the rendered SVG, so a new photo becomes a new cached image with no cache changes. If it needs
-more than 160×160, the fetch job can store a larger size too; that is for that PR to decide.
+The share and result card draws a person's stored photo over their initial in the player bar
+(snapshot spec §1.2). `side()` in the share job reads the bytes through `users.photo_hash`; the
+card embeds them as a JPEG data URI, so the snapshot cache key changes with the photo. The card
+uses whatever is stored when it renders and never asks Telegram itself. The bot keeps the goat
+mark.

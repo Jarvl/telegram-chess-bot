@@ -21,6 +21,7 @@ import {
 } from '../../db/schema';
 import { listMoves, requireGameById } from '../../domain/games';
 import { requireGroup } from '../../domain/groups';
+import { getPhotoBytes } from '../../domain/photos';
 import { getPlayerRating } from '../../domain/ratings';
 import { displayName, requireUser } from '../../domain/users';
 import { getCachedFileId, snapshotImageKey, storeFileId } from '../../images/cache';
@@ -77,6 +78,8 @@ async function side(
     rating: await getPlayerRating(ctx.deps.db, game.groupId, user.id),
     engineLevel: user.isEngine ? game.engineLevel : null,
     ratingChange: sideRatings(game, colour),
+    photo:
+      user.photoHash && !user.isEngine ? await getPhotoBytes(ctx.deps.db, user.photoHash) : null,
   };
 }
 

@@ -5,6 +5,7 @@ import { loadFonts, type SnapshotFonts } from '../../src/images/fonts';
 import { GOAT_MARK_PNG } from '../../src/images/goatMark';
 import { renderSnapshotPng, renderSnapshotSvg } from '../../src/images/snapshot';
 import { buildSnapshotModel, type SnapshotInput } from '../../src/images/snapshotModel';
+import { FIXTURE_JPEG } from '../helpers/photos';
 import { snapshotInput } from '../helpers/snapshotFixtures';
 
 let fonts: SnapshotFonts;
@@ -84,6 +85,17 @@ describe('renderSnapshotSvg', () => {
       black: { ...snapshotInput().black, name: 'Chess Goat', isBot: true, engineLevel: 'strong' },
     });
     expect(placed(bot, GOAT_MARK_PNG)).toHaveLength(2);
+  });
+
+  it("draws a player's stored photo as their avatar, in their bar", async () => {
+    const photo = `data:image/jpeg;base64,${FIXTURE_JPEG.toString('base64')}`;
+    expect(placed(await render(), photo)).toHaveLength(0);
+    const svg = await render({ black: { ...snapshotInput().black, photo: FIXTURE_JPEG } });
+    const [where, ...more] = placed(svg, photo);
+    expect(more).toHaveLength(0);
+    // Black is at the top when White shares: the photo sits in the 128px bar above the board.
+    expect(where!.y).toBeLessThan(128);
+    expect(() => renderSnapshotPng(svg)).not.toThrow();
   });
 
   it("puts a trophy on the winner's king and a skull on the loser's", async () => {

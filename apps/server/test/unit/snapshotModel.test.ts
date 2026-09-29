@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildSnapshotModel, shareMoveNumber } from '../../src/images/snapshotModel';
+import { FIXTURE_JPEG } from '../helpers/photos';
 import { AFTER_E4, snapshotInput } from '../helpers/snapshotFixtures';
 
 /** White is missing a knight and a pawn; Black is missing its queen. */
@@ -35,7 +36,33 @@ describe('buildSnapshotModel', () => {
         white: { ...snapshotInput().white, name: 'Chess Goat', isBot: true, engineLevel: 'strong' },
       }),
     );
-    expect(model.top.avatar).toEqual({ kind: 'person', initial: 'M', colour: '#ee7aae' });
+    expect(model.top.avatar).toEqual({
+      kind: 'person',
+      initial: 'M',
+      colour: '#ee7aae',
+      photo: null,
+    });
+    expect(model.bottom.avatar).toEqual({ kind: 'bot' });
+  });
+
+  it("lays a person's stored Telegram photo over their initial, never the bot's", () => {
+    const model = buildSnapshotModel(
+      snapshotInput({
+        black: { ...snapshotInput().black, photo: FIXTURE_JPEG },
+        white: {
+          ...snapshotInput().white,
+          name: 'Chess Goat',
+          isBot: true,
+          engineLevel: 'strong',
+          photo: FIXTURE_JPEG,
+        },
+      }),
+    );
+    expect(model.top.avatar).toMatchObject({
+      kind: 'person',
+      initial: 'M',
+      photo: `data:image/jpeg;base64,${FIXTURE_JPEG.toString('base64')}`,
+    });
     expect(model.bottom.avatar).toEqual({ kind: 'bot' });
   });
 

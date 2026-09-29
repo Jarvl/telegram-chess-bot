@@ -23,6 +23,8 @@ export type SnapshotSide = {
   engineLevel: EngineLevel | null;
   /** What this game did to the rating, once it finished rated; null otherwise. */
   ratingChange: { before: number; after: number; rdAfter: number } | null;
+  /** The player's stored Telegram photo (a small JPEG); null without one, and for the bot. */
+  photo: Buffer | null;
 };
 
 export type SnapshotInput = {
@@ -39,7 +41,10 @@ export type SnapshotInput = {
   botUsername: string;
 };
 
-export type SnapshotAvatar = { kind: 'bot' } | { kind: 'person'; initial: string; colour: string };
+export type SnapshotAvatar =
+  | { kind: 'bot' }
+  /** `photo` is a JPEG data URI drawn over the initial; null leaves the initial showing. */
+  | { kind: 'person'; initial: string; colour: string; photo: string | null };
 export type SnapshotOutcome = 'won' | 'lost' | 'draw';
 
 /** One player bar, already worded (share image spec, "Player bar"). */
@@ -114,7 +119,12 @@ function bar(
     colour,
     avatar: side.isBot
       ? { kind: 'bot' }
-      : { kind: 'person', initial: personInitial(side.name), colour: avatarColour(side.id) },
+      : {
+          kind: 'person',
+          initial: personInitial(side.name),
+          colour: avatarColour(side.id),
+          photo: side.photo ? `data:image/jpeg;base64,${side.photo.toString('base64')}` : null,
+        },
     name: side.name,
     ...rating(side, outcome !== null),
     captured: taken.captured.map((piece) => `${opponent}${piece.toUpperCase()}` as PieceCode),

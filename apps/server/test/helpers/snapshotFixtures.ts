@@ -15,6 +15,7 @@ export function snapshotInput(overrides: Partial<SnapshotInput> = {}): SnapshotI
       rating: { rating: 1512, rd: 50 },
       engineLevel: null,
       ratingChange: null,
+      photo: null,
     },
     black: {
       id: '8',
@@ -23,6 +24,7 @@ export function snapshotInput(overrides: Partial<SnapshotInput> = {}): SnapshotI
       rating: { rating: 1587, rd: 50 },
       engineLevel: null,
       ratingChange: null,
+      photo: null,
     },
     status: 'active',
     result: null,
