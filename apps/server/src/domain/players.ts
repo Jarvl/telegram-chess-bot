@@ -1,10 +1,11 @@
 import { GLICKO2, isProvisional, type PlayerRef } from '@group-chess/shared';
 import type { RatingRow, UserRow } from '../db/schema';
+import { avatarUrl } from './photos';
 import { displayName } from './users';
 
 /** The player shape the API sends everywhere; ratings default to 1500 provisional (spec §7.9). */
 export function toPlayerRef(
-  user: Pick<UserRow, 'id' | 'firstName' | 'username' | 'deletedAt' | 'isEngine'>,
+  user: Pick<UserRow, 'id' | 'firstName' | 'username' | 'deletedAt' | 'isEngine' | 'photoHash'>,
   rating: Pick<RatingRow, 'rating' | 'rd'> | null,
 ): PlayerRef {
   return {
@@ -14,5 +15,7 @@ export function toPlayerRef(
     rating: Math.round(rating?.rating ?? GLICKO2.initialRating),
     provisional: isProvisional(rating?.rd ?? GLICKO2.initialRd),
     isBot: user.isEngine,
+    photoUrl:
+      user.photoHash && !user.isEngine && !user.deletedAt ? avatarUrl(user.photoHash) : null,
   };
 }

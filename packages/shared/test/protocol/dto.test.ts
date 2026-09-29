@@ -23,6 +23,7 @@ const activeGame = {
     rating: 1520,
     provisional: false,
     isBot: false,
+    photoUrl: null,
     ratingAfter: null,
     provisionalAfter: null,
   },
@@ -33,6 +34,7 @@ const activeGame = {
     rating: 1498,
     provisional: true,
     isBot: false,
+    photoUrl: null,
     ratingAfter: null,
     provisionalAfter: null,
   },
@@ -136,6 +138,7 @@ describe('LeaderboardEntrySchema', () => {
       rating: 1500,
       provisional: true,
       isBot: false,
+      photoUrl: null,
       gamesPlayed: 0,
       record: { wins: -1, draws: 0, losses: 0 },
     };
@@ -152,6 +155,7 @@ const summary = {
     rating: 1520,
     provisional: false,
     isBot: false,
+    photoUrl: null,
   },
   black: {
     id: '2',
@@ -160,6 +164,7 @@ const summary = {
     rating: 1500,
     provisional: true,
     isBot: true,
+    photoUrl: null,
   },
   status: 'active',
   timePerMove: null,
@@ -198,6 +203,15 @@ describe('PlayerRefSchema', () => {
     const withoutFlag: Record<string, unknown> = { ...summary.white };
     delete withoutFlag.isBot;
     expect(PlayerRefSchema.safeParse(withoutFlag).success).toBe(false);
+  });
+
+  it('carries a photo url or null, and requires the key', () => {
+    const url = `/api/avatars/${'a'.repeat(64)}.jpg`;
+    expect(PlayerRefSchema.parse({ ...summary.white, photoUrl: url }).photoUrl).toBe(url);
+    expect(PlayerRefSchema.parse({ ...summary.white, photoUrl: null }).photoUrl).toBeNull();
+    const withoutPhoto: Record<string, unknown> = { ...summary.white };
+    delete withoutPhoto.photoUrl;
+    expect(PlayerRefSchema.safeParse(withoutPhoto).success).toBe(false);
   });
 });
 
