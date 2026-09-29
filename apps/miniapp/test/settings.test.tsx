@@ -1,20 +1,41 @@
-import { describe, expect, it } from 'vitest';
-import { t } from '@group-chess/shared';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { FLAIR, t } from '@group-chess/shared';
+import { myFlair } from '../src/state/flair';
 import { prefs } from '../src/state/session';
 import { Settings } from '../src/ui/screens/Settings';
-import { renderApp } from './support/render';
+import type { FakeRoute } from './support/fakeFetch';
+import { renderApp, type Rendered } from './support/render';
+
+const FLAIR_DTO = {
+  worn: ['rank_1500', 'en_passant_win'],
+  earned: ['rank_1500', 'en_passant_win', 'scholars_mate_loss'].map((id) => ({
+    id,
+    earnedAt: '2026-04-10T12:00:00.000Z',
+    opponent: '@tom',
+  })),
+};
+/** Answers the Flair row's load; every other call goes to `route`. */
+const withFlair =
+  (route: FakeRoute): FakeRoute =>
+  (call) =>
+    call.path === '/api/me/flair' ? { status: 200, body: FLAIR_DTO } : route(call);
+/** The calls other than the Flair row's load. */
+const writes = (r: Rendered) => r.calls.filter((call) => call.path !== '/api/me/flair');
+beforeEach(() => {
+  myFlair.value = null;
+});
 
 describe('Settings', () => {
   it('saves a toggled preference and keeps the returned prefs', async () => {
     const r = renderApp(
       () => <Settings />,
-      ({ body }) => ({
+      withFlair(({ body }) => ({
         status: 200,
         body: { prefs: { ...prefs.value, ...(body as { prefs: object }).prefs }, dmAllowed: false },
-      }),
+      })),
     );
     await r.click('[data-pref="notifications"]');
-    expect(r.calls[0]).toMatchObject({
+    expect(writes(r)[0]).toMatchObject({
       method: 'PUT',
       path: '/api/me/prefs',
       body: { prefs: { notifications: false } },
@@ -26,15 +47,17 @@ describe('Settings', () => {
     );
   });
 
-  it('shows Move confirmations first in the card, with the current choice', () => {
+  it('shows Flair first and Move confirmations second', () => {
     const r = renderApp(
       () => <Settings />,
-      () => ({ status: 200, body: { ok: true } }),
+      withFlair(() => ({ status: 200, body: { ok: true } })),
     );
+    const flairRow = r.root.querySelector('.card [data-action="flair"]');
     const row = r.root.querySelector('.card [data-pref="moveConfirmations"]');
     expect(row?.textContent).toContain('Move confirmations');
     expect(row?.textContent).toContain('Only against people');
-    expect(r.root.querySelector('.card')?.firstElementChild).toBe(row);
+    expect(r.root.querySelector('.card')?.firstElementChild).toBe(flairRow);
+    expect(flairRow?.nextElementSibling).toBe(row);
     expect(r.root.querySelector('[data-pref="confirmMoves"]')).toBeNull();
     expect(r.root.querySelector('[data-pref="closeAfterMove"]')).toBeNull();
   });
@@ -42,10 +65,10 @@ describe('Settings', () => {
   it("saves a choice picked in Telegram's popup", async () => {
     const r = renderApp(
       () => <Settings />,
-      ({ body }) => ({
+      withFlair(({ body }) => ({
         status: 200,
         body: { prefs: { ...prefs.value, ...(body as { prefs: object }).prefs }, dmAllowed: false },
-      }),
+      })),
     );
     // Lets <Dialogs /> register the native popup host in its effect before choiceDialog runs.
     await r.flush();
@@ -62,7 +85,7 @@ describe('Settings', () => {
     });
     window.__tg!.answerPopup('never');
     await r.flush();
-    expect(r.calls[0]).toMatchObject({
+    expect(writes(r)[0]).toMatchObject({
       method: 'PUT',
       path: '/api/me/prefs',
       body: { prefs: { moveConfirmations: 'never' } },
@@ -75,7 +98,7 @@ describe('Settings', () => {
   it('changes nothing when the popup is dismissed or the current choice is picked', async () => {
     const r = renderApp(
       () => <Settings />,
-      () => ({ status: 200, body: { ok: true } }),
+      withFlair(() => ({ status: 200, body: { ok: true } })),
     );
     await r.flush();
     await r.click('[data-pref="moveConfirmations"]');
@@ -84,7 +107,7 @@ describe('Settings', () => {
     await r.click('[data-pref="moveConfirmations"]');
     window.__tg!.answerPopup('people');
     await r.flush();
-    expect(r.calls).toHaveLength(0);
+    expect(writes(r)).toHaveLength(0);
     expect(window.__tg!.haptics).not.toContain('selection');
     expect(prefs.value.moveConfirmations).toBe('people');
   });
@@ -92,7 +115,7 @@ describe('Settings', () => {
   it('reverts the choice and says so when the save fails', async () => {
     const r = renderApp(
       () => <Settings />,
-      () => ({ status: 500, body: { error: { code: 'internal', message: 'boom' } } }),
+      withFlair(() => ({ status: 500, body: { error: { code: 'internal', message: 'boom' } } })),
     );
     await r.flush();
     await r.click('[data-pref="moveConfirmations"]');
@@ -105,44 +128,44 @@ describe('Settings', () => {
   it('offers the choices in the page on clients without popups', async () => {
     const r = renderApp(
       () => <Settings />,
-      ({ body }) => ({
+      withFlair(({ body }) => ({
         status: 200,
         body: { prefs: { ...prefs.value, ...(body as { prefs: object }).prefs }, dmAllowed: false },
-      }),
+      })),
       { version: '6.1' },
     );
     await r.flush();
     await r.click('[data-pref="moveConfirmations"]');
     await r.click('[data-choice="always"]');
-    expect(r.calls[0]).toMatchObject({ body: { prefs: { moveConfirmations: 'always' } } });
+    expect(writes(r)[0]).toMatchObject({ body: { prefs: { moveConfirmations: 'always' } } });
   });
 
   it('deletes my data after confirmation and closes the app', async () => {
     const r = renderApp(
       () => <Settings />,
-      () => ({ status: 200, body: { ok: true } }),
+      withFlair(() => ({ status: 200, body: { ok: true } })),
     );
     await r.click('[data-action="delete"]');
     window.__tg!.answerPopup('cancel');
     await r.flush();
-    expect(r.calls).toHaveLength(0);
+    expect(writes(r)).toHaveLength(0);
     await r.click('[data-action="delete"]');
     window.__tg!.answerPopup('confirm');
     await r.flush();
-    expect(r.calls[0]).toMatchObject({ method: 'DELETE', path: '/api/me' });
+    expect(writes(r)[0]).toMatchObject({ method: 'DELETE', path: '/api/me' });
     expect(window.__tg!.closed).toBe(true);
   });
 
   it('asks for permission to message when notifications go on and the bot cannot write yet', async () => {
     const r = renderApp(
       () => <Settings />,
-      ({ body }) => ({
+      withFlair(({ body }) => ({
         status: 200,
         body: {
           prefs: { ...prefs.value, ...((body as { prefs?: object }).prefs ?? {}) },
           dmAllowed: false,
         },
-      }),
+      })),
       { writeAccess: true },
     );
     await r.click('[data-pref="notifications"]'); // off: nothing to ask
@@ -165,7 +188,7 @@ describe('Settings', () => {
   it('links to the author, the source and the licences', async () => {
     const r = renderApp(
       () => <Settings />,
-      () => ({ status: 200, body: { ok: true } }),
+      withFlair(() => ({ status: 200, body: { ok: true } })),
     );
     await r.flush();
     expect(r.root.querySelector('img.banner-img')?.getAttribute('src')).toMatch(/goat-banner/);
@@ -185,18 +208,18 @@ describe('Settings', () => {
   it('confirms deletion in the page on clients without popups', async () => {
     const r = renderApp(
       () => <Settings />,
-      () => ({ status: 200, body: { ok: true } }),
+      withFlair(() => ({ status: 200, body: { ok: true } })),
       { version: '6.1' },
     );
     await r.click('[data-action="delete"]');
     await r.click('[data-dialog="confirm"]');
-    expect(r.calls[0]).toMatchObject({ method: 'DELETE', path: '/api/me' });
+    expect(writes(r)[0]).toMatchObject({ method: 'DELETE', path: '/api/me' });
   });
 
   it('shows the Support card between the preferences and the links', () => {
     const r = renderApp(
       () => <Settings />,
-      () => ({ status: 200, body: { ok: true } }),
+      withFlair(() => ({ status: 200, body: { ok: true } })),
     );
     const cards = [...r.root.querySelectorAll('.card')];
     const support = cards.findIndex((card) => card.matches('[data-card="support"]'));
@@ -207,12 +230,43 @@ describe('Settings', () => {
   it('says tip records are kept when asking to delete', async () => {
     const r = renderApp(
       () => <Settings />,
-      () => ({ status: 200, body: { ok: true } }),
+      withFlair(() => ({ status: 200, body: { ok: true } })),
     );
     // Lets the Dialogs' mount effect register its native-popup host before the click,
     // same as the "links to the author..." test above (a happy-dom/preact effect-timing quirk).
     await r.flush();
     await r.click('[data-action="delete"]');
     expect(window.__tg!.popups.at(-1)?.message).toContain('kept as payment records');
+  });
+
+  it('opens Flair from its row, which shows the share unlocked and the worn flair once loaded', async () => {
+    const r = renderApp(
+      () => <Settings />,
+      withFlair(() => ({ status: 200, body: { ok: true } })),
+    );
+    const flairRow = () => r.root.querySelector('[data-action="flair"]')!;
+    expect(flairRow().textContent).toContain('Flair');
+    expect(flairRow().textContent).not.toContain('unlocked');
+    await r.flush();
+    // FLAIR_DTO has earned three of the catalog's flair, whatever its size (21% of the 14 at launch).
+    expect(flairRow().textContent).toContain(`${Math.round((100 * 3) / FLAIR.length)}% unlocked`);
+    expect(flairRow().querySelector('.flair')?.textContent).toBe('🚶👑');
+    await r.click('[data-action="flair"]');
+    expect(r.app.router.current.value).toEqual({ name: 'flair' });
+  });
+
+  it('keeps the row working when the flair cannot load', async () => {
+    const r = renderApp(
+      () => <Settings />,
+      (call) =>
+        call.path === '/api/me/flair'
+          ? { status: 500, body: { error: { code: 'internal', message: 'boom' } } }
+          : { status: 200, body: { ok: true } },
+    );
+    await r.flush();
+    expect(r.root.querySelector('[data-action="flair"]')?.textContent).not.toContain('unlocked');
+    expect(document.querySelector('.toast')).toBeNull();
+    await r.click('[data-action="flair"]');
+    expect(r.app.router.current.value).toEqual({ name: 'flair' });
   });
 });

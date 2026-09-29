@@ -44,6 +44,11 @@ export const users = pgTable(
     isEngine: boolean().notNull().default(false),
     /** `user_photos.hash` of the current Telegram photo; null without one (profile photos spec). */
     photoHash: text(),
+    /** Worn flair ids in slot order, at most three (flair spec §2). */
+    flairWorn: text()
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
     createdAt: tz().notNull().defaultNow(),
     lastSeenAt: tz().notNull().defaultNow(),
     deletedAt: tz(),
@@ -208,6 +213,34 @@ export const games = pgTable(
   ],
 );
 
+/**
+ * Flair spec §2: one row per flair a user has earned. `earnedAt` is the finish time of the game
+ * in `gameId`, the game that earned it.
+ */
+export const userFlair = pgTable(
+  'user_flair',
+  {
+    userId: bigint({ mode: 'number' })
+      .notNull()
+      .references(() => users.id),
+    flairId: text().notNull(),
+    gameId: bigint({ mode: 'number' })
+      .notNull()
+      .references(() => games.id),
+    earnedAt: tz().notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.flairId] })],
+);
+
+/**
+ * Flair spec §2: when each flair id first shipped. A flair only sees games that finished at or
+ * after its introduction (§1.5).
+ */
+export const flairIntroductions = pgTable('flair_introductions', {
+  flairId: text().primaryKey(),
+  introducedAt: tz().notNull().defaultNow(),
+});
+
 export const moves = pgTable(
   'moves',
   {
@@ -344,3 +377,4 @@ export type MoveRow = typeof moves.$inferSelect;
 export type RatingRow = typeof ratings.$inferSelect;
 export type JobRow = typeof jobs.$inferSelect;
 export type TipRow = typeof tips.$inferSelect;
+export type UserFlairRow = typeof userFlair.$inferSelect;

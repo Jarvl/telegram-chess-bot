@@ -12,6 +12,7 @@ import {
 import { asc, eq, sql } from 'drizzle-orm';
 import { dbNow, type DbOrTx } from '../db/client';
 import { adminActions, games, groups, moves, type GameRow, type MoveRow } from '../db/schema';
+import { isCountedGame } from '../flair/history';
 import { enqueue } from '../jobs/queue';
 import type { Deps } from './deps';
 import { enqueueEngineMove, isEngineGame } from './engineGames';
@@ -143,6 +144,14 @@ export async function finishGame(
       kind: 'lichess_import',
       payload: { gameId: game.id },
       dedupKey: `lichess:${game.publicId}`,
+    });
+  }
+  // Flair spec §3.2: a decided game against a person is scored; aborts, voids and bot games are not.
+  if (isCountedGame(updated)) {
+    await enqueue(tx, {
+      kind: 'award_flair',
+      payload: { gameId: game.id },
+      dedupKey: `flair:g:${game.publicId}`,
     });
   }
   return requireGameById(tx, game.id);

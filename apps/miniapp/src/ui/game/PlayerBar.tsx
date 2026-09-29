@@ -10,6 +10,7 @@ import {
 import { h } from 'preact';
 import { clockLabel, isUrgent, remainingMs } from '../../state/clock';
 import { Avatar } from '../Avatar';
+import { Flair } from '../Flair';
 import { sideResult } from './result';
 
 const PIECE_CLASS: Record<PieceLetter, string> = {
@@ -52,8 +53,10 @@ export function PlayerBar(props: { dto: GameDto; colour: Colour; fen: string; no
         <Avatar player={player} size={34} />
       </span>
       <span class="who">
-        <span class="name">
-          {player.name} {rating ? <span class="rating">{rating}</span> : null}
+        <span class="name-row">
+          <span class="name">{player.name}</span>
+          <Flair ids={player.flair} />
+          {rating ? <span class="rating">{rating}</span> : null}
         </span>
         <span class="line">
           {taken.captured.length ? (

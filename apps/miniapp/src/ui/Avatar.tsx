@@ -9,7 +9,7 @@ import {
 import { useState } from 'preact/hooks';
 import { BRAND } from '../brand';
 
-type Size = 22 | 34 | 38 | 40 | 56;
+type Size = 22 | 26 | 34 | 38 | 40 | 56;
 
 export function BotMark(props: { size: Size }) {
   return (

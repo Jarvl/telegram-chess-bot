@@ -267,9 +267,10 @@ button {
   color: var(--hint);
 }
 
-/* A primary line whose leading name ellipsises while trailing badges (a rating, "(you)") stay
-   fully visible — same shrink technique as `.game-card .who`: the name's own `overflow: hidden`
-   zeroes out its flex auto-minimum, so it alone gives way as the row narrows. */
+/* A primary line whose leading name ellipsises while trailing badges (flair, a rating) stay fully
+   visible — same shrink technique as `.game-card .who`: the name's own `overflow: hidden` zeroes
+   out its flex auto-minimum, so it alone gives way as the row narrows. Anything that should give
+   way with the name, such as the leaderboard's "(you)", is part of the name's text. */
 .name-row {
   display: flex;
   align-items: baseline;
@@ -284,9 +285,202 @@ button {
   white-space: nowrap;
 }
 
-.name-row .you {
-  font-weight: 600;
+/* Worn flair beside a name (flair spec §5.1). The emojis are spaced by a flex `gap`, never
+   `letter-spacing`, which can pull a ZWJ sequence (several rank flair are one) into two glyphs.
+   `flex: none` keeps the flair whole, so in a `.name-row` or `.game-card .who` the name alone
+   ellipsises as the line narrows. */
+.flair {
+  display: inline-flex;
+  gap: 1px;
+  flex: none;
   white-space: nowrap;
+  line-height: 1;
+}
+
+.game-card .flair {
+  font-size: 13px;
+}
+
+.player-bar .flair {
+  font-size: 14px;
+}
+
+.player-row .flair {
+  font-size: 15px;
+}
+
+/* The Settings row (flair spec §5.2). */
+.field .flair {
+  font-size: 16px;
+}
+
+/* The player page's name line. The title stays a bare h1 holding only the name; the flair follows
+   it, and drops beneath a long name that leaves it no room. */
+.player-name {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.player-name .flair {
+  gap: 2px;
+  font-size: 20px;
+}
+
+/* The Flair screen (flair spec §5.3): a preview of what you wear above three slots, then every
+   flair in its category. Emoji are sized and centred in boxes, never spaced with `letter-spacing`. */
+.flair-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+}
+
+.flair-me {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.flair-me .name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flair-me .flair {
+  font-size: 15px;
+}
+
+.flair-slots {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.flair-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 84px;
+  padding: 0;
+  border: 0;
+  border-radius: 14px;
+  background: var(--page);
+  color: inherit;
+  font: inherit;
+}
+
+.flair-slot-emoji {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  font-size: 34px;
+  line-height: 1;
+}
+
+.flair-slot-emoji.empty {
+  color: var(--sep-strong);
+}
+
+.flair-slot-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--hint);
+}
+
+.flair-slot.on {
+  background: var(--acc-soft);
+  box-shadow: inset 0 0 0 2px var(--acc);
+}
+
+.flair-slot.on .flair-slot-label {
+  color: var(--acc-text);
+}
+
+.flair-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 11px 14px;
+  border: 0;
+  border-top: 1px solid var(--sep);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.card > .flair-row:first-child {
+  border-top: 0;
+}
+
+.flair-tile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--page);
+  font-size: 26px;
+  line-height: 1;
+}
+
+.flair-tile.here {
+  background: var(--acc-soft);
+}
+
+.flair-row.locked .flair-tile {
+  filter: grayscale(1);
+  opacity: 0.45;
+}
+
+/* A description is what tells you how to unlock the flair, so it wraps rather than ellipsising as
+   a `.grow > .primary` line does. */
+.flair-row .grow > .primary {
+  white-space: normal;
+}
+
+.flair-row.locked .primary {
+  color: var(--hint);
+}
+
+.flair-row .earned {
+  display: block;
+  font-size: 12px;
+  color: var(--acc-text);
+}
+
+.flair-check,
+.flair-free {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+}
+
+.flair-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--acc);
+  color: var(--acc-ink);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.flair-free {
+  box-shadow: inset 0 0 0 2px var(--sep-strong);
 }
 
 .chevron {
@@ -363,6 +557,12 @@ button {
 
 .field.pick .value {
   color: var(--hint);
+}
+
+/* A field's label with a line beneath it (the Settings "Flair" row) keeps the regular weight of the
+   one-line labels around it, not the bold of a list's `.grow > .primary` line. */
+.field .grow > .primary {
+  font-weight: 400;
 }
 
 .field select,
@@ -840,13 +1040,6 @@ button {
   display: flex;
   flex-direction: column;
   line-height: 1.2;
-}
-
-.player-bar .name {
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .player-bar .rating {

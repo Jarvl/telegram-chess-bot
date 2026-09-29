@@ -18,6 +18,7 @@ const summary = (id: string, yourTurn: boolean, status: 'active' | 'finished' = 
     provisional: true,
     isBot: false,
     photoUrl: null,
+    flair: [],
   },
   black: {
     id: '2',
@@ -27,6 +28,7 @@ const summary = (id: string, yourTurn: boolean, status: 'active' | 'finished' = 
     provisional: true,
     isBot: false,
     photoUrl: null,
+    flair: [],
   },
   status,
   timePerMove: 86400 as const,

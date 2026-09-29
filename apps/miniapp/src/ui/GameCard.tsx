@@ -1,6 +1,7 @@
 import { ratingLabel, t, type GameSummary } from '@group-chess/shared';
 import { session } from '../state/session';
 import { Avatar } from './Avatar';
+import { Flair } from './Flair';
 import { summaryTitle, termsLabel } from './format';
 import { MiniBoard } from './MiniBoard';
 import { pillFor, roleOf } from './pill';
@@ -45,6 +46,7 @@ export function GameCard(props: {
         <span class="who">
           <Avatar player={opponent ?? game.white} size={22} />
           <span class="name">{opponent ? opponent.name : summaryTitle(game)}</span>
+          {opponent ? <Flair ids={opponent.flair} /> : null}
           {rating ? <span class="rating">{rating}</span> : null}
           {role === null ? <span class="tag">{t('app.card.watching')}</span> : null}
           {game.voided ? <span class="tag">{t('app.lobby.void_badge')}</span> : null}

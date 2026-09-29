@@ -35,7 +35,7 @@ The bot is not a chess server and does not try to replace Chess.com or Lichess. 
 
 These were considered and are explicitly out of scope, so they should not creep back in:
 
-- Puzzles, vote chess, tournaments, seasons, variants, achievements.
+- Puzzles, vote chess, tournaments, seasons, variants.
 - Takebacks. All moves are permanent.
 - Spectator predictions, watcher counts, blindfold mode.
 - Any analysis (engine evaluation, hints, accuracy) before a game is over, for players or spectators. After a game ends, analysis is a link to Lichess, not a feature in the app.
@@ -47,6 +47,9 @@ An engine opponent was originally on this list and was deliberately added to the
 2026-09-21; see
 [docs/superpowers/specs/2026-09-21-engine-opponent-design.md](superpowers/specs/2026-09-21-engine-opponent-design.md).
 The remaining items above are still out of scope, in particular any in-app analysis (§7.8).
+
+Flair, emoji earned in play and worn beside a name, was deliberately added on 2026-09-29; see
+[docs/superpowers/specs/2026-09-29-flair-design.md](superpowers/specs/2026-09-29-flair-design.md).
 
 ## 4. Users
 
@@ -218,7 +221,7 @@ In the app, under the group, visible to group admins only (verified against Tele
 ### 7.12 Privacy — P0
 
 - Privacy mode stays on. The bot receives only its commands, replies to its own messages, button taps and Mini App requests. It never stores chat content.
-- Stored per user: Telegram id, first name, username (display), profile photo (a small copy, refreshed at most daily), games, ratings, notification permission and app preferences. A **Delete my data** action in the app anonymises the user in past games and removes the photo and preferences.
+- Stored per user: Telegram id, first name, username (display), profile photo (a small copy, refreshed at most daily), games, ratings, earned and worn flair, notification permission and app preferences. A **Delete my data** action in the app anonymises the user in past games and removes the photo, preferences and flair.
 - Mini App requests are authenticated with Telegram's signed launch data; a user can only act as themselves.
 
 ### 7.13 Bot opponent — P1
@@ -271,7 +274,7 @@ Carol shared move 23 of Alice vs Bob
 - **Game end**: no result card; a Won, Lost, Draw, Aborted or Voided tag takes each clock's place, the reason (e.g. Checkmate) replaces the winner's second line (both lines for a draw), and each rating shows its change. The icon bar keeps its slots: **Share to group**, **Analyze** (Lichess), **PGN** and, for players, **Rematch**. Telegram's own Close replaces Done.
 - **Replay**: board, slider and arrow controls, move list, Share position, Analyze on Lichess, PGN.
 - **New game**: opponent (list of group players, or Open challenge), time per move, colour, rated toggle, **Send challenge**.
-- **Settings**: move confirmations, return to chat after moving, notifications, board theme and piece set (P1). Group settings for admins.
+- **Settings**: flair (earned emoji worn beside your name, in three slots), move confirmations, return to chat after moving, notifications, board theme and piece set (P1). Group settings for admins.
 
 ### 8.3 Commands
 
@@ -287,7 +290,7 @@ The bot has three group commands and no others in the group menu:
 
 ### 8.4 Copy and tone
 
-Short and chess-literate. Standard notation (SAN, "1-0", "½-½"). Emoji only as button icons. No error messages for illegal or out-of-turn moves; the board just does not accept them.
+Short and chess-literate. Standard notation (SAN, "1-0", "½-½"). Emoji only as button icons and as flair beside names. No error messages for illegal or out-of-turn moves; the board just does not accept them.
 
 ## 9. Telegram platform feature map
 

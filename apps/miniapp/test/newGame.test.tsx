@@ -15,6 +15,7 @@ const bob = {
   provisional: false,
   isBot: false,
   photoUrl: null,
+  flair: [],
 };
 
 const players = { players: [bob], settings, bot: null };
@@ -41,6 +42,7 @@ const challenge = {
     provisional: true,
     isBot: false,
     photoUrl: null,
+    flair: [],
   },
   opponent: null,
   timePerMove: 28800,

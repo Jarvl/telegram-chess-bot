@@ -50,6 +50,13 @@
       "when": 1790662634430,
       "tag": "0006_user_photos",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790711953775,
+      "tag": "0007_flair",
+      "breakpoints": true
     }
   ]
 }

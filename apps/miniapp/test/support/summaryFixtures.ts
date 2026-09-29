@@ -9,6 +9,7 @@ export function playerRef(id: string, name: string, overrides: Partial<PlayerRef
     provisional: true,
     isBot: false,
     photoUrl: null,
+    flair: [],
     ...overrides,
   };
 }

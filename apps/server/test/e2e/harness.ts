@@ -6,10 +6,11 @@ import { createServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { INITIAL_FEN } from '@group-chess/shared';
 import { eq } from 'drizzle-orm';
-import { games, ratings, users } from '../../src/db/schema';
+import { games, ratings, userFlair, users } from '../../src/db/schema';
 import { runMigrations } from '../../src/db/migrate';
 import { touchMember } from '../../src/domain/members';
 import { storePhoto } from '../../src/domain/photos';
+import { recordFlairIntroductions } from '../../src/flair/introductions';
 import { startServer } from '../../src/main';
 import { testConfig } from '../helpers/config';
 import { openTestDb, truncateAll } from '../helpers/db';
@@ -42,7 +43,15 @@ type SeedRequest = {
   bobName?: string;
   /** Gives Alice a stored Telegram photo (profile photos spec). */
   alicePhoto?: boolean;
+  /** Alice and Bob each earn and wear three flair, all earned in the seeded game. Needs a game. */
+  flair?: boolean;
 };
+
+/** What `flair: true` seeds (flair spec §7): earned and worn, in slot order. */
+const SEEDED_FLAIR = {
+  alice: ['rank_1400', 'en_passant_win', 'win_streak_5'],
+  bob: ['rank_1200', 'promotion_win', 'scholars_mate_loss'],
+} as const;
 
 const TELEGRAM_USERS = {
   alice: { id: 11, first_name: 'Alice', username: 'alice' },
@@ -55,7 +64,17 @@ async function main(): Promise<void> {
   if (!url) throw new Error('TEST_DATABASE_URL must be set for the e2e harness');
   await runMigrations(url);
   const { db, close } = openTestDb();
-  await truncateAll(db);
+  /**
+   * Empties every table and records the flair introductions again. The truncate empties
+   * `flair_introductions`, which the server records only at boot, and a flair only sees games that
+   * finish after its introduction (spec §1.5): without them, a game that ends during a test would
+   * earn nothing. So every truncate here goes through this.
+   */
+  const wipe = async (): Promise<void> => {
+    await truncateAll(db);
+    await recordFlairIntroductions(db);
+  };
+  await wipe();
   const fake = await FakeTelegram.start();
   for (const user of Object.values(TELEGRAM_USERS)) fake.members.set(user.id, 'member');
   fake.admins = [TELEGRAM_USERS.alice.id];
@@ -77,7 +96,7 @@ async function main(): Promise<void> {
   );
 
   const seed = async (request: SeedRequest) => {
-    await truncateAll(db);
+    await wipe();
     fake.reset();
     for (const user of Object.values(TELEGRAM_USERS)) fake.members.set(user.id, 'member');
     fake.admins = [TELEGRAM_USERS.alice.id];
@@ -163,6 +182,20 @@ async function main(): Promise<void> {
         },
       ]);
     }
+    if (request.flair && game) {
+      const gameId = game.id;
+      const earnedAt = new Date();
+      for (const [name, ids] of Object.entries(SEEDED_FLAIR)) {
+        const userId = rows[name]!.id;
+        await db
+          .insert(userFlair)
+          .values(ids.map((flairId) => ({ userId, flairId, gameId, earnedAt })));
+        await db
+          .update(users)
+          .set({ flairWorn: [...ids] })
+          .where(eq(users.id, userId));
+      }
+    }
     return {
       group: { id: group.id, publicId: group.publicId },
       users: rows,
@@ -187,7 +220,7 @@ async function main(): Promise<void> {
         try {
           if (path === '/health') return reply(200, { ok: true });
           if (path === '/reset') {
-            await truncateAll(db);
+            await wipe();
             fake.reset();
             return reply(200, { ok: true });
           }

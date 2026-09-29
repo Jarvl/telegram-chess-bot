@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MAX_WORN_FLAIR } from '../flair/catalog';
 import {
   ChallengeStatusSchema,
   ColourChoiceSchema,
@@ -35,6 +36,8 @@ export const PlayerRefSchema = z.object({
   isBot: z.boolean(),
   /** The player's Telegram photo on this server; null without one, and always for the bot and deleted players. */
   photoUrl: z.string().nullable(),
+  /** Worn flair ids in slot order; the app skips ids it does not know. */
+  flair: z.array(z.string()).max(MAX_WORN_FLAIR).default([]),
 });
 
 export type PlayerRef = z.infer<typeof PlayerRefSchema>;
@@ -335,3 +338,24 @@ export type OkDto = z.infer<typeof OkDtoSchema>;
 export const TipInvoiceDtoSchema = z.object({ url: z.string().min(1) });
 
 export type TipInvoiceDto = z.infer<typeof TipInvoiceDtoSchema>;
+
+/** One flair the viewer has earned (flair spec §4). */
+export const FlairEarnedSchema = z.object({
+  /** A catalog id; the server leaves out rows whose id the catalog no longer has. */
+  id: z.string(),
+  /** The finish time of the game that earned it. */
+  earnedAt: IsoDateSchema,
+  /** The display name of the other player in that game, "Deleted player" once they are gone. */
+  opponent: z.string(),
+});
+
+export type FlairEarned = z.infer<typeof FlairEarnedSchema>;
+
+/** The viewer's own flair (flair spec §4): what they wear, in slot order, and what they have earned. */
+export const FlairDtoSchema = z.object({
+  worn: z.array(z.string()).max(MAX_WORN_FLAIR),
+  /** In catalog order. */
+  earned: z.array(FlairEarnedSchema),
+});
+
+export type FlairDto = z.infer<typeof FlairDtoSchema>;

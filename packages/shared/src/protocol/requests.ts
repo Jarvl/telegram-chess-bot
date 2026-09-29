@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MAX_WORN_FLAIR } from '../flair/catalog';
 import { GroupSettingsSchema, PrefsSchema, UciSchema } from './dto';
 import { ColourChoiceSchema, EngineLevelSchema, TimePerMoveSchema } from './enums';
 import { UserIdSchema } from './ids';
@@ -103,3 +104,13 @@ export const TipRequestSchema = z.object({
 });
 
 export type TipRequest = z.infer<typeof TipRequestSchema>;
+
+/**
+ * Flair spec §4: the worn ids in slot order. The server also refuses duplicates, ids the catalog
+ * does not have and ids the caller has not earned, all with `validation`.
+ */
+export const FlairUpdateRequestSchema = z.object({
+  worn: z.array(z.string()).max(MAX_WORN_FLAIR),
+});
+
+export type FlairUpdateRequest = z.infer<typeof FlairUpdateRequestSchema>;

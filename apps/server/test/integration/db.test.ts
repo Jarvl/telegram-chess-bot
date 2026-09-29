@@ -1,9 +1,11 @@
-import { eq, sql } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { dbNow } from '../../src/db/client';
 import { runMigrations } from '../../src/db/migrate';
-import { jobs, tips, users } from '../../src/db/schema';
+import { jobs, tips, userFlair, users } from '../../src/db/schema';
+import { listMoves, requireGameById } from '../../src/domain/games';
 import { storePhoto } from '../../src/domain/photos';
+import { loadIntroductions } from '../../src/flair/introductions';
 import { openTestDb, truncateAll } from '../helpers/db';
 import { insertGame, insertGroup, insertUser } from '../helpers/fixtures';
 import { FIXTURE_JPEG } from '../helpers/photos';
@@ -27,6 +29,33 @@ describe('database', () => {
     await expect(truncating).resolves.toBeUndefined();
   });
 
+  it("truncates while a flair award holds its players' rows, without deadlocking", async () => {
+    // The award job reads the game, its moves and the introductions, locks both players' `users`
+    // rows, then writes `user_flair`; truncateAll must take those tables in that order.
+    const group = await insertGroup(db);
+    const white = await insertUser(db);
+    const black = await insertUser(db);
+    const game = await insertGame(db, group.id, white.id, black.id);
+    let truncating: Promise<void> | undefined;
+    await db.transaction(async (tx) => {
+      await requireGameById(tx, game.id);
+      await listMoves(tx, game.id);
+      await loadIntroductions(tx);
+      await tx
+        .select()
+        .from(users)
+        .where(inArray(users.id, [white.id, black.id]))
+        .orderBy(users.id)
+        .for('no key update');
+      truncating = truncateAll(db);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      await tx
+        .insert(userFlair)
+        .values({ userId: white.id, flairId: 'draws_10', gameId: game.id, earnedAt: new Date() });
+    });
+    await expect(truncating).resolves.toBeUndefined();
+  });
+
   it('has every table after migration and is idempotent to migrate again', async () => {
     await runMigrations(process.env.TEST_DATABASE_URL!);
     const rows = await db.execute(
@@ -36,6 +65,7 @@ describe('database', () => {
       'admin_actions',
       'board_images',
       'challenges',
+      'flair_introductions',
       'games',
       'group_members',
       'groups',
@@ -45,6 +75,7 @@ describe('database', () => {
       'shares',
       'telegram_updates',
       'tips',
+      'user_flair',
       'user_photos',
       'users',
     ]);
@@ -83,6 +114,9 @@ describe('database', () => {
     expect(row?.passed).toBe(true);
     expect(game.publicId).toHaveLength(10);
   });
+
+  it('starts a user with no worn flair', async () =>
+    expect((await insertUser(db)).flairWorn).toEqual([]));
 });
 
 describe('tips table', () => {
