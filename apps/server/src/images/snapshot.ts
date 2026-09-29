@@ -1,37 +1,31 @@
+import { t } from '@group-chess/shared';
 import { Resvg } from '@resvg/resvg-js';
 import satori from 'satori';
-import { BOARD_DARK, BOARD_LIGHT, IMAGE_SIZE, isLightSquare, renderBoardSvg } from './board';
+import { IMAGE_SIZE, parsePlacement, renderBoardSvg, squarePixel } from './board';
+import { EMOJI } from './emoji';
 import type { SnapshotFonts } from './fonts';
-import type { SnapshotCell, SnapshotModel, SnapshotPlayer, SnapshotRow } from './snapshotModel';
+import { GOAT_MARK_PNG } from './goatMark';
+import { PIECE_VIEWBOX, PIECES, type PieceCode } from './pieces';
+import type { SnapshotAvatar, SnapshotBar, SnapshotModel, SnapshotOutcome } from './snapshotModel';
 
-/** Snapshot spec §1: the board on the left, the panel on the right. */
-export const CARD_WIDTH = 1664;
-export const CARD_HEIGHT = 1024;
+/** Share image spec, "Canvas": a player bar, the board, a player bar, then the brand footer. */
+export const CARD_WIDTH = IMAGE_SIZE;
+const BAR_HEIGHT = 128;
+const FOOTER_HEIGHT = 64;
+export const CARD_HEIGHT = BAR_HEIGHT + IMAGE_SIZE + BAR_HEIGHT + FOOTER_HEIGHT;
 
 const SQUARE = IMAGE_SIZE / 8;
-const FILES = 'abcdefgh';
-const PAGE = '#f5f0dc';
-const INK = '#15181d';
-const MUTED = '#707579';
-const GREEN = '#256b42';
-const DEEP_GREEN = '#153a26';
-const DOT = 28;
-const DOT_GAP = 18;
-const NAME_LINE_HEIGHT = 1.15;
-
-/** Characters, not UTF-16 units, so an emoji counts once. */
-const length = (text: string): number => [...text].length;
-
-/** The group title drops a size once it is long enough to wrap onto a third line. */
-export function groupFontSize(group: string): number {
-  return length(group) > 60 ? 30 : 34;
-}
-
-/** Both names share one size, set by the longer, so the two rows stay alike. */
-export function nameFontSize(players: readonly SnapshotPlayer[]): number {
-  const longest = Math.max(...players.map((player) => length(player.name)));
-  return longest <= 16 ? 40 : longest <= 22 ? 34 : 30;
-}
+const GREEN = '#153a26';
+const FOOTER_GREEN = '#0f2c1d';
+const CREAM = '#f5f0dc';
+const SAGE = '#bcd3c2';
+const GOLD = '#e8c35a';
+const AVATAR = 72;
+const CAPTURED = 40;
+const CAPTURED_OVERLAP = 14;
+/** The badge's 54px disc and its 4px ring, drawn as a border so the ring stays inside the square. */
+const BADGE = 54 + 2 * 4;
+const BADGE_EMOJI = 32;
 
 type Style = Record<string, string | number>;
 type Child = El | string;
@@ -53,40 +47,186 @@ function el(
 const svgDataUri = (svg: string): string =>
   `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
 
-/** Wraps anywhere, so an unbroken name or title still fits the panel. */
-const WRAP: Style = { minWidth: 0, wordBreak: 'break-word' };
+const picture = (src: string, size: number, style: Style = {}): El =>
+  el('img', { width: size, height: size, flexShrink: 0, ...style }, [], {
+    src,
+    width: size,
+    height: size,
+  });
 
-function coordinate(text: string, onLightSquare: boolean, position: Style): El {
-  const color = onLightSquare ? BOARD_DARK : BOARD_LIGHT;
-  return el(
-    'span',
-    { position: 'absolute', fontSize: 24, fontWeight: 700, lineHeight: 1, color, ...position },
-    [text],
+/** A taken piece, with a thin cream glow so black pieces still read on the green. */
+function capturedPiece(code: PieceCode): string {
+  // CSS drop-shadow(0 0 1.5px) at 40px: half the blur radius, in the glyph's 45-unit box.
+  const deviation = ((1.5 / 2) * (PIECE_VIEWBOX / CAPTURED)).toFixed(2);
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${PIECE_VIEWBOX} ${PIECE_VIEWBOX}">` +
+    `<filter id="glow"><feDropShadow dx="0" dy="0" stdDeviation="${deviation}" flood-color="${CREAM}"/></filter>` +
+    `<g filter="url(#glow)">${PIECES[code]}</g></svg>`
   );
 }
 
-/** §1.1: the board image with files along the bottom row and ranks down the left column. */
+function avatar(value: SnapshotAvatar): El {
+  const round: Style = { borderRadius: AVATAR / 2 };
+  if (value.kind === 'bot') return picture(GOAT_MARK_PNG, AVATAR, round);
+  return el(
+    'div',
+    {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      width: AVATAR,
+      height: AVATAR,
+      flexShrink: 0,
+      background: value.colour,
+      color: '#ffffff',
+      fontSize: 32,
+      fontWeight: 700,
+      ...round,
+    },
+    [value.initial],
+  );
+}
+
+/** Name, then rating and, once the result is in, the change it made. The name gives way first. */
+function nameLine(bar: SnapshotBar): El {
+  return el('div', { display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }, [
+    el(
+      'span',
+      {
+        fontSize: 38,
+        fontWeight: 700,
+        color: CREAM,
+        minWidth: 0,
+        flexShrink: 1,
+        overflow: 'hidden',
+        whiteSpace: 'nowrap',
+        textOverflow: 'ellipsis',
+      },
+      [bar.name],
+    ),
+    ...(bar.rating ? [el('span', { fontSize: 28, color: SAGE, flexShrink: 0 }, [bar.rating])] : []),
+    ...(bar.ratingDelta
+      ? [
+          el(
+            'span',
+            {
+              fontSize: 26,
+              fontWeight: 700,
+              color: bar.ratingDelta.gain ? '#8fd6a8' : '#ef8a8a',
+              flexShrink: 0,
+            },
+            [bar.ratingDelta.label],
+          ),
+        ]
+      : []),
+  ]);
+}
+
+/** The pieces this side took, overlapping, then its lead; left out when there is neither. */
+function materialLine(bar: SnapshotBar): El[] {
+  if (!bar.captured.length && !bar.lead) return [];
+  const pieces = bar.captured.length
+    ? [
+        el(
+          'div',
+          { display: 'flex', alignItems: 'center', paddingRight: CAPTURED_OVERLAP },
+          bar.captured.map((code) =>
+            picture(svgDataUri(capturedPiece(code)), CAPTURED, { marginRight: -CAPTURED_OVERLAP }),
+          ),
+        ),
+      ]
+    : [];
+  const lead = bar.lead
+    ? [el('span', { fontSize: 26, fontWeight: 800, color: GOLD }, [bar.lead])]
+    : [];
+  return [
+    el('div', { display: 'flex', alignItems: 'center', gap: 12, minHeight: CAPTURED }, [
+      ...pieces,
+      ...lead,
+    ]),
+  ];
+}
+
+const TAG: Record<SnapshotOutcome, Style> = {
+  won: { background: GOLD, color: '#2a2000' },
+  lost: { background: 'rgba(245, 240, 220, 0.12)', color: SAGE },
+  draw: { background: 'rgba(245, 240, 220, 0.12)', color: CREAM },
+};
+
+function playerBar(bar: SnapshotBar): El {
+  return el(
+    'div',
+    {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 20,
+      height: BAR_HEIGHT,
+      padding: '0 40px',
+      flexShrink: 0,
+    },
+    [
+      avatar(bar.avatar),
+      el('div', { display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 0 }, [
+        nameLine(bar),
+        ...materialLine(bar),
+      ]),
+      ...(bar.result
+        ? [
+            el(
+              'span',
+              {
+                flexShrink: 0,
+                padding: '12px 22px',
+                borderRadius: 14,
+                fontSize: 30,
+                fontWeight: 800,
+                ...TAG[bar.result.outcome],
+              },
+              [bar.result.label],
+            ),
+          ]
+        : []),
+    ],
+  );
+}
+
+const BADGE_ART: Record<SnapshotOutcome, { emoji: string; background: string }> = {
+  won: { emoji: EMOJI.trophy, background: GOLD },
+  lost: { emoji: EMOJI.skull, background: '#d14e4e' },
+  draw: { emoji: EMOJI.scales, background: CREAM },
+};
+
+/** A result badge in the top-right corner of the side's king square. */
+function kingBadge(model: SnapshotModel, bar: SnapshotBar): El[] {
+  if (!bar.result) return [];
+  const code = bar.colour === 'white' ? 'wK' : 'bK';
+  const king = parsePlacement(model.board.fen).find((placed) => placed.piece === code);
+  if (!king) return [];
+  const { x, y } = squarePixel(king.file, king.rank, model.board.orientation);
+  const art = BADGE_ART[bar.result.outcome];
+  return [
+    el(
+      'div',
+      {
+        position: 'absolute',
+        left: x + SQUARE - BADGE,
+        top: y,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: BADGE,
+        height: BADGE,
+        borderRadius: BADGE / 2,
+        border: `4px solid ${GREEN}`,
+        background: art.background,
+        boxShadow: '0 3px 8px rgba(0, 0, 0, 0.35)',
+      },
+      [picture(svgDataUri(art.emoji), BADGE_EMOJI)],
+    ),
+  ];
+}
+
 function board(model: SnapshotModel): El {
-  const white = model.board.orientation === 'white';
-  const labels: El[] = [];
-  for (let index = 0; index < 8; index += 1) {
-    const file = white ? index : 7 - index;
-    const bottomRank = white ? 0 : 7;
-    labels.push(
-      coordinate(FILES[file]!, isLightSquare(file, bottomRank), {
-        right: (7 - index) * SQUARE + 8,
-        bottom: 5,
-      }),
-    );
-    const rank = white ? 7 - index : index;
-    const leftFile = white ? 0 : 7;
-    labels.push(
-      coordinate(String(rank + 1), isLightSquare(leftFile, rank), {
-        left: 8,
-        top: index * SQUARE + 7,
-      }),
-    );
-  }
   return el(
     'div',
     { display: 'flex', position: 'relative', width: IMAGE_SIZE, height: IMAGE_SIZE, flexShrink: 0 },
@@ -96,136 +236,84 @@ function board(model: SnapshotModel): El {
         width: IMAGE_SIZE,
         height: IMAGE_SIZE,
       }),
-      ...labels,
+      ...kingBadge(model, model.top),
+      ...kingBadge(model, model.bottom),
     ],
   );
 }
 
-/** §1.2: the group and its terms head the panel. */
-function header(model: SnapshotModel): El {
-  return el('div', { display: 'flex', flexDirection: 'column', gap: 10, flexShrink: 0 }, [
-    el(
-      'span',
-      {
-        fontSize: groupFontSize(model.group),
-        fontWeight: 700,
-        lineHeight: 1.2,
-        color: DEEP_GREEN,
-        ...WRAP,
-      },
-      [model.group],
-    ),
-    el('span', { fontSize: 28, lineHeight: 1.2, color: MUTED }, [model.meta]),
-  ]);
-}
-
-/** A colour dot beside the name, centred on its first line, with the rating underneath. */
-function playerRow(player: SnapshotPlayer, fontSize: number): El {
-  const dot: Style =
-    player.colour === 'white'
-      ? { background: '#ffffff', border: '3px solid #c9c2ab' }
-      : { background: '#2b2b2b' };
-  const dotTop = Math.round((fontSize * NAME_LINE_HEIGHT - DOT) / 2);
-  return el('div', { display: 'flex', flexDirection: 'column', gap: 8 }, [
-    el('div', { display: 'flex', alignItems: 'flex-start', gap: DOT_GAP, minWidth: 0 }, [
-      el('div', {
-        width: DOT,
-        height: DOT,
-        marginTop: dotTop,
-        borderRadius: DOT / 2,
-        flexShrink: 0,
-        ...dot,
-      }),
-      el(
-        'span',
-        { fontSize, fontWeight: 600, lineHeight: NAME_LINE_HEIGHT, flexShrink: 1, ...WRAP },
-        [player.name],
-      ),
-    ]),
-    ...(player.rating
-      ? [
-          el('span', { paddingLeft: DOT + DOT_GAP, fontSize: 30, lineHeight: 1.2, color: MUTED }, [
-            player.rating,
-          ]),
-        ]
-      : []),
-  ]);
-}
-
-function cell(value: SnapshotCell | null): El {
-  const current: Style = value?.current
-    ? { background: '#e3f1e7', color: GREEN, fontWeight: 700 }
-    : {};
-  return el(
-    'div',
-    { display: 'flex', width: 190, flexShrink: 0 },
-    value
-      ? [
-          el('span', { padding: '0 12px', marginLeft: -12, borderRadius: 10, ...current }, [
-            value.san,
-          ]),
-        ]
-      : [],
-  );
-}
-
-function moveRow(row: SnapshotRow): El {
-  return el('div', { display: 'flex', flexShrink: 0 }, [
-    el('span', { width: 84, flexShrink: 0, color: '#9a9a8e' }, [`${row.number}.`]),
-    cell(row.white),
-    cell(row.black),
-  ]);
-}
-
-/** §1.2, top to bottom: group and terms, players, divider, moves, then a finished game's result. */
-function panel(model: SnapshotModel): El {
-  const nameSize = nameFontSize(model.players);
+/** Share image spec, "Brand footer": says where the image came from once it is forwarded. */
+function footer(model: SnapshotModel): El {
   return el(
     'div',
     {
       display: 'flex',
-      flexDirection: 'column',
-      flex: 1,
-      minWidth: 0,
-      padding: '56px 64px',
-      gap: 40,
+      alignItems: 'center',
+      gap: 14,
+      height: FOOTER_HEIGHT,
+      padding: '0 14px 0 40px',
+      background: FOOTER_GREEN,
+      flexShrink: 0,
     },
     [
-      header(model),
-      el(
-        'div',
-        { display: 'flex', flexDirection: 'column', gap: 26, flexShrink: 0 },
-        model.players.map((player) => playerRow(player, nameSize)),
-      ),
-      el('div', { height: 3, background: '#e2dcc6', flexShrink: 0 }),
+      picture(GOAT_MARK_PNG, 40, { borderRadius: 20 }),
+      // Two colours need two words; the gap is Young Serif's own word space at 32px.
       el(
         'div',
         {
           display: 'flex',
-          flexDirection: 'column',
-          flex: 1,
-          minHeight: 0,
-          overflow: 'hidden',
-          gap: 14,
-          fontSize: 34,
-          lineHeight: 1.2,
+          gap: 8,
+          fontFamily: 'Young Serif',
+          fontSize: 32,
+          lineHeight: 1,
+          letterSpacing: '-0.01em',
+          whiteSpace: 'nowrap',
         },
-        model.rows.map(moveRow),
+        [el('span', { color: CREAM }, ['Chess']), el('span', { color: GOLD }, ['Goat'])],
       ),
-      ...(model.status
-        ? [
-            el(
-              'span',
-              { flexShrink: 0, fontSize: 34, fontWeight: 700, lineHeight: 1.2, color: GREEN },
-              [model.status],
-            ),
-          ]
-        : []),
+      el(
+        'div',
+        {
+          display: 'flex',
+          alignItems: 'center',
+          gap: 14,
+          marginLeft: 'auto',
+          whiteSpace: 'nowrap',
+        },
+        [
+          el(
+            'span',
+            {
+              fontSize: 19,
+              fontWeight: 700,
+              letterSpacing: '0.14em',
+              textTransform: 'uppercase',
+              color: SAGE,
+            },
+            [t('image.share.play_on_telegram')],
+          ),
+          // The design's 2px inset ring, as a border inside the same outer size.
+          el(
+            'span',
+            {
+              padding: '5px 14px',
+              borderRadius: 999,
+              background: 'rgba(245, 240, 220, 0.1)',
+              border: '2px solid rgba(232, 195, 90, 0.45)',
+              fontSize: 25,
+              fontWeight: 700,
+              letterSpacing: '0.01em',
+              color: CREAM,
+            },
+            [model.handle],
+          ),
+        ],
+      ),
     ],
   );
 }
 
-/** Satori lays the card out and turns its text into paths, so resvg needs no fonts (§1.3). */
+/** Satori lays the card out and turns its text into paths, so resvg needs no fonts. */
 export async function renderSnapshotSvg(
   model: SnapshotModel,
   fonts: SnapshotFonts,
@@ -234,13 +322,14 @@ export async function renderSnapshotSvg(
     'div',
     {
       display: 'flex',
+      flexDirection: 'column',
       width: CARD_WIDTH,
       height: CARD_HEIGHT,
-      background: PAGE,
-      color: INK,
+      background: GREEN,
+      color: CREAM,
       fontFamily: 'Noto Sans',
     },
-    [board(model), panel(model)],
+    [playerBar(model.top), board(model), playerBar(model.bottom), footer(model)],
   );
   return satori(card as unknown as Parameters<typeof satori>[0], {
     width: CARD_WIDTH,

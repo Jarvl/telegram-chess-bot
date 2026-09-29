@@ -504,12 +504,13 @@ Lichess import runs as a `lichess_import` job when a game with at least one move
 ### 7.7 Position images
 
 Superseded in detail by the [share-position snapshot design](./2026-09-24-share-position-snapshot-design.md).
-A shared position is a 1664 × 1024 card: the board (`renderBoardSvg`, green squares, last-move and
-check highlights, cburnett glyphs under CC BY-SA 3.0) on the left, and a panel with a
-`Snapshot · Move n` label, the players and ratings, the last eight move rows, the status at the
-moment of sharing, the group and its terms. Satori lays the card out with bundled Noto fonts (SIL
-OFL 1.1, fetched at build time by `scripts/fetch-fonts.mjs` with pinned checksums) and converts the
-text to paths; `@resvg/resvg-js` rasterises it.
+A shared position is a 1024 × 1344 portrait card: a player bar above and below the board
+(`renderBoardSvg`, green squares, last-move and check highlights, cburnett glyphs under
+CC BY-SA 3.0), each with an avatar, name, rating, captured pieces and, on a finished game's final
+position, the result tag and rating change; result badges on the kings; and a Chess Goat footer
+naming the bot. Satori lays the card out with bundled Noto and Young Serif fonts (SIL OFL 1.1,
+fetched at build time by `scripts/fetch-fonts.mjs` with pinned checksums) and converts the text
+to paths; `@resvg/resvg-js` rasterises it.
 
 Cache: `board_images(key, telegram_file_id)` with `key = sha256(card SVG)`. On a hit the share job
 calls `sendPhoto` with the `file_id` and no upload; on a miss it uploads and stores the returned

@@ -59,7 +59,7 @@ export const en = {
   'card.result.caption': '{white} vs {black} · {outcome}',
   'card.result.ratings':
     '{white} {whiteBefore} → {whiteAfter} · {black} {blackBefore} → {blackAfter}',
-  'image.share.won': '{player} won',
+  'image.share.play_on_telegram': 'Play on Telegram',
   'card.welcome':
     'Play chess with this group on a real board inside Telegram. Tap Challenge someone to pick an opponent, or send /challenge @name here. The chat only sees results and shared positions.',
   'button.accept': 'Accept',

@@ -15,6 +15,7 @@ describe('loadFonts', () => {
       ['Noto Emoji', 400],
       ['Noto Sans Symbols 2', 400],
       ['Noto Sans CJK SC', 400],
+      ['Young Serif', 400],
     ]);
     for (const font of fonts) expect((font.data as Buffer).length).toBeGreaterThan(100_000);
   });

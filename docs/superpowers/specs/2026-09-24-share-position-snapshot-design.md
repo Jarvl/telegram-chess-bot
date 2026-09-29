@@ -1,7 +1,9 @@
 # Chess Goat: shared positions as snapshots
 
 Status: accepted for planning, 2026-09-24. Panel layout revised 2026-09-24 to the prototype's
-decluttered panel (§1.2, §3.2). Source design: the Claude Design project
+decluttered panel. Card redesigned 2026-09-29 to the prototype's portrait share image
+(`Share Image Spec.md`, mockups 5c and 5e in `Share Image Options.dc.html`): §1, §3 and §4
+describe that card, and the landscape panel is gone. Source design: the Claude Design project
 `Chess Goat Prototype.dc.html` (the shared photo in the "back in the chat" view, and the
 `Share position` action), with the reasoning in `Share Position Options.dc.html`: option **3a
 "Snapshot label"** built on option **2a "Recent moves"**. Builds on the
@@ -13,14 +15,14 @@ decluttered panel (§1.2, §3.2). Source design: the Claude Design project
 Today a shared position is a bare 1024 × 1024 brown board with the caption
 `Alice shared move 1 · Alice vs Bob · White to move` and a `♟ Open game` button. People in the
 group mistake the photo for a board they can play on. The new photo reads as a snapshot: a
-landscape card with the board in the app's greens, the group and its terms, the players, the
-recent moves and, once the game is over, its result. The button says
+portrait card with the board in the app's greens between the two players' bars, the material each
+has taken and, once the game is over, its result, over a Chess Goat footer. The button says
 `♟ Open live game`, so the playable board is clearly somewhere else.
 
 | In scope | Out of scope |
 |---|---|
-| A 1664 × 1024 snapshot card replacing the 1024 × 1024 board | Editing the caption as the game moves on (option 3c) |
-| Green board theme with coordinates and a gold last-move tint | Per-user board themes or piece sets in the image |
+| A 1024 × 1344 snapshot card replacing the 1024 × 1024 board | Editing the caption as the game moves on (option 3c) |
+| Green board theme with a gold last-move tint | Per-user board themes or piece sets in the image |
 | Text in the image: fonts fetched at build time, checksummed | A wall-clock time in the image |
 | New caption and button copy | Any change to the Mini App's share button, toast or endpoint |
 | Cache key over the whole card | The share rate limit (20 per user per minute, PR #22) |
@@ -29,69 +31,89 @@ Delivered as one PR against `main`, which has PR #22 merged.
 
 ### Deviations from the prototype
 
-- **No clock on the card.** The prototype drops the status line while a game is running (it
-  neither says whose move it is nor how much time is left); only a finished game's final
-  position carries one. Telegram's own message timestamp shows when it was shared.
 - **Check highlight kept.** The prototype does not draw it; the image keeps today's red glow on a
   king in check.
-- **Result line names the winner.** The prototype's `You won` is viewer-relative; a group photo
-  says `{winner} won`.
+- **The bot's avatar is the goat mark**, as in the Mini App; the prototype draws ♞ on green.
+- **The footer names the configured bot.** The prototype writes `@ChessGoatBot`; the card writes
+  `@{BOT_USERNAME}`, so a staging bot's images name the staging bot.
+- **Voided games show no result**, like aborted ones. The prototype has no voided state.
+- **No flair yet.** The design puts each player's worn flair after the name; that arrives with the
+  flair work.
 
 ## 1. The image
 
-1664 × 1024 PNG, background `#f5f0dc`, text `#15181d`. Telegram shrinks photos to 1280 on the
-long side (1280 × 788), where the smallest text (32 px) is still about 25 px tall.
+1024 × 1344 PNG, background `#153a26`. Top to bottom: the top player bar (128 px), the board
+(1024 × 1024), the bottom player bar (128 px) and the brand footer (64 px). There are no
+coordinates, group title, terms, move list or clock; the caption and the chat carry that context.
+Telegram shows photos at up to 1280 on the long side (975 × 1280), where the smallest text (19 px)
+is still about 18 px tall.
 
-### 1.1 Board (left, 1024 × 1024)
+### 1.1 Board
 
 - 128 px squares, light `#f0ead2`, dark `#7d9f6b` (the Mini App's `--bl` / `--bd`).
 - Last move: both squares overlaid with `rgba(224,185,74,.6)`.
 - Check: today's radial red gradient on the king of the side to move.
 - Pieces: the cburnett set, as today.
-- Coordinates inside the edge squares, bold 24 px, coloured as the opposite square colour: the
-  file letter at the bottom-right of each bottom-row square (8 px from the right, 5 px from the
-  bottom), the rank digit at the top-left of each left-column square (8 px, 7 px).
 - Orientation: the sharer's colour at the bottom when a player shares, White otherwise
-  (unchanged).
+  (unchanged); the result photo is drawn from the winner's side.
+- Result badges (§3.2): each king's square gets a badge in its top-right corner, a 54 px disc in a
+  4 px `#153a26` ring that touches the square's top and right edges, with a 32 px emoji and a soft
+  shadow. 🏆 on `#e8c35a` for the winner, 💀 on `#d14e4e` for the loser, ⚖️ on `#f5f0dc` on both
+  kings of a draw.
 
-### 1.2 Panel (right, 640 × 1024)
+### 1.2 Player bars
 
-Padding 56 px top and bottom, 64 px left and right; 40 px between the blocks below, top to bottom.
-Lengths below count characters (code points), so an emoji counts once.
+The bar above the board belongs to the side at the top. 40 px side padding, 20 px between the
+avatar, the two lines and the result tag.
 
-1. **Header**, 10 px apart:
-   - Group title, bold `#153a26`, 34 px (30 px above 60 characters), line height 1.2. It wraps,
-     breaking inside a word if it must.
-   - Terms, 28 px `#707579`: `{timePerMove} · {Rated|Casual}` (existing labels).
-2. **Players**, 26 px apart: the player at the top of the board first. Each is a 28 px dot
-   (`#ffffff` with a 3 px `#c9c2ab` ring for White, `#2b2b2b` for Black), 18 px from the display
-   name (600, line height 1.15), with the dot centred on the name's first line. Both names use
-   one size, set by the longer: 40 px up to 16 characters, 34 px up to 22, 30 px beyond. Names
-   wrap, breaking inside a word if they must. Under the name, 8 px down and indented to line up
-   with it, the rating (30 px, `#707579`): the player's current rating in the group via
-   `ratingLabel(rating, provisional)`; the engine side shows its level (`app.level.*`); a player
-   with no rating row shows none.
-3. **Divider.** 3 px, `#e2dcc6`.
-4. **Moves.** Rows of `n.`, White's SAN, Black's SAN in columns 84 / 190 / 190 px, 34 px, line
-   height 1.2, 14 px between rows. Move numbers `#9a9a8e`. The move that produced the shared
-   position is highlighted: background `#e3f1e7`, text `#256b42`, bold, 10 px radius. Only moves
-   up to the shared ply appear, and only the last 6 rows (5 when the group title is over 30
-   characters, 4 when over 60, since a longer title wraps onto more lines). No row is faded. At
-   ply 0 the list is empty. The list takes the remaining height and clips if it runs out.
-5. **Status**, 34 px bold `#256b42`, line height 1.2: only for a finished game's final position
-   (see §3.2); otherwise there is no status line.
+- **Avatar**, a 72 px circle. A person gets the Mini App's avatar colour for their user id and
+  their initial in white, 32 px bold (`avatarColour` and `personInitial`, now in
+  `@group-chess/shared`). The bot gets the goat mark.
+- **Line 1**, 14 px apart:
+  - the name, 38 px bold `#f5f0dc`, cut with an ellipsis when it does not fit;
+  - the rating, 28 px `#bcd3c2`: `ratingLabel(rating, provisional)` for the player's current
+    rating in the group, the engine side's level (`app.level.*`), or none without a rating row;
+  - on a rated game's final position (§3.2), the rating is the new one (`*_rating_after`) and is
+    followed by the change, 26 px bold, `+16` in `#8fd6a8` or `−16` in `#ef8a8a`, left out when
+    zero. The change is taken between the rounded ratings, so it matches the caption's
+    `1512 → 1528`.
+- **Line 2**: the opponent's pieces this side has taken (`material()`, now in
+  `@group-chess/shared`), queen to pawn, 40 px each and overlapping by 14 px, each with a 1.5 px
+  cream glow so black pieces read on the green; then `+N`, 26 px `#e8c35a`, on the side that is
+  ahead. The line is left out when the side has taken nothing and is not ahead, and line 1 then
+  centres against the avatar.
+- **Result tag** (§3.2), 30 px bold, padding 12 × 22, radius 14: `Won` in `#2a2000` on `#e8c35a`;
+  `Lost` in `#bcd3c2` and `Draw` in `#f5f0dc`, both on `rgba(245,240,220,.12)`.
+- No turn indicator: the last-move tint implies whose move it is. The design's 800 weight draws
+  in Bold, the heaviest bundled weight.
 
-### 1.3 Rendering pipeline
+### 1.3 Brand footer
+
+It says where the image came from once it is forwarded outside the group. 64 px on `#0f2c1d`,
+padding 40 px left and 14 px right, 14 px gaps:
+
+- the goat mark as a 40 px circle;
+- `Chess Goat` in Young Serif 32 px, `Chess` in `#f5f0dc` and `Goat` in `#e8c35a` as in the banner
+  art, the two words 8 px apart (the font's own word space);
+- pushed to the right, `PLAY ON TELEGRAM` (`image.share.play_on_telegram`, upper-cased), 19 px
+  bold with 0.14em letter-spacing, `#bcd3c2`; then a pill with `@{BOT_USERNAME}`, 25 px bold
+  `#f5f0dc` on `rgba(245,240,220,.1)` with a 2 px `rgba(232,195,90,.45)` border (the design's
+  inset ring).
+
+### 1.4 Rendering pipeline
 
 - **Satori** (`satori`, MPL-2.0) lays out the card from plain element objects (no React, no JSX)
-  and returns an SVG with text converted to paths. It lives in a new
-  `apps/server/src/images/snapshot.ts`.
-- `board.ts` keeps producing the board as its own SVG (squares, highlights, pieces). The card
-  embeds it as one `<img>` data URI; the coordinates are text elements drawn over it by Satori.
-  `renderBoardSvg` changes to the green theme; its 800-unit viewBox is scaled to 1024 px.
+  in `apps/server/src/images/snapshot.ts` and returns an SVG with text converted to paths.
+- `board.ts` keeps producing the board as its own SVG (squares, highlights, pieces), embedded as
+  one `<img>` data URI; its 800-unit viewBox is scaled to 1024 px, and `squarePixel` places the
+  king badges over it.
+- Pictures are embedded as data URIs, so the server needs no asset path at runtime.
+  `scripts/vendor-snapshot-art.mjs` writes two generated modules: `emoji.ts`, the three badge
+  emoji as Noto Color Emoji SVGs (Apache 2.0) from `googlefonts/noto-emoji` at a pinned tag,
+  because Satori cannot draw colour-font glyphs; and `goatMark.ts`, the Mini App's
+  `goat-mark.png`. Each taken piece is its own small SVG with an `feDropShadow` glow.
 - `@resvg/resvg-js` rasterises Satori's SVG to PNG, as today. It needs no fonts, because Satori
   has already turned the text into paths.
-- Satori has no CSS grid; the move list is flex rows with fixed column widths.
 
 ## 2. Fonts
 
@@ -105,8 +127,10 @@ All SIL Open Font License 1.1:
 | Noto Emoji (monochrome, static weight-400 instance) | Emoji in names and group titles |
 | Noto Sans Symbols 2 Regular | Chess glyphs (♔–♟) and other symbols chess groups put in titles |
 | Noto Sans CJK SC Regular (OTF) | Chinese, Japanese and Korean names and titles |
+| Young Serif Regular (static TTF) | The footer's `Chess Goat` wordmark only |
 
-Satori is given them in that order and falls back glyph by glyph. CJK has one weight: bold CJK
+Satori is given them in that order and falls back glyph by glyph; Young Serif comes last, so it
+never stands in for other text. CJK has one weight: bold CJK
 text draws in Regular. Scripts none of these cover (Arabic, Hebrew, Devanagari, Thai, …) draw as
 empty boxes; that is accepted.
 
@@ -118,7 +142,7 @@ throws on its `fvar` table. The static weight-400 instance Google Fonts serves f
 
 Font binaries are **not committed**. `scripts/fetch-fonts.mjs` holds a manifest of
 `{ file, url, sha256 }` entries pointing at pinned sources: `notofonts/notofonts.github.io` at a
-fixed commit (Noto Sans, Noto Sans Symbols 2), a versioned `fonts.gstatic.com` URL (Noto Emoji)
+fixed commit (Noto Sans, Noto Sans Symbols 2), versioned `fonts.gstatic.com` URLs (Noto Emoji, Young Serif)
 and `notofonts/noto-cjk` at tag `Sans2.004`. The exact URLs and hashes are in the implementation
 plan.
 
@@ -145,7 +169,7 @@ The three places that need them:
 
 ### 2.3 Loading
 
-`loadFonts()` reads all six files once. `main.ts` calls it at boot, before the job
+`loadFonts()` reads all seven files once. `main.ts` calls it at boot, before the job
 worker starts; a missing or unreadable file exits the process with
 `fonts missing in apps/server/fonts, run pnpm fonts`. The loaded fonts are passed to the share
 job handler through its context, not read on each render.
@@ -157,23 +181,22 @@ job handler through its context, not read on each render.
 `send_share_photo` keeps its trigger, idempotency (`messageId` already set → done), `left`-group
 check, topic and `sendPhoto` call. On top of what it loads today, it reads:
 
-- the group's title;
 - both players' `ratings` rows in that group (rating and provisional state);
-- the game's `timePerMove`, `rated`, `engineLevel`, `status`, `result`, `endReason`,
-  `plyCount`, and the SAN of every move up to the shared ply.
+- the game's `rated`, `engineLevel`, `status`, `result`, `plyCount`, `voidedAt` and rating
+  snapshots (`*_rating_before`, `*_rating_after`, `*_rd_after`).
 
-A pure `buildSnapshotModel(input)` turns that into everything the card shows (group, terms,
-ordered players, move rows with highlight, status, board input).
-`renderSnapshotSvg(model, fonts)` lays it out; `renderPng(svg)` rasterises it.
+A pure `buildSnapshotModel(input)` turns that into everything the card shows: the top and bottom
+bars (avatar, name, rating and change, taken pieces, lead, result), the footer's handle and the
+board input. `renderSnapshotSvg(model, fonts)` lays it out; `renderSnapshotPng(svg)` rasterises
+it. `send_result_photo` posts the same card for the final position.
 
-### 3.2 Status line
+### 3.2 Result
 
-Only when the game is finished and `ply === plyCount`; every other share has none.
-
-- Voided by an admin: `Voided by an admin`, naming no winner.
-- Decisive: `{winner} won · {endReason} · 1-0` (or `0-1`).
-- Draw: `Draw · {endReason} · ½-½`.
-- `*` (aborted): the end reason's label (`Aborted`), or `Aborted` when there is none.
+Only when the game is finished, `ply === plyCount`, the game is not voided and its result is
+`1-0`, `0-1` or `1/2-1/2`. Then each bar gets its Won, Lost or Draw tag, each king its badge
+(§1.1), and a rated game's bars show the new rating and its change (§1.2). Running games, earlier
+positions, aborted games (`*`) and voided games show none of it; the result photo's caption
+still says how the game ended.
 
 ### 3.3 Cache
 
@@ -191,11 +214,10 @@ keyed the old way are never hit again and can stay.
 |---|---|
 | `card.share.caption` (changed) | `{sharer} shared move {moveNumber} of {white} vs {black}` |
 | `button.open_live_game` (new) | `♟ Open live game`, on share photos only; other cards keep `♟ Open game` |
-| `image.share.won` (new) | `{player} won` |
+| `image.share.play_on_telegram` (new) | `Play on Telegram`, upper-cased in the footer |
 
-Reused: `game.rated`, `game.casual`, `timePerMoveLabel`, `resultLabel`,
-`endReasonLabel`, `ratingLabel`, `app.level.*`, `app.game.result.draw`,
-`app.game.result.aborted`. `renderShareCaption` drops its `sideToMove` field.
+Reused: `ratingLabel`, `app.level.*` and the Mini App's result tags `app.game.tag.won`,
+`app.game.tag.lost` and `app.game.tag.draw`. `renderShareCaption` drops its `sideToMove` field.
 
 ## 5. Errors
 
@@ -209,23 +231,28 @@ Reused: `game.rated`, `game.casual`, `timePerMoveLabel`, `resultLabel`,
 ## 6. Testing
 
 - **Unit, `buildSnapshotModel`:**
-  - up to the row limit shows all; more shows only the last rows; the limit is 6, 5 or 4 by the
-    group title's length;
-  - the highlight falls on White's or Black's half of the last row;
-  - every status line in §3.2, and none for a running game or an earlier position;
-  - orientation for a White sharer, a Black sharer and a spectator;
-  - ply 0 (empty list);
-  - an engine game shows the level, and a player with no rating row shows none.
-- **Unit, rendering:** the name and group font sizes step down at their thresholds; the PNG is 1664 × 1024; a card with a CJK name, an emoji group title and
-  a 60-character name renders without throwing; the same model gives the same SVG, and so the
-  same cache key.
+  - the bars follow the orientation for a White sharer, a Black sharer and a spectator;
+  - a person's avatar colour and initial, and the bot's goat mark;
+  - provisional, missing and engine ratings;
+  - taken pieces biggest first, and the lead only on the side ahead;
+  - Won, Lost and Draw only on a finished game's final position, and none for a running game, an
+    earlier position, an aborted game or a voided one;
+  - the new rating and its change, taken between rounded ratings, provisional kept, left out when
+    zero, and the current rating instead for an earlier position or a voided game;
+  - the footer handle from the bot's username.
+- **Unit, rendering:** the PNG is 1024 × 1344; a card with CJK, emoji, XML-special and
+  60-character names renders without throwing; the same model gives the same SVG, and so the
+  same cache key; the goat mark is drawn in the footer and as a bot's avatar; the trophy, skull
+  and scales land on the right kings' squares from either side, and not before the result.
 - **Unit, fetch script:** a checksum mismatch exits non-zero, and a matching file is not
   downloaded again.
-- **Integration (`share-photo.test.ts`):** updated caption and `♟ Open live game` button;
-  the same finished position shared twice reuses the file id, and so does the same position of
-  an active game shared again later.
-- **By eye:** a script writes sample PNGs (opening, a long game, finished, CJK/emoji names,
-  Black's orientation) to a scratch folder to compare against the prototype.
+- **Integration (`share-photo.test.ts`, `result-photo.test.ts`):** updated caption and
+  `♟ Open live game` button; the same finished position shared twice reuses the file id, and so
+  does the same position of an active game shared again later; the same final position with a
+  different rating change is a different image.
+- **By eye:** `test/visual/render-samples.ts` writes sample PNGs (opening, a long game, finished,
+  a checkmate from Black's side, a draw, a voided game, CJK/emoji names, long names, a bot game)
+  to a scratch folder to compare against the prototype.
 - **Docker:** the existing `e2e.yml` image build exercises the `fonts` stage and the boot check.
 
 ## 7. Documents to update
@@ -244,6 +271,7 @@ questions before planning:
   2 ms; the CJK font adds about 34 MB of heap. Acceptable; no subsetting.
 - **Emoji through font fallback.** Emoji, CJK, Greek, Cyrillic, chess symbols and ellipsis
   truncation all draw with the font list alone; no `loadAdditionalAsset` hook is needed. Emoji
+  in names draw in monochrome; only the badges' three emoji are in colour, as pictures. Emoji
   advance widths are generous, so an emoji-heavy title looks loosely spaced.
 
 What remains:

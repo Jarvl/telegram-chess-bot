@@ -4,7 +4,7 @@ import {
   isProvisional,
   ratingLabel,
   t,
-  type TimePerMove,
+  type Colour,
 } from '@group-chess/shared';
 import { Chess } from 'chess.js';
 import { eq } from 'drizzle-orm';
@@ -51,15 +51,32 @@ export function positionAtPly(
   return { fen: move.fenAfter, lastMove: move.uci };
 }
 
+type SideRatings = { before: number; after: number; rdBefore: number; rdAfter: number };
+
+/** One side's rating before and after a rated game; null until its snapshots were all written. */
+function sideRatings(game: GameRow, colour: Colour): SideRatings | null {
+  if (!game.rated) return null;
+  const [before, after, rdBefore, rdAfter] =
+    colour === 'white'
+      ? [game.whiteRatingBefore, game.whiteRatingAfter, game.whiteRdBefore, game.whiteRdAfter]
+      : [game.blackRatingBefore, game.blackRatingAfter, game.blackRdBefore, game.blackRdAfter];
+  if (before === null || after === null || rdBefore === null || rdAfter === null) return null;
+  return { before, after, rdBefore, rdAfter };
+}
+
 async function side(
   ctx: TelegramHandlerContext,
   game: GameRow,
   user: UserRow,
+  colour: Colour,
 ): Promise<SnapshotSide> {
   return {
+    id: String(user.id),
     name: displayName(user),
+    isBot: user.isEngine,
     rating: await getPlayerRating(ctx.deps.db, game.groupId, user.id),
     engineLevel: user.isEngine ? game.engineLevel : null,
+    ratingChange: sideRatings(game, colour),
   };
 }
 
@@ -86,22 +103,18 @@ async function postSnapshot(
   const position = positionAtPly(input.moves, ply);
   const model = buildSnapshotModel({
     ply,
-    sans: input.moves.filter((move) => move.ply <= ply).map((move) => move.san),
     board: {
       ...position,
       check: new Chess(position.fen).inCheck(),
       orientation: input.orientation,
     },
-    white: await side(ctx, game, input.white),
-    black: await side(ctx, game, input.black),
-    groupTitle: group.title,
-    timePerMove: game.timePerMove as TimePerMove,
-    rated: game.rated,
+    white: await side(ctx, game, input.white, 'white'),
+    black: await side(ctx, game, input.black, 'black'),
     status: game.status,
     result: game.result,
-    endReason: game.endReason,
     plyCount: game.plyCount,
     voided: game.voidedAt !== null,
+    botUsername: ctx.config.BOT_USERNAME,
   });
   const svg = await renderSnapshotSvg(model, fonts);
   const key = snapshotImageKey(svg);
@@ -180,31 +193,13 @@ const sendSharePhoto =
 
 /** Both sides' rating change, only for a rated game whose snapshots were all written. */
 function ratingChanges(game: GameRow): { white: RatingChange; black: RatingChange } | null {
-  if (!game.rated) return null;
-  const change = (
-    before: number | null,
-    after: number | null,
-    rdBefore: number | null,
-    rdAfter: number | null,
-  ): RatingChange | null =>
-    before === null || after === null || rdBefore === null || rdAfter === null
-      ? null
-      : {
-          before: ratingLabel(before, isProvisional(rdBefore)),
-          after: ratingLabel(after, isProvisional(rdAfter)),
-        };
-  const white = change(
-    game.whiteRatingBefore,
-    game.whiteRatingAfter,
-    game.whiteRdBefore,
-    game.whiteRdAfter,
-  );
-  const black = change(
-    game.blackRatingBefore,
-    game.blackRatingAfter,
-    game.blackRdBefore,
-    game.blackRdAfter,
-  );
+  const change = (ratings: SideRatings | null): RatingChange | null =>
+    ratings && {
+      before: ratingLabel(ratings.before, isProvisional(ratings.rdBefore)),
+      after: ratingLabel(ratings.after, isProvisional(ratings.rdAfter)),
+    };
+  const white = change(sideRatings(game, 'white'));
+  const black = change(sideRatings(game, 'black'));
   return white && black ? { white, black } : null;
 }
 
