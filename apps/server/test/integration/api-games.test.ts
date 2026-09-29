@@ -97,7 +97,7 @@ describe('challenges and lobby', () => {
       'Carol',
     ]);
     expect((players as { settings: unknown }).settings).toEqual({
-      defaultTimePerMove: 86400,
+      defaultTimePerMove: 259200,
       ratedDefault: true,
       allowOpenChallenges: true,
     });

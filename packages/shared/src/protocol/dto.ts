@@ -180,7 +180,7 @@ export const GroupSettingsSchema = z.object({
 export type GroupSettings = z.infer<typeof GroupSettingsSchema>;
 
 export const GROUP_SETTINGS_DEFAULTS: GroupSettings = {
-  defaultTimePerMove: 86400,
+  defaultTimePerMove: 259200,
   ratedDefault: true,
   allowOpenChallenges: true,
   leaderboardMinGames: 5,
