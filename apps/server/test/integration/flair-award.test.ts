@@ -1,4 +1,4 @@
-import { FLAIR, INITIAL_FEN, type GameResult } from '@group-chess/shared';
+import { INITIAL_FEN, type GameResult } from '@group-chess/shared';
 import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { games, jobs, userFlair, users, type GameRow } from '../../src/db/schema';
@@ -20,8 +20,6 @@ const { db, close } = openTestDb();
 const deps = testDeps(db);
 const day = (n: number) => new Date(Date.UTC(2026, 1, n, 12));
 const AFTER_E4_E5 = 'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2';
-/** Every rung of the rank ladder: a rated game's rating is scored against all of them. */
-const LADDER = FLAIR.filter((f) => f.category === 'rank').map((f) => f.id);
 
 beforeEach(() => truncateAll(db));
 afterAll(() => close());

@@ -3,7 +3,8 @@
 Status: accepted for planning, 2026-09-29. Source design: the Claude Design project "Mini app
 design improvement", `Chess Goat Prototype.dc.html`: the Flair screen, the Settings "Flair" row
 and the emoji worn beside names. Builds on the [Chess Goat redesign](./2026-09-22-chess-goat-redesign-design.md)
-for tokens, layout and brand.
+for tokens, layout and brand. The [flair backfill](./2026-09-29-flair-backfill-design.md) replaces the introduction window (§1.5):
+flair counts a player's whole history.
 
 ## What this is
 
@@ -22,7 +23,7 @@ it appears beside her name on everyone's game lists the next time they load.
 
 | In scope | Out of scope |
 |---|---|
-| The catalog of 14 flair, its rule vocabulary and move patterns (§1) | Awarding flair for games that finished before the flair shipped (a backfill, §9) |
+| The catalog of 14 flair, its rule vocabulary and move patterns (§1) | Awarding flair for games that finished before the flair shipped (since added by the [backfill](./2026-09-29-flair-backfill-design.md)) |
 | `user_flair`, `users.flair_worn` and `flair_introductions` (§2) | Removing flair when a game is voided or ratings are rebuilt |
 | The `award_flair` job, enqueued when a game ends (§3) | A notice or DM when flair is earned |
 | `PlayerRef.flair`, `GET` and `PUT /api/me/flair` (§4) | Flair on group cards, result photos, shared positions or bot messages |
@@ -39,8 +40,9 @@ Delivered as one PR against `main`.
   no single rating to show.
 - **"Held a rating" means in any group**, because the app keeps a rating per group and the
   prototype has one per person.
-- **Flair counts only games that finish after it ships** (§1.5). The prototype's sample data shows
-  flair earned months earlier; nobody has flair on launch day.
+- **Flair counts a player's whole history**, as the prototype's sample data (flair earned months
+  earlier) implies. At launch this spec counted only games after each flair shipped; the
+  [backfill](./2026-09-29-flair-backfill-design.md) replaced that.
 - **The category subtitles** in the prototype's data ("Held, not passed: …") are not rendered by
   its template, and are not used.
 - **Leaderboard rows**: the prototype's lobby lists people; the app's lobby has a Leaderboard link
@@ -137,34 +139,31 @@ An award that was missed at the `n`-th game (see §6) is therefore made at the n
 
 `rated` defaults to false. `held` needs no filter because it is rated by definition.
 
-### 1.5 Only games after a flair ships
+### 1.5 Every earlier game counts
 
-The server records when it first sees each flair id (§3.1). When a rule is evaluated, `H` holds
-only games that finished at or after that flair's introduction, and a game that finished before it
-cannot earn it. Streaks and totals therefore start from zero at launch, and a flair added later
-starts from zero on the day it ships. Rules never see this window; the award job applies it
-(§3.2).
+Replaced by the [backfill spec](./2026-09-29-flair-backfill-design.md): there is no introduction window. A flair is scored on the
+player's whole counted history, and each flair is backfilled once on the deploy that adds it.
 
 ### 1.6 The rule for every rule kind
 
 **A rule's answer at `g` may depend only on `g` and the player's earlier counted games.** All five
 kinds above satisfy this. It is what makes evaluating each game once, as it ends, correct. It also
-keeps a later backfill possible by walking a player's history and calling the same evaluators at
-each game (§9). Any new rule kind must satisfy it.
+lets the [backfill](./2026-09-29-flair-backfill-design.md) walk a player's history and call the same evaluators at each game. Any new rule kind must satisfy it.
 
 ### 1.7 Adding and changing flair
 
 - **A new flair from existing building blocks:** add one entry to `FLAIR` (its position is its
-  display position within its category) and one `flair.<id>` string. It becomes earnable from the
-  first game that ends after it ships.
+  display position within its category) and one `flair.<id>` string. The next deploy backfills it
+  ([backfill spec](./2026-09-29-flair-backfill-design.md) §1).
 - **A new kind of condition:** add a move pattern (a detector, §1.8) or a rule kind (an evaluator,
   §3.2), with unit tests. Both registries are exhaustive `Record`s, so TypeScript flags a pattern or
   kind without an implementation.
 - **Changing an emoji or a description:** edit it. Nothing stored changes.
-- **Changing a rule:** affects only future awards; flair already earned is kept.
+- **Changing a rule:** affects only future awards; flair already earned is kept. Bump the entry's
+  `backfill` to apply a loosened rule to past games ([backfill spec](./2026-09-29-flair-backfill-design.md) §1).
 - **Removing a flair:** delete its entry. Stored rows with that id are no longer drawn, counted or
   accepted by `PUT` (§4).
-- **Ids are permanent and never reused.** The introduction date (§1.5) is keyed by id.
+- **Ids are permanent and never reused.** Awards and backfill versions are keyed by id.
 
 ### 1.8 Move patterns
 
@@ -197,7 +196,7 @@ Primary key `(user_id, flair_id)`. New flair never needs a migration.
 **`users.flair_worn`**: `text[]`, not null, default `'{}'`. The worn ids in slot order, at most 3.
 
 **`flair_introductions`**: `flair_id` text primary key; `introduced_at` timestamptz, not null,
-default `now()`.
+default `now()`. Dropped by migration `0008`, which adds `flair_backfills` ([backfill spec](./2026-09-29-flair-backfill-design.md) §2).
 
 ## 3. Awarding
 
@@ -209,15 +208,13 @@ Server code lives in `apps/server/src/flair/`:
 - `award.ts`: the job's logic.
 - `worn.ts`: slot filling (§3.3).
 - `profile.ts`: the `GET` answer and the `PUT` validation and write (§4).
-- `introductions.ts`: records introductions (§3.1).
+- `introductions.ts`: records introductions (§3.1). Removed by the [backfill](./2026-09-29-flair-backfill-design.md).
 
 The job handler is `jobs/handlers/flair.ts`.
 
 ### 3.1 Introductions at boot
 
-`startServer` calls `recordFlairIntroductions(db)` right after migrations, in every role. It inserts
-every catalog id into `flair_introductions` with `on conflict do nothing`. The first deploy that
-contains an id records when it shipped; later boots change nothing.
+Replaced by the [backfill spec](./2026-09-29-flair-backfill-design.md) §3: boot enqueues a backfill of any flair not yet backfilled.
 
 ### 3.2 The `award_flair` job
 
@@ -236,12 +233,11 @@ The handler runs in one transaction:
    checks of rows that refer to either player (new games, ratings), which take `for key share`.
 3. **For each player, white then black:**
    1. Skip them if they are deleted or the bot.
-   2. Take the flair they do not hold whose introduction is at or before the game's
-      `finished_at`.
-   3. Load their counted games from the earliest of those introductions up to and including this
-      game: rows only (id, colour, result, rated, `finished_at`, rating after).
-   4. For each such flair, window those rows to its introduction and evaluate its rule at this
-      game. Detectors see this game's moves.
+   2. Take the flair they do not hold.
+   3. Load all their counted games up to and including this game: rows only (id, colour, result,
+      rated, `finished_at`, rating after).
+   4. For each such flair, evaluate its rule at this game on those rows. Detectors see this game's
+      moves.
    5. Insert what was earned with `game_id` and `earned_at` set to this game and its `finished_at`,
       using `on conflict do nothing`. Only rows actually inserted count as new.
    6. Fill free worn slots with the new flair (§3.3).
@@ -387,7 +383,6 @@ redesign's tokens; the chips reuse `.tag`.
 | The game is voided after it earned flair | The flair is kept |
 | A player deletes their data before the job runs | Skipped for that player |
 | Game against the bot, abort, timeout abort, void while active | No job is enqueued |
-| A game ends before its flair's introduction is recorded | That flair is not earnable from it (§1.5) |
 | `PUT` with more than 3 ids, duplicates, an unknown or unearned id | 400 `validation`. The app restores the previous list and shows the error toast |
 | `PUT` and an award for the same user at once | Both lock the user row. The award fills slots from the list as the `PUT` left it |
 | Stored ids for flair removed from the catalog | Not drawn, not counted in "% unlocked", refused by `PUT` |
@@ -412,14 +407,12 @@ redesign's tokens; the chips reuse `.tag`.
   - `won` and `lost` by result;
   - `streak` skipping casual games and broken by a draw or a loss;
   - `total` counting only games that pass the filter;
-  - windowing by introduction, for both `streak` and `total`.
 - **Server integration tests (PostgreSQL):**
   - `finishGame` enqueues `award_flair` for games against people, and not for bot games or aborts;
   - each flair is awarded in a realistic game: an en passant win, an O-O-O win, a promotion win,
     the fifth rated win in a row with a casual game in between, the tenth draw, a rated game
     leaving a rating in a band;
   - 🪤 goes only to the side that was mated;
-  - games before a flair's introduction do not count, even toward a streak;
   - new flair fills free slots, and a random subset when there are more than free slots;
   - a re-run job changes nothing;
   - a void keeps flair;
@@ -427,7 +420,7 @@ redesign's tokens; the chips reuse `.tag`.
   - `GET` and `PUT /api/me/flair`, including each validation error;
   - `PlayerRef.flair` appears in the game DTO, summaries, the leaderboard and the player page,
     and is empty for a deleted player and the bot;
-  - boot records introductions once.
+  - boot enqueues the backfill ([backfill spec](./2026-09-29-flair-backfill-design.md) §7).
 - **Mini App unit tests:**
   - `wearFlair` (put, clear, swap, close up);
   - `<Flair>`, including unknown ids;
@@ -459,8 +452,5 @@ redesign's tokens; the chips reuse `.tag`.
 
 These were considered and left out; the design keeps each one possible.
 
-- **Backfill:** award flair for games that finished before it shipped. The evaluators already
-  support it (§1.6). It needs a job that walks each player's counted games in order, and a
-  decision on whether streaks and totals then ignore the introduction window.
 - **Revocation on void:** re-derive a player's flair after a void or a ratings rebuild.
 - **A notice when flair is earned**, and tapping worn flair to see what it means.
