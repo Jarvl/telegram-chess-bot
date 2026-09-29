@@ -146,6 +146,16 @@ describe('GET /api/me/flair', () => {
   });
   it('needs a session', async () =>
     expect((await api.request('GET', '/api/me/flair')).status).toBe(401));
+  it('sends at most three worn flair, whatever is stored, after leaving out retired ones', async () => {
+    // The app refuses a list of more than three, so one bad row would break the Flair screen.
+    const four = ['rank_1500', 'en_passant_win', 'draws_10', 'promotion_win'];
+    const { token } = await setup(four, ['retired_flair', ...four]);
+    const body = (await (await api.request('GET', '/api/me/flair', { token })).json()) as {
+      worn: string[];
+    };
+    expect(body.worn).toEqual(four.slice(0, 3));
+    expect(FlairDtoSchema.safeParse(body).success).toBe(true);
+  });
 });
 
 describe('PUT /api/me/flair', () => {

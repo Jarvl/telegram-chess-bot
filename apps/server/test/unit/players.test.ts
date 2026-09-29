@@ -21,6 +21,16 @@ describe('toPlayerRef', () => {
       'draws_10',
     ]));
 
+  it('sends at most three, whatever is stored, after dropping ids the catalog no longer has', () => {
+    // The app refuses a player with more than three, so one bad row would break every screen
+    // showing them.
+    const four = ['rank_1500', 'en_passant_win', 'draws_10', 'promotion_win'];
+    expect(toPlayerRef({ ...maya, flairWorn: four }, null).flair).toEqual(four.slice(0, 3));
+    expect(toPlayerRef({ ...maya, flairWorn: ['retired_flair', ...four] }, null).flair).toEqual(
+      four.slice(0, 3),
+    );
+  });
+
   it('gives a deleted player and the bot no flair', () => {
     expect(
       toPlayerRef({ ...maya, flairWorn: ['draws_10'], deletedAt: new Date() }, null).flair,

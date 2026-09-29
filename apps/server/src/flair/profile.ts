@@ -1,4 +1,4 @@
-import { FLAIR, flairById, type FlairDto } from '@group-chess/shared';
+import { FLAIR, MAX_WORN_FLAIR, flairById, type FlairDto } from '@group-chess/shared';
 import { and, eq, or } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import type { DbOrTx } from '../db/client';
@@ -9,7 +9,8 @@ import { displayName, requireUser } from '../domain/users';
 /**
  * Flair spec §4: what the player wears, in slot order, and what they have earned, in catalog order
  * and with the other player of the earning game. Stored ids the catalog no longer has are left
- * out of both (spec §1.7), so the app never has to skip one.
+ * out of both (spec §1.7), so the app never has to skip one, and no more than three worn are sent,
+ * which the app would refuse.
  */
 export async function loadFlairDto(tx: DbOrTx, userId: number): Promise<FlairDto> {
   const user = await requireUser(tx, userId);
@@ -37,7 +38,7 @@ export async function loadFlairDto(tx: DbOrTx, userId: number): Promise<FlairDto
     .where(eq(userFlair.userId, userId));
   const earnedById = new Map(rows.map((row) => [row.flairId, row]));
   return {
-    worn: user.flairWorn.filter((id) => flairById(id) !== undefined),
+    worn: user.flairWorn.filter((id) => flairById(id) !== undefined).slice(0, MAX_WORN_FLAIR),
     // Walking the catalog puts the rows in catalog order and drops ids it no longer has.
     earned: FLAIR.flatMap(({ id }) => {
       const row = earnedById.get(id);

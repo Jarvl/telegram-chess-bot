@@ -1,4 +1,10 @@
-import { GLICKO2, flairById, isProvisional, type PlayerRef } from '@group-chess/shared';
+import {
+  GLICKO2,
+  MAX_WORN_FLAIR,
+  flairById,
+  isProvisional,
+  type PlayerRef,
+} from '@group-chess/shared';
 import type { RatingRow, UserRow } from '../db/schema';
 import { displayName } from './users';
 
@@ -15,9 +21,10 @@ export function toPlayerRef(
     provisional: isProvisional(rating?.rd ?? GLICKO2.initialRd),
     isBot: user.isEngine,
     // Deleted players and the bot carry none; a stored id the catalog no longer has is not sent.
+    // Nor is a fourth: the app refuses a player with more, so one bad row would break its screens.
     flair:
       user.deletedAt || user.isEngine
         ? []
-        : user.flairWorn.filter((id) => flairById(id) !== undefined),
+        : user.flairWorn.filter((id) => flairById(id) !== undefined).slice(0, MAX_WORN_FLAIR),
   };
 }
