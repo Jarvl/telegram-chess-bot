@@ -16,6 +16,7 @@ export const JOB_KINDS = [
   'award_flair',
   'rebuild_ratings',
   'prune',
+  'fetch_user_photo',
 ] as const;
 
 export type JobKind = (typeof JOB_KINDS)[number];

@@ -4,6 +4,7 @@ import { challenges, games, groupMembers, userFlair, users } from '../db/schema'
 import type { Deps } from './deps';
 import { colourOf } from './gameDto';
 import { finishGame } from './games';
+import { deletePhoto } from './photos';
 import { enqueue } from '../jobs/queue';
 
 /** Spec §12 "Delete my data": immediate and irreversible; opponents' histories stay consistent. */
@@ -70,6 +71,7 @@ export async function deleteMyData(deps: Deps, userId: number): Promise<void> {
     // holds while it inserts `user_flair` rows. Deleting only after it has the lock means such a job
     // has committed and this sees its rows; a job that starts later finds `deleted_at` set (§3.2).
     await tx.delete(userFlair).where(eq(userFlair.userId, userId));
+    await deletePhoto(tx, userId);
     await tx.update(groupMembers).set({ status: 'left' }).where(eq(groupMembers.userId, userId));
     return publicIds;
   });

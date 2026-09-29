@@ -8,6 +8,11 @@ export type EnqueueInput = {
   payload?: JobPayload;
   /** A pending job with the same key is moved to the new run_at instead of duplicated (spec §10). */
   dedupKey?: string;
+  /**
+   * With a dedup key: false leaves a pending job exactly as it is (its run_at, attempts and error)
+   * instead of re-arming it, for causes that repeat without being new (a photo check per sighting).
+   */
+  rearm?: boolean;
   delaySeconds?: number;
   maxAttempts?: number;
 };
@@ -25,6 +30,13 @@ export async function enqueue(tx: DbOrTx, input: EnqueueInput): Promise<void> {
   };
   if (!input.dedupKey) {
     await tx.insert(jobs).values(values);
+    return;
+  }
+  if (input.rearm === false) {
+    await tx
+      .insert(jobs)
+      .values(values)
+      .onConflictDoNothing({ target: jobs.dedupKey, where: sql`done_at is null` });
     return;
   }
   await tx

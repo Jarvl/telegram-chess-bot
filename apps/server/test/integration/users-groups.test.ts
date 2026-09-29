@@ -1,6 +1,6 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { ratings, users } from '../../src/db/schema';
+import { jobs, ratings, userPhotos, users } from '../../src/db/schema';
 import {
   ensureGroup,
   getGroupByChatId,
@@ -16,6 +16,7 @@ import {
   touchMember,
   unblockUser,
 } from '../../src/domain/members';
+import { queuePhotoRefresh, storePhoto } from '../../src/domain/photos';
 import { ensureUser, prefsOf, recordWriteAccess, updatePrefs } from '../../src/domain/users';
 import { openTestDb, truncateAll } from '../helpers/db';
 import { insertGroup, insertUser } from '../helpers/fixtures';
@@ -180,5 +181,64 @@ describe('members', () => {
     expect(await isBlocked(db, group.id, user.id)).toBe(true);
     await unblockUser(db, group.id, user.id);
     expect(await isBlocked(db, group.id, user.id)).toBe(false);
+  });
+});
+
+describe('photo refresh', () => {
+  const pendingFetches = () =>
+    db
+      .select()
+      .from(jobs)
+      .where(and(eq(jobs.kind, 'fetch_user_photo'), isNull(jobs.doneAt)));
+  const alice = { telegramUserId: 42, firstName: 'Alice' };
+
+  it('queues one fetch for a new user, however often they are seen', async () => {
+    const user = await ensureUser(db, alice);
+    await ensureUser(db, alice);
+    await ensureUser(db, alice);
+    const pending = await pendingFetches();
+    expect(pending).toHaveLength(1);
+    expect(pending[0]).toMatchObject({
+      payload: { userId: user.id },
+      dedupKey: `photo:${user.id}`,
+    });
+  });
+
+  it('queues nothing within a day of the last check', async () => {
+    const user = await ensureUser(db, alice);
+    await db.delete(jobs);
+    await storePhoto(db, user.id, null);
+    await ensureUser(db, alice);
+    expect(await pendingFetches()).toHaveLength(0);
+  });
+
+  it('queues again after a day', async () => {
+    const user = await ensureUser(db, alice);
+    await db.delete(jobs);
+    await storePhoto(db, user.id, null);
+    await db
+      .update(userPhotos)
+      .set({ checkedAt: sql`now() - interval '25 hours'` })
+      .where(eq(userPhotos.userId, user.id));
+    await ensureUser(db, alice);
+    expect(await pendingFetches()).toHaveLength(1);
+  });
+
+  it('leaves a pending fetch and its backoff alone when the user is seen again', async () => {
+    const user = await ensureUser(db, alice);
+    await db
+      .update(jobs)
+      .set({ runAt: sql`now() + interval '1 hour'`, attempts: 3, lastError: 'telegram 429' })
+      .where(eq(jobs.dedupKey, `photo:${user.id}`));
+    await ensureUser(db, alice);
+    const [job] = await pendingFetches();
+    expect(job).toMatchObject({ attempts: 3, lastError: 'telegram 429' });
+    expect(job!.runAt.getTime()).toBeGreaterThan(Date.now() + 30 * 60_000);
+  });
+
+  it('never queues the engine user', async () => {
+    const [engine] = await db.select().from(users).where(eq(users.isEngine, true));
+    await queuePhotoRefresh(db, engine!);
+    expect(await pendingFetches()).toHaveLength(0);
   });
 });

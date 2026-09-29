@@ -1,4 +1,4 @@
-import { createServer, type Server } from 'node:http';
+import { createServer, type Server, type ServerResponse } from 'node:http';
 
 export type FakeCall = { method: string; body: Record<string, unknown>; multipart: boolean };
 export type FakeFailure = {
@@ -13,6 +13,12 @@ export class FakeTelegram {
   admins: number[] = [];
   members = new Map<number, string>();
   memberError: FakeFailure | null = null;
+  /** Profile photos by Telegram user id, as `getUserProfilePhotos` and the file endpoint see them. */
+  photos = new Map<number, { fileUniqueId: string; bytes: Buffer }>();
+  /** When set, the file endpoint answers this status instead of the bytes. */
+  fileStatus: number | null = null;
+  /** Awaited before the file endpoint answers, to act while a download is in flight. */
+  onFile: (() => Promise<unknown>) | null = null;
   url = '';
   private failures = new Map<string, FakeFailure[]>();
   private held = new Set<string>();
@@ -24,6 +30,10 @@ export class FakeTelegram {
       const chunks: Buffer[] = [];
       req.on('data', (chunk: Buffer) => chunks.push(chunk));
       req.on('end', () => {
+        if (req.method === 'GET' && req.url?.includes('/file/bot')) {
+          void this.serveFile(req.url, res);
+          return;
+        }
         const method = req.url?.split('/').pop() ?? '';
         const raw = Buffer.concat(chunks);
         const contentType = req.headers['content-type'] ?? '';
@@ -70,6 +80,9 @@ export class FakeTelegram {
     this.admins = [];
     this.members.clear();
     this.memberError = null;
+    this.photos.clear();
+    this.fileStatus = null;
+    this.onFile = null;
   }
 
   failNext(method: string, failure: FakeFailure): void {
@@ -85,6 +98,22 @@ export class FakeTelegram {
 
   callsTo(method: string): FakeCall[] {
     return this.calls.filter((call) => call.method === method);
+  }
+
+  /** `/file/bot<token>/photos/<id>.jpg`, recorded as a `file` call. */
+  private async serveFile(url: string, res: ServerResponse): Promise<void> {
+    const path = url.replace(/^.*\/file\/bot[^/]+\//, '');
+    this.calls.push({ method: 'file', body: { path }, multipart: false });
+    if (this.onFile) await this.onFile();
+    const id = Number(/^photos\/(\d+)\.jpg$/.exec(path)?.[1]);
+    const photo = this.photos.get(id);
+    res.statusCode = this.fileStatus ?? (photo ? 200 : 404);
+    if (res.statusCode !== 200 || !photo) {
+      res.end();
+      return;
+    }
+    res.setHeader('content-type', 'image/jpeg');
+    res.end(photo.bytes);
   }
 
   private respond(
@@ -136,6 +165,40 @@ export class FakeTelegram {
             user: { id, is_bot: false, first_name: 'Admin' },
           })),
         );
+      case 'getUserProfilePhotos': {
+        const userId = Number(body.user_id);
+        const photo = this.photos.get(userId);
+        if (!photo) return ok({ total_count: 0, photos: [] });
+        return ok({
+          total_count: 1,
+          photos: [
+            [
+              {
+                file_id: `small-${userId}`,
+                file_unique_id: photo.fileUniqueId,
+                width: 160,
+                height: 160,
+              },
+              {
+                file_id: `big-${userId}`,
+                file_unique_id: `${photo.fileUniqueId}-big`,
+                width: 640,
+                height: 640,
+              },
+            ],
+          ],
+        });
+      }
+      case 'getFile': {
+        const fileId = String(body.file_id);
+        const userId = Number(fileId.replace(/^\D+-/, ''));
+        return ok({
+          file_id: fileId,
+          file_unique_id: 'f',
+          file_size: this.photos.get(userId)?.bytes.length ?? 0,
+          file_path: `photos/${userId}.jpg`,
+        });
+      }
       case 'createInvoiceLink':
         return ok('https://t.me/$TestInvoice');
       default:

@@ -170,7 +170,7 @@ The bot posts nothing to the group except the following:
 |---|---|---|
 | Welcome card | Bot added | One line plus **♟ Open Chess** |
 | Game card | Challenge created; edited on accept, and again at game end | Players (with colours once assigned), time per move, rated/casual; status line ("Move 12 · Bob to move") updated silently as the game goes; **Accept**/**Decline** while pending; **♟ Open game** while running; result, **Analyze on Lichess** and **Rematch** when finished |
-| Shared position | A player or spectator taps Share position in the app | Snapshot card of that position (board, group and terms, players, recent moves, and the result once the game is over), caption "Alice shared move 23 of Alice vs Bob", **♟ Open live game** button. Group members reply in the chat as usual |
+| Shared position | A player or spectator taps Share position in the app | Portrait snapshot card of that position (the board between both players' bars with their ratings and captured material, the result once the game is over, and a Chess Goat footer naming the bot), caption "Alice shared move 23 of Alice vs Bob", **♟ Open live game** button. Group members reply in the chat as usual |
 | Reply to `/challenge` | Only when the command cannot be fulfilled | One short line (for example, the opponent already has 2 games with you) |
 
 Edits to the game card are silent (no notification). There are no per-move messages, no nudges in the group, no bump or re-post behaviour. Status-line edits are throttled to at most one per move.
@@ -221,7 +221,7 @@ In the app, under the group, visible to group admins only (verified against Tele
 ### 7.12 Privacy — P0
 
 - Privacy mode stays on. The bot receives only its commands, replies to its own messages, button taps and Mini App requests. It never stores chat content.
-- Stored per user: Telegram id, first name, username (display), games, ratings, earned and worn flair, notification permission and app preferences. A **Delete my data** action in the app anonymises the user in past games and removes preferences and flair.
+- Stored per user: Telegram id, first name, username (display), profile photo (a small copy, refreshed at most daily), games, ratings, earned and worn flair, notification permission and app preferences. A **Delete my data** action in the app anonymises the user in past games and removes the photo, preferences and flair.
 - Mini App requests are authenticated with Telegram's signed launch data; a user can only act as themselves.
 
 ### 7.13 Bot opponent — P1

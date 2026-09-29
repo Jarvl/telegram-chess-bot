@@ -17,6 +17,7 @@ const summary = (id: string, yourTurn: boolean, status: 'active' | 'finished' = 
     rating: 1500,
     provisional: true,
     isBot: false,
+    photoUrl: null,
     flair: [],
   },
   black: {
@@ -26,6 +27,7 @@ const summary = (id: string, yourTurn: boolean, status: 'active' | 'finished' = 
     rating: 1500,
     provisional: true,
     isBot: false,
+    photoUrl: null,
     flair: [],
   },
   status,

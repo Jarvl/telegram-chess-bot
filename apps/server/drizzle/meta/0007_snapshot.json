@@ -1,6 +1,6 @@
 {
-  "id": "118b19bd-9a11-4134-b678-b95e06e0b459",
-  "prevId": "1c927f12-9755-4a39-b75e-d4d2ee3448ca",
+  "id": "a1a63854-cdb8-4e54-8c82-81b13a2493fa",
+  "prevId": "118b19bd-9a11-4134-b678-b95e06e0b459",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -318,6 +318,32 @@
           "columns": ["public_id"]
         }
       },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.flair_introductions": {
+      "name": "flair_introductions",
+      "schema": "",
+      "columns": {
+        "flair_id": {
+          "name": "flair_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "introduced_at": {
+          "name": "introduced_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -1481,6 +1507,67 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.user_flair": {
+      "name": "user_flair",
+      "schema": "",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "flair_id": {
+          "name": "flair_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "game_id": {
+          "name": "game_id",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "earned_at": {
+          "name": "earned_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "user_flair_user_id_users_id_fk": {
+          "name": "user_flair_user_id_users_id_fk",
+          "tableFrom": "user_flair",
+          "tableTo": "users",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "user_flair_game_id_games_id_fk": {
+          "name": "user_flair_game_id_games_id_fk",
+          "tableFrom": "user_flair",
+          "tableTo": "games",
+          "columnsFrom": ["game_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "user_flair_user_id_flair_id_pk": {
+          "name": "user_flair_user_id_flair_id_pk",
+          "columns": ["user_id", "flair_id"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.user_photos": {
       "name": "user_photos",
       "schema": "",
@@ -1628,6 +1715,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "flair_worn": {
+          "name": "flair_worn",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
         },
         "created_at": {
           "name": "created_at",

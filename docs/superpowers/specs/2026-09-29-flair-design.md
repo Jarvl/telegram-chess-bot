@@ -181,7 +181,7 @@ moves at odd plies, Black at even ones.
 
 ## 2. Data
 
-Migration `0006_flair`:
+Migration `0007_flair`:
 
 **`user_flair`**: one row per earned flair.
 

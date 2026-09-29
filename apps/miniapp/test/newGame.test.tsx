@@ -14,6 +14,7 @@ const bob = {
   rating: 1520,
   provisional: false,
   isBot: false,
+  photoUrl: null,
   flair: [],
 };
 
@@ -40,6 +41,7 @@ const challenge = {
     rating: 1500,
     provisional: true,
     isBot: false,
+    photoUrl: null,
     flair: [],
   },
   opponent: null,

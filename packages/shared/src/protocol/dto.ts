@@ -34,6 +34,8 @@ export const PlayerRefSchema = z.object({
   provisional: z.boolean(),
   /** The bot opponent: drawn as the Chess Goat mark, with its level instead of a rating. */
   isBot: z.boolean(),
+  /** The player's Telegram photo on this server; null without one, and always for the bot and deleted players. */
+  photoUrl: z.string().nullable(),
   /** Worn flair ids in slot order; the app skips ids it does not know. */
   flair: z.array(z.string()).max(MAX_WORN_FLAIR).default([]),
 });

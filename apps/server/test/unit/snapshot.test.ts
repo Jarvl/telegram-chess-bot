@@ -1,13 +1,11 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { snapshotImageKey } from '../../src/images/cache';
+import { EMOJI } from '../../src/images/emoji';
 import { loadFonts, type SnapshotFonts } from '../../src/images/fonts';
-import {
-  groupFontSize,
-  nameFontSize,
-  renderSnapshotPng,
-  renderSnapshotSvg,
-} from '../../src/images/snapshot';
+import { GOAT_MARK_PNG } from '../../src/images/goatMark';
+import { renderSnapshotPng, renderSnapshotSvg } from '../../src/images/snapshot';
 import { buildSnapshotModel, type SnapshotInput } from '../../src/images/snapshotModel';
+import { FIXTURE_JPEG } from '../helpers/photos';
 import { snapshotInput } from '../helpers/snapshotFixtures';
 
 let fonts: SnapshotFonts;
@@ -18,22 +16,51 @@ beforeAll(async () => {
 const render = (overrides: Partial<SnapshotInput> = {}) =>
   renderSnapshotSvg(buildSnapshotModel(snapshotInput(overrides)), fonts);
 
+/** Fool's mate: Black has mated; the white king stands on e1, the black king on e8. */
+const FOOLS_MATE = 'rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3';
+const mated = (overrides: Partial<SnapshotInput> = {}): Partial<SnapshotInput> => ({
+  status: 'finished',
+  result: '0-1',
+  ply: 4,
+  plyCount: 4,
+  board: { fen: FOOLS_MATE, lastMove: 'd8h4', check: true, orientation: 'white' },
+  ...overrides,
+});
+
+/** Where the card places a picture, by the start of its data; null when it is not drawn. */
+function placed(svg: string, picture: string): { x: number; y: number }[] {
+  const needle = picture.startsWith('data:')
+    ? picture.slice(0, 200)
+    : `data:image/svg+xml;base64,${Buffer.from(picture).toString('base64').slice(0, 200)}`;
+  return [...svg.matchAll(/<image x="([\d.]+)" y="([\d.]+)"[^>]*href="([^"]+)"/g)]
+    .filter((match) => match[3]!.startsWith(needle))
+    .map((match) => ({ x: Number(match[1]), y: Number(match[2]) }));
+}
+
+/** The 128px square the card draws a board square in: 128px bar above, then the board. */
+const square = (column: number, row: number) => ({
+  left: column * 128,
+  top: 128 + row * 128,
+});
+const within = (point: { x: number; y: number }, box: { left: number; top: number }) =>
+  point.x >= box.left && point.x < box.left + 128 && point.y >= box.top && point.y < box.top + 128;
+
 describe('renderSnapshotPng', () => {
-  it('rasterises the card to a 1664 × 1024 PNG', async () => {
+  it('rasterises the card to a 1024 × 1344 PNG', async () => {
     const png = renderSnapshotPng(await render());
     expect([...png.subarray(0, 8)]).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-    expect(png.readUInt32BE(16)).toBe(1664);
-    expect(png.readUInt32BE(20)).toBe(1024);
+    expect(png.readUInt32BE(16)).toBe(1024);
+    expect(png.readUInt32BE(20)).toBe(1344);
   });
 });
 
 describe('renderSnapshotSvg', () => {
   it('is deterministic, and changes with what the card shows', async () => {
     expect(await render()).toBe(await render());
-    expect(await render()).not.toBe(await render({ groupTitle: 'Another club' }));
     expect(await render()).not.toBe(
       await render({ board: { ...snapshotInput().board, orientation: 'black' } }),
     );
+    expect(await render()).not.toBe(await render({ botUsername: 'ChessGoatStagingBot' }));
   });
 
   it('draws text as paths, so the SVG carries no font dependency', async () => {
@@ -43,51 +70,61 @@ describe('renderSnapshotSvg', () => {
   });
 
   it.each([
-    ['CJK and Hangul names', { name: '李小龍 さくら 김민수', rating: null, engineLevel: null }],
-    ['a 60-character unbroken name', { name: 'x'.repeat(60), rating: null, engineLevel: null }],
-    ['XML-special characters', { name: `<b>&"'</b>`, rating: null, engineLevel: null }],
-  ])('renders %s without throwing', async (_label, white) => {
-    const svg = await render({ white });
+    ['CJK and Hangul names', '李小龍 さくら 김민수'],
+    ['a 60-character unbroken name', 'x'.repeat(60)],
+    ['XML-special characters', `<b>&"'</b>`],
+    ['emoji, ZWJ sequences and flags', '🐐🔥 👨‍👩‍👧 🇺🇦 ♞'],
+  ])('renders %s without throwing', async (_label, name) => {
+    const svg = await render({ white: { ...snapshotInput().white, name } });
     expect(() => renderSnapshotPng(svg)).not.toThrow();
   });
 
-  it('renders emoji, ZWJ sequences, flags and chess symbols in a group title', async () => {
-    const svg = await render({ groupTitle: '♞ Goats 🐐🔥 👨‍👩‍👧 🇺🇦 & <friends>' });
-    expect(() => renderSnapshotPng(svg)).not.toThrow();
-  });
-
-  it('renders a long game cut to its last rows, with a finished result', async () => {
-    const sans = Array.from({ length: 61 }, (_, i) => (i % 2 ? 'Nxe5+' : 'Qxd8#'));
-    const svg = await render({
-      ply: 61,
-      plyCount: 61,
-      sans,
-      status: 'finished',
-      result: '1-0',
-      endReason: 'checkmate',
+  it('draws the goat mark in the footer, and as the avatar of a bot', async () => {
+    expect(placed(await render(), GOAT_MARK_PNG)).toHaveLength(1);
+    const bot = await render({
+      black: { ...snapshotInput().black, name: 'Chess Goat', isBot: true, engineLevel: 'strong' },
     });
+    expect(placed(bot, GOAT_MARK_PNG)).toHaveLength(2);
+  });
+
+  it("draws a player's stored photo as their avatar, in their bar", async () => {
+    const photo = `data:image/jpeg;base64,${FIXTURE_JPEG.toString('base64')}`;
+    expect(placed(await render(), photo)).toHaveLength(0);
+    const svg = await render({ black: { ...snapshotInput().black, photo: FIXTURE_JPEG } });
+    const [where, ...more] = placed(svg, photo);
+    expect(more).toHaveLength(0);
+    // Black is at the top when White shares: the photo sits in the 128px bar above the board.
+    expect(where!.y).toBeLessThan(128);
     expect(() => renderSnapshotPng(svg)).not.toThrow();
   });
-});
 
-describe('nameFontSize', () => {
-  it('shrinks both names together as the longer one grows', () => {
-    const size = (white: string, black: string) =>
-      nameFontSize([
-        { colour: 'black', name: black, rating: null },
-        { colour: 'white', name: white, rating: null },
-      ]);
-    expect(size('x'.repeat(16), 'Bob')).toBe(40);
-    expect(size('Bob', 'x'.repeat(17))).toBe(34);
-    expect(size('x'.repeat(22), 'Bob')).toBe(34);
-    expect(size('x'.repeat(23), 'Bob')).toBe(30);
+  it("puts a trophy on the winner's king and a skull on the loser's", async () => {
+    const svg = await render(mated());
+    const [trophy] = placed(svg, EMOJI.trophy);
+    const [skull] = placed(svg, EMOJI.skull);
+    expect(within(trophy!, square(4, 0))).toBe(true);
+    expect(within(skull!, square(4, 7))).toBe(true);
+    expect(placed(svg, EMOJI.scales)).toEqual([]);
   });
-});
 
-describe('groupFontSize', () => {
-  it('drops a size above 60 characters', () => {
-    expect(groupFontSize('x'.repeat(60))).toBe(34);
-    expect(groupFontSize('x'.repeat(61))).toBe(30);
+  it("finds the kings from the black side's view too", async () => {
+    const svg = await render(
+      mated({ board: { fen: FOOLS_MATE, lastMove: 'd8h4', check: true, orientation: 'black' } }),
+    );
+    expect(within(placed(svg, EMOJI.trophy)[0]!, square(3, 7))).toBe(true);
+    expect(within(placed(svg, EMOJI.skull)[0]!, square(3, 0))).toBe(true);
+  });
+
+  it('puts the scales on both kings of a draw', async () => {
+    const svg = await render(mated({ result: '1/2-1/2' }));
+    expect(placed(svg, EMOJI.scales)).toHaveLength(2);
+    expect(placed(svg, EMOJI.trophy)).toEqual([]);
+  });
+
+  it('has no badges before the result', async () => {
+    const svg = await render(mated({ status: 'active', result: null }));
+    for (const picture of [EMOJI.trophy, EMOJI.skull, EMOJI.scales])
+      expect(placed(svg, picture)).toEqual([]);
   });
 });
 
@@ -96,6 +133,6 @@ describe('snapshotImageKey', () => {
     const svg = await render();
     expect(snapshotImageKey(svg)).toMatch(/^[0-9a-f]{64}$/);
     expect(snapshotImageKey(svg)).toBe(snapshotImageKey(await render()));
-    expect(snapshotImageKey(svg)).not.toBe(snapshotImageKey(await render({ rated: false })));
+    expect(snapshotImageKey(svg)).not.toBe(snapshotImageKey(await render(mated())));
   });
 });

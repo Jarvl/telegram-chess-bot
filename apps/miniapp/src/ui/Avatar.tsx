@@ -1,6 +1,13 @@
-import type { GroupRef, PlayerRef } from '@group-chess/shared';
+import {
+  avatarColour,
+  groupColour,
+  groupInitials,
+  personInitial,
+  type GroupRef,
+  type PlayerRef,
+} from '@group-chess/shared';
+import { useState } from 'preact/hooks';
 import { BRAND } from '../brand';
-import { avatarColour, groupColour, groupInitials, personInitial } from './avatarPalette';
 
 type Size = 22 | 26 | 34 | 38 | 40 | 56;
 
@@ -17,9 +24,18 @@ export function BotMark(props: { size: Size }) {
   );
 }
 
-/** A person as Telegram draws one without a photo; the bot as the Chess Goat mark. */
-export function Avatar(props: { player: Pick<PlayerRef, 'id' | 'name' | 'isBot'>; size: Size }) {
+/**
+ * A person as Telegram draws one: their photo when the server has it, over the coloured initial
+ * that shows while it loads and stays if it fails. The bot is the Chess Goat mark.
+ */
+export function Avatar(props: {
+  player: Pick<PlayerRef, 'id' | 'name' | 'isBot' | 'photoUrl'>;
+  size: Size;
+}) {
+  // Keyed by URL, so a later photo gets its own chance after an earlier one failed.
+  const [failed, setFailed] = useState<string | null>(null);
   if (props.player.isBot) return <BotMark size={props.size} />;
+  const { photoUrl } = props.player;
   return (
     <span
       class="avatar"
@@ -32,6 +48,18 @@ export function Avatar(props: { player: Pick<PlayerRef, 'id' | 'name' | 'isBot'>
       }
     >
       {personInitial(props.player.name)}
+      {photoUrl && failed !== photoUrl ? (
+        <img
+          class="photo"
+          src={photoUrl}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          width={props.size}
+          height={props.size}
+          onError={() => setFailed(photoUrl)}
+        />
+      ) : null}
     </span>
   );
 }

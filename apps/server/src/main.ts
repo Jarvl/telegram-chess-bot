@@ -26,6 +26,7 @@ import {
   ensurePruneScheduled,
   lichessJobHandlers,
   sharePhotoJobHandlers,
+  userPhotoJobHandlers,
   telegramJobHandlers,
 } from './jobs/handlers';
 import { JobWorker } from './jobs/worker';
@@ -148,6 +149,7 @@ export async function startServer(
         ...coreJobHandlers(deps),
         ...telegramJobHandlers({ deps, api, config }),
         ...sharePhotoJobHandlers({ deps, api, config }, fonts),
+        ...userPhotoJobHandlers({ deps, api, config }),
         ...lichessJobHandlers({ deps, config, metrics }),
         // Registered unconditionally: the handler owns the disabled case itself. An unhandled
         // kind is retried forever without counting an attempt (`jobs/worker.ts:117-123`), so a

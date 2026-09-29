@@ -1,6 +1,7 @@
 import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { boardImages, games, jobs, shares } from '../../src/db/schema';
+import { storePhoto } from '../../src/domain/photos';
 import { loadFonts } from '../../src/images/fonts';
 import { sharePhotoJobHandlers } from '../../src/jobs/handlers/sharePhoto';
 import { enqueue } from '../../src/jobs/queue';
@@ -10,6 +11,7 @@ import { testConfig } from '../helpers/config';
 import { openTestDb, testDeps, truncateAll } from '../helpers/db';
 import { FakeTelegram } from '../helpers/fakeTelegram';
 import { insertGame, insertGroup, insertMove, insertUser } from '../helpers/fixtures';
+import { FIXTURE_JPEG } from '../helpers/photos';
 
 const { db, close } = openTestDb();
 const deps = testDeps(db);
@@ -130,6 +132,17 @@ describe('send_share_photo', () => {
     await worker.runOnce();
     expect(fake.callsTo('sendPhoto').map((call) => call.multipart)).toEqual([true, false]);
     expect(await db.select().from(boardImages)).toHaveLength(1);
+  });
+
+  it("renders a new card once a player's Telegram photo is stored", async () => {
+    const { alice, carol, game } = await table();
+    await share(game.id, carol.id, 2);
+    await worker.runOnce();
+    await storePhoto(db, alice.id, { fileUniqueId: 'u-1', bytes: FIXTURE_JPEG });
+    await share(game.id, carol.id, 2);
+    await worker.runOnce();
+    expect(fake.callsTo('sendPhoto').map((call) => call.multipart)).toEqual([true, true]);
+    expect(await db.select().from(boardImages)).toHaveLength(2);
   });
 
   it('renders from the black side when Black shares, which is a different image', async () => {
