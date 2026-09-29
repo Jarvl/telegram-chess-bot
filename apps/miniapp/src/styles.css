@@ -1326,6 +1326,18 @@ coords.squares:nth-of-type(even) :nth-child(even) {
   align-items: center;
   justify-content: center;
   flex: none;
+  position: relative;
+  overflow: hidden;
+}
+
+/* The Telegram photo covers the initial, which shows while it loads and stays if it fails. */
+.avatar .photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
 }
 
 .avatar.bot {
