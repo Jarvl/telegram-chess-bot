@@ -289,6 +289,45 @@ button {
   white-space: nowrap;
 }
 
+/* Worn flair beside a name (flair spec §5.1). The emojis are spaced by a flex `gap`, never
+   `letter-spacing`, which can pull a ZWJ sequence (several rank flair are one) into two glyphs.
+   `flex: none` keeps the flair whole, so in a `.name-row` or `.game-card .who` the name alone
+   ellipsises as the line narrows. */
+.flair {
+  display: inline-flex;
+  gap: 1px;
+  flex: none;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.game-card .flair {
+  font-size: 13px;
+}
+
+.player-bar .flair {
+  font-size: 14px;
+}
+
+.player-row .flair {
+  font-size: 15px;
+}
+
+/* The player page's name line. The title stays a bare h1 holding only the name; the flair follows
+   it, and drops beneath a long name that leaves it no room. */
+.player-name {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.player-name .flair {
+  gap: 2px;
+  font-size: 20px;
+}
+
 .chevron {
   color: var(--hint);
   font-size: 22px;

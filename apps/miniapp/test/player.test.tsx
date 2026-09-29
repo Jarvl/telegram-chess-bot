@@ -51,4 +51,16 @@ describe('Player', () => {
     await r.flush();
     expect(r.root.querySelector('[data-action="challenge"]')).toBeNull();
   });
+
+  it('shows the player’s flair beside the name, outside the title', async () => {
+    const worn = { ...page, player: { ...page.player, flair: ['draws_10'] } };
+    const r = renderApp(
+      () => <Player groupId="GrOuPiDxYz" userId="2" />,
+      () => ({ status: 200, body: worn }),
+    );
+    await r.flush();
+    expect(r.root.querySelector('.title')?.textContent).toBe('@bob');
+    expect(r.root.querySelector('.player-name .flair')?.textContent).toBe('🤝');
+    expect(r.root.querySelector('.title')?.nextElementSibling?.matches('.flair')).toBe(true);
+  });
 });

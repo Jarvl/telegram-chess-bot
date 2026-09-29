@@ -1,5 +1,6 @@
 import { ratingLabel, t, type ChallengeDto, type LeaderboardEntry } from '@group-chess/shared';
 import { Avatar } from './Avatar';
+import { Flair } from './Flair';
 import { termsLabel } from './format';
 
 export function ChallengeCard(props: {
@@ -78,6 +79,7 @@ export function PlayerRow(props: {
         <span class="name-row">
           <span class="name">{entry.name}</span>
           {props.you ? <span class="you">{t('app.leaderboard.you')}</span> : null}
+          <Flair ids={entry.flair} />
           <span class="rating">{ratingLabel(entry.rating, entry.provisional)}</span>
         </span>
         <span class="secondary">{t('app.player.record', entry.record)}</span>

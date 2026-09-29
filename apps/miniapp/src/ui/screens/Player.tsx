@@ -2,6 +2,7 @@ import { PlayerPageDtoSchema, ratingLabel, t } from '@group-chess/shared';
 import { session } from '../../state/session';
 import { Avatar } from '../Avatar';
 import { useApp } from '../context';
+import { Flair } from '../Flair';
 import { GameCard } from '../GameCard';
 import { useResource } from '../hooks';
 import { ErrorScreen, Loading } from './Status';
@@ -19,7 +20,10 @@ export function Player(props: { groupId: string; userId: string }) {
       <header class="player-head">
         <Avatar player={player} size={56} />
         <div class="grow">
-          <h1 class="title">{player.name}</h1>
+          <div class="player-name">
+            <h1 class="title">{player.name}</h1>
+            <Flair ids={player.flair} />
+          </div>
           <p class="subtitle">
             {ratingLabel(player.rating, player.provisional)} ·{' '}
             {t('app.player.record', player.record)} ·{' '}
