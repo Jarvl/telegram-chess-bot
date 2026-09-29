@@ -1,0 +1,160 @@
+import {
+  INITIAL_FEN,
+  held,
+  lost,
+  streak,
+  total,
+  won,
+  type PlayerResult,
+} from '@group-chess/shared';
+import { describe, expect, it } from 'vitest';
+import { ruleHolds, type CountedGame, type RuleContext } from '../../src/flair/rules';
+import { LINES, PROMOTION_FEN, play } from '../helpers/chess';
+
+const game = (id: number, result: PlayerResult, over: Partial<CountedGame> = {}): CountedGame => ({
+  id,
+  finishedAt: new Date(Date.UTC(2026, 1, id, 12)),
+  rated: true,
+  result,
+  ratingAfter: null,
+  ...over,
+});
+/** Scores the last game of `history`. */
+const at = (history: CountedGame[], over: Partial<RuleContext> = {}): RuleContext => ({
+  game: history.at(-1)!,
+  history,
+  moves: [],
+  side: 'white',
+  ...over,
+});
+/** Rated wins with these ids, oldest first. */
+const ratedWins = (...ids: number[]): CountedGame[] => ids.map((id) => game(id, 'win'));
+
+describe('held', () => {
+  it('holds the rung of the displayed rating a rated game left', () => {
+    expect(ruleHolds(held(null, 1199), at([game(1, 'loss', { ratingAfter: 1199.4 })]))).toBe(true);
+    expect(ruleHolds(held(1200, 1299), at([game(1, 'loss', { ratingAfter: 1199.4 })]))).toBe(false);
+    expect(ruleHolds(held(1200, 1299), at([game(1, 'win', { ratingAfter: 1199.5 })]))).toBe(true);
+    expect(ruleHolds(held(1800, null), at([game(1, 'win', { ratingAfter: 1800 })]))).toBe(true);
+    // 1299.5 reads 1300, above the band.
+    expect(ruleHolds(held(1200, 1299), at([game(1, 'win', { ratingAfter: 1299.5 })]))).toBe(false);
+    // A rated game that left no rating holds no rung.
+    expect(ruleHolds(held(null, 1199), at([game(1, 'win')]))).toBe(false);
+  });
+  it('holds no rung after a casual game', () => {
+    expect(ruleHolds(held(1500, 1599), at([game(1, 'win', { rated: false })]))).toBe(false);
+    // Even one that carries a rating.
+    expect(
+      ruleHolds(held(1500, 1599), at([game(1, 'win', { rated: false, ratingAfter: 1550 })])),
+    ).toBe(false);
+  });
+});
+
+describe('won and lost', () => {
+  it('holds won(pattern) only for a win in which the player made the pattern', () => {
+    const moves = play(INITIAL_FEN, ...LINES.enPassant);
+    expect(ruleHolds(won('en_passant'), at([game(1, 'win')], { moves }))).toBe(true);
+    expect(ruleHolds(won('en_passant'), at([game(1, 'draw')], { moves }))).toBe(false);
+    expect(ruleHolds(won('en_passant'), at([game(1, 'win')], { moves, side: 'black' }))).toBe(
+      false,
+    );
+  });
+  it('holds lost(pattern) for the player the opponent did it to', () => {
+    const moves = play(INITIAL_FEN, ...LINES.scholarsMateQh5);
+    expect(ruleHolds(lost('scholars_mate'), at([game(1, 'loss')], { moves, side: 'black' }))).toBe(
+      true,
+    );
+    expect(ruleHolds(lost('scholars_mate'), at([game(1, 'win')], { moves }))).toBe(false);
+    // A loss in which the opponent did not mate on f7.
+    expect(
+      ruleHolds(
+        lost('scholars_mate'),
+        at([game(1, 'loss')], { moves: play(INITIAL_FEN, ...LINES.enPassant), side: 'black' }),
+      ),
+    ).toBe(false);
+    // The player has to have lost as well: White promoted, but the game was drawn.
+    expect(
+      ruleHolds(
+        lost('promotion'),
+        at([game(1, 'draw')], { moves: play(PROMOTION_FEN, 'e7e8q'), side: 'black' }),
+      ),
+    ).toBe(false);
+  });
+});
+
+describe('streak', () => {
+  const five = streak('win', 5, { rated: true });
+  it('holds at the fifth win in a row and at every win after it', () => {
+    const wins = [1, 2, 3, 4, 5, 6].map((id) => game(id, 'win'));
+    expect(ruleHolds(five, at(wins.slice(0, 4)))).toBe(false);
+    expect(ruleHolds(five, at(wins.slice(0, 5)))).toBe(true);
+    expect(ruleHolds(five, at(wins))).toBe(true);
+    // An earlier loss does not matter once five wins follow it.
+    expect(ruleHolds(five, at([game(1, 'loss'), ...ratedWins(2, 3, 4, 5, 6)]))).toBe(true);
+  });
+  it('skips casual games, which neither extend nor break the run', () => {
+    const history = [
+      game(1, 'win'),
+      game(2, 'win'),
+      game(3, 'loss', { rated: false }),
+      game(4, 'win', { rated: false }),
+      game(5, 'win'),
+      game(6, 'win'),
+      game(7, 'win'),
+    ];
+    expect(ruleHolds(five, at(history))).toBe(true);
+    expect(ruleHolds(five, at(history.slice(0, 4)))).toBe(false);
+    // A casual game is not itself a qualifying game, whatever rated wins precede it.
+    expect(
+      ruleHolds(five, at([...ratedWins(1, 2, 3, 4, 5), game(6, 'win', { rated: false })])),
+    ).toBe(false);
+    // Unless the rule asks for rated games, casual ones count.
+    expect(
+      ruleHolds(
+        streak('win', 3),
+        at([game(1, 'win'), game(2, 'win', { rated: false }), game(3, 'win')]),
+      ),
+    ).toBe(true);
+  });
+  it('breaks on a rated draw or loss', () => {
+    const history = [
+      game(1, 'win'),
+      game(2, 'win'),
+      game(3, 'draw'),
+      game(4, 'win'),
+      game(5, 'win'),
+      game(6, 'win'),
+    ];
+    expect(ruleHolds(five, at(history))).toBe(false);
+    // Five losses in a row are not a win streak.
+    expect(ruleHolds(five, at([1, 2, 3, 4, 5].map((id) => game(id, 'loss'))))).toBe(false);
+    // Five old wins do not count once a loss has broken them.
+    expect(
+      ruleHolds(five, at([...ratedWins(1, 2, 3, 4, 5), game(6, 'loss'), game(7, 'win')])),
+    ).toBe(false);
+  });
+});
+
+describe('total', () => {
+  const ten = total('draw', 10);
+  it('holds from the tenth draw, rated or casual, and only at a draw', () => {
+    const draws = Array.from({ length: 11 }, (_, i) => game(i + 1, 'draw', { rated: i % 2 === 0 }));
+    expect(ruleHolds(ten, at(draws.slice(0, 9)))).toBe(false);
+    expect(ruleHolds(ten, at(draws.slice(0, 10)))).toBe(true);
+    expect(ruleHolds(ten, at(draws))).toBe(true);
+    expect(ruleHolds(ten, at([...draws, game(12, 'win')]))).toBe(false);
+    // Only draws count toward draws.
+    expect(ruleHolds(ten, at([...ratedWins(1, 2, 3, 4, 5, 6, 7, 8, 9), game(10, 'draw')]))).toBe(
+      false,
+    );
+  });
+  it('counts only rated games when the rule asks', () => {
+    const rated = total('draw', 2, { rated: true });
+    expect(ruleHolds(rated, at([game(1, 'draw', { rated: false }), game(2, 'draw')]))).toBe(false);
+    expect(ruleHolds(rated, at([game(1, 'draw'), game(2, 'draw')]))).toBe(true);
+    // A casual draw does not qualify for a rated total, however many rated draws precede it.
+    expect(
+      ruleHolds(rated, at([game(1, 'draw'), game(2, 'draw'), game(3, 'draw', { rated: false })])),
+    ).toBe(false);
+  });
+});
