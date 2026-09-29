@@ -5,8 +5,9 @@
  * - A new flair built from existing rules is one entry in `FLAIR` plus one `flair.<id>` string in
  *   `i18n/en.ts`. An entry's position is its display position within its category.
  * - A new kind of condition is a move-pattern detector or a rule evaluator, with unit tests.
- * - Ids are permanent and never reused: awards and introduction dates are keyed by id.
- * - Editing a rule only affects future awards; flair already earned is kept.
+ * - Ids are permanent and never reused: awards and backfill versions are keyed by id.
+ * - Editing a rule only affects future awards; raise `backfill` to apply a loosened rule to past
+ *   games (backfill spec §1). Flair already earned is kept.
  */
 import type { MessageKey } from '../i18n';
 
@@ -51,6 +52,8 @@ export type FlairDefinition = {
   emoji: string;
   category: FlairCategory;
   rule: FlairRule;
+  /** The backfill version (backfill spec §1). Absent means 1; bump it to backfill this flair again. */
+  backfill?: number;
 };
 
 /** How many flair a player wears at once. */
@@ -110,6 +113,11 @@ export const FLAIR = [
 export type FlairEntry = (typeof FLAIR)[number];
 
 export type FlairId = FlairEntry['id'];
+
+/** The version a flair is backfilled at (backfill spec §1): its `backfill`, or 1 when absent. */
+export function flairBackfillVersion(flair: FlairDefinition): number {
+  return flair.backfill ?? 1;
+}
 
 /** `undefined` for an id no longer in the catalog: stored rows can outlive a removed flair. */
 export function flairById(id: string): FlairEntry | undefined {

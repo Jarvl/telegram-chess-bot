@@ -10,6 +10,8 @@ export type CountedGame = {
   result: PlayerResult;
   /** This player's rating after the game, unrounded; null when there is none. */
   ratingAfter: number | null;
+  /** The side this player had in the game. */
+  side: Colour;
 };
 
 /**
@@ -19,10 +21,7 @@ export type CountedGame = {
  */
 export type RuleContext = {
   game: CountedGame;
-  /**
-   * This player's counted games in the flair's window (spec §1.5), oldest first, ending with
-   * `game`.
-   */
+  /** This player's counted games up to and including `game`, oldest first. */
   history: readonly CountedGame[];
   /** `game`'s stored moves, in ply order from ply 1 (see `madePattern`). */
   moves: readonly StoredMove[];

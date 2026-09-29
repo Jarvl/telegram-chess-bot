@@ -14,6 +14,7 @@ export const JOB_KINDS = [
   'engine_move',
   'lichess_import',
   'award_flair',
+  'backfill_flair',
   'rebuild_ratings',
   'prune',
   'fetch_user_photo',

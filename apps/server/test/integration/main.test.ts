@@ -1,9 +1,10 @@
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { FLAIR } from '@group-chess/shared';
+import { FLAIR, flairBackfillVersion } from '@group-chess/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { flairIntroductions } from '../../src/db/schema';
+import { jobs } from '../../src/db/schema';
+import { backfillDedupKey } from '../../src/flair/backfill';
 import { startServer, type RunningServer } from '../../src/main';
 import { testConfig } from '../helpers/config';
 import { openTestDb, truncateAll } from '../helpers/db';
@@ -40,9 +41,12 @@ describe('startServer', () => {
     expect(await (await fetch(`${base}/readyz`)).text()).toBe('ok');
   });
 
-  it('records every catalog flair as introduced', async () => {
-    const rows = await db.select().from(flairIntroductions);
-    expect(rows.map((row) => row.flairId).sort()).toEqual(FLAIR.map((f) => f.id).sort());
+  it('enqueues a backfill of every catalog flair at boot', async () => {
+    const key = backfillDedupKey(
+      FLAIR.map((f) => ({ id: f.id, version: flairBackfillVersion(f) })),
+    );
+    const queued = (await db.select().from(jobs)).filter((job) => job.kind === 'backfill_flair');
+    expect(queued.map((job) => job.dedupKey)).toEqual([key]);
   });
 
   it('registers the commands per scope at boot', () => {

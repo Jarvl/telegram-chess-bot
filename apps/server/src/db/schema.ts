@@ -233,12 +233,22 @@ export const userFlair = pgTable(
 );
 
 /**
- * Flair spec §2: when each flair id first shipped. A flair only sees games that finished at or
- * after its introduction (§1.5).
+ * No longer read (backfill spec §2). Kept until a later release drops it, because the previous
+ * image still writes it at boot and must be able to start after a rollback.
  */
 export const flairIntroductions = pgTable('flair_introductions', {
   flairId: text().primaryKey(),
   introducedAt: tz().notNull().defaultNow(),
+});
+
+/**
+ * Backfill spec §2: the highest backfill version completed for each flair id. A catalog flair
+ * whose version is above its row, or that has no row, is pending.
+ */
+export const flairBackfills = pgTable('flair_backfills', {
+  flairId: text().primaryKey(),
+  version: integer().notNull(),
+  completedAt: tz().notNull().defaultNow(),
 });
 
 export const moves = pgTable(
@@ -378,3 +388,4 @@ export type RatingRow = typeof ratings.$inferSelect;
 export type JobRow = typeof jobs.$inferSelect;
 export type TipRow = typeof tips.$inferSelect;
 export type UserFlairRow = typeof userFlair.$inferSelect;
+export type FlairBackfillRow = typeof flairBackfills.$inferSelect;
