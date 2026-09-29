@@ -228,8 +228,11 @@ The handler runs in one transaction:
 
 1. **Read the game.** If it no longer counts (for example it was voided before the job ran), stop.
    Otherwise read its moves once.
-2. **For each player, in turn:**
-   1. Lock their user row (`select … for update`). Skip them if they are deleted.
+2. **Lock both players' user rows** in one statement, in ascending id order
+   (`select … where id in (white, black) order by id for update`), so two award jobs for games
+   between the same pair can never deadlock.
+3. **For each player, white then black:**
+   1. Skip them if they are deleted or the bot.
    2. Take the flair they do not hold whose introduction is at or before the game's
       `finished_at`.
    3. Load their counted games from the earliest of those introductions up to and including this
