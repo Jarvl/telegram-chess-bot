@@ -1,0 +1,131 @@
+import { FLAIR, flairBackfillVersion, flairById, type FlairEntry } from '@group-chess/shared';
+import { and, eq, exists, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
+import type { Db, DbOrTx } from '../db/client';
+import { flairBackfills, games, userFlair, users } from '../db/schema';
+import { listMoves } from '../domain/games';
+import { COUNTED, loadCountedGames } from './history';
+import { earliestQualifying } from './walk';
+
+/** A flair to backfill and the catalog version it is backfilled at (backfill spec §1). */
+export type BackfillPair = { id: string; version: number };
+
+/** What a backfill did: the players it walked and, per flair id, the awards added and moved. */
+export type BackfillSummary = {
+  players: number;
+  added: Record<string, number>;
+  moved: Record<string, number>;
+};
+
+/**
+ * Backfill spec §2: the catalog flair not yet backfilled at their version, in catalog order. Rows
+ * for ids no longer in the catalog are ignored.
+ */
+export async function pendingBackfills(db: DbOrTx): Promise<BackfillPair[]> {
+  const rows = await db.select().from(flairBackfills);
+  const done = new Map(rows.map((row) => [row.flairId, row.version]));
+  return FLAIR.flatMap((flair) => {
+    const version = flairBackfillVersion(flair);
+    return (done.get(flair.id) ?? 0) < version ? [{ id: flair.id, version }] : [];
+  });
+}
+
+/**
+ * Backfill spec §4.2: credits one player with each of `flair` at the first of their counted games
+ * that earns it. A flair they hold moves to an earlier game if one qualifies, and never to a later
+ * one. It takes no lock and leaves the worn list alone. Both lists come back in catalog order.
+ */
+export async function backfillPlayer(
+  db: DbOrTx,
+  userId: number,
+  flair: readonly FlairEntry[],
+): Promise<{ added: string[]; moved: string[] }> {
+  const history = await loadCountedGames(db, userId);
+  const found = await earliestQualifying(history, flair, (gameId) => listMoves(db, gameId));
+  if (found.size === 0) return { added: [], moved: [] };
+  const written = await db
+    .insert(userFlair)
+    .values(
+      [...found].map(([flairId, game]) => ({
+        userId,
+        flairId,
+        gameId: game.id,
+        earnedAt: game.finishedAt,
+      })),
+    )
+    .onConflictDoUpdate({
+      target: [userFlair.userId, userFlair.flairId],
+      set: { gameId: sql`excluded.game_id`, earnedAt: sql`excluded.earned_at` },
+      setWhere: sql`excluded.earned_at < ${userFlair.earnedAt}`,
+    })
+    // `xmax` is 0 on a row this statement inserted, and set on one it updated.
+    .returning({ flairId: userFlair.flairId, inserted: sql<boolean>`xmax = 0` });
+  const inCatalogOrder = (inserted: boolean) =>
+    FLAIR.map((f) => f.id).filter((id) =>
+      written.some((row) => row.flairId === id && row.inserted === inserted),
+    );
+  return { added: inCatalogOrder(true), moved: inCatalogOrder(false) };
+}
+
+/**
+ * Backfill spec §4.2–§4.3: backfills `pairs` for every player who is not the bot, has not deleted
+ * their data and has a counted game, one at a time in id order. Then it sweeps the rows of players
+ * who deleted their data meanwhile and records the pairs as done, so a run that did not finish
+ * leaves them pending. `backfillOne` is a seam for tests.
+ */
+export async function runFlairBackfill(
+  db: Db,
+  pairs: readonly BackfillPair[],
+  { backfillOne = backfillPlayer }: { backfillOne?: typeof backfillPlayer } = {},
+): Promise<BackfillSummary> {
+  const flair = pairs.flatMap((pair) => {
+    const entry = flairById(pair.id);
+    return entry ? [entry] : [];
+  });
+  const eligible = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(
+      and(
+        eq(users.isEngine, false),
+        isNull(users.deletedAt),
+        exists(
+          db
+            .select({ one: sql`1` })
+            .from(games)
+            .where(and(or(eq(games.whiteId, users.id), eq(games.blackId, users.id)), COUNTED)),
+        ),
+      ),
+    )
+    .orderBy(users.id);
+  const summary: BackfillSummary = { players: eligible.length, added: {}, moved: {} };
+  const tally = (into: Record<string, number>, ids: readonly string[]) => {
+    for (const id of ids) into[id] = (into[id] ?? 0) + 1;
+  };
+  for (const { id } of eligible) {
+    const { added, moved } = await backfillOne(db, id, flair);
+    tally(summary.added, added);
+    tally(summary.moved, moved);
+  }
+
+  // The walk takes no lock, so it can write for a player whose Delete my data commits meanwhile.
+  await db
+    .delete(userFlair)
+    .where(
+      inArray(
+        userFlair.userId,
+        db.select({ id: users.id }).from(users).where(isNotNull(users.deletedAt)),
+      ),
+    );
+  if (pairs.length > 0)
+    await db
+      .insert(flairBackfills)
+      .values(pairs.map((pair) => ({ flairId: pair.id, version: pair.version })))
+      .onConflictDoUpdate({
+        target: flairBackfills.flairId,
+        set: {
+          version: sql`greatest(${flairBackfills.version}, excluded.version)`,
+          completedAt: sql`now()`,
+        },
+      });
+  return summary;
+}
