@@ -6,6 +6,7 @@ import type { StatusCode } from 'hono/utils/http-status';
 import { isDomainError } from '../domain/errors';
 import type { ApiContext, ApiEnv } from './context';
 import { requireSession, userRateLimit } from './middleware';
+import { avatarRoutes } from './routes/avatars';
 import { healthRoutes } from './routes/health';
 import { launchRoutes } from './routes/launch';
 import { meRoutes } from './routes/me';
@@ -47,6 +48,7 @@ export function createApiApp(ctx: ApiContext, extra: RegisterRoutes[] = []): Hon
   const api = new Hono<ApiEnv>();
   api.use('*', bodyLimit({ maxSize: 64 * 1024 }));
   api.route('/', launchRoutes(ctx));
+  api.route('/', avatarRoutes(ctx));
   api.use('*', requireSession(ctx));
   api.use('*', userRateLimit(ctx));
   api.route('/', meRoutes(ctx));

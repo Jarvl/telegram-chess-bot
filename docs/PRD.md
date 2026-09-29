@@ -218,7 +218,7 @@ In the app, under the group, visible to group admins only (verified against Tele
 ### 7.12 Privacy — P0
 
 - Privacy mode stays on. The bot receives only its commands, replies to its own messages, button taps and Mini App requests. It never stores chat content.
-- Stored per user: Telegram id, first name, username (display), games, ratings, notification permission and app preferences. A **Delete my data** action in the app anonymises the user in past games and removes preferences.
+- Stored per user: Telegram id, first name, username (display), profile photo (a small copy, refreshed at most daily), games, ratings, notification permission and app preferences. A **Delete my data** action in the app anonymises the user in past games and removes the photo and preferences.
 - Mini App requests are authenticated with Telegram's signed launch data; a user can only act as themselves.
 
 ### 7.13 Bot opponent — P1
