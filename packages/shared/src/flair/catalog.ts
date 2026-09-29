@@ -10,8 +10,15 @@
  */
 import type { MessageKey } from '../i18n';
 
-/** Rank ladder (ratings held), feats (done in a game you won), dubious honours (done to you). */
-export type FlairCategory = 'rank' | 'feat' | 'dubious';
+/**
+ * The categories, in display order: the rank ladder (ratings held), feats (things done in play, such
+ * as winning with a move pattern or drawing ten games) and dubious honours (things done to you). The
+ * Flair screen draws a section for each one listed here, and the type below is derived from the
+ * list, so no category can exist without its section.
+ */
+export const FLAIR_CATEGORIES = ['rank', 'feat', 'dubious'] as const;
+
+export type FlairCategory = (typeof FLAIR_CATEGORIES)[number];
 
 /** Things a side can do in a game, found by the server in the game's stored moves (spec §1.8). */
 export type MovePattern = 'en_passant' | 'castle_queenside' | 'promotion' | 'scholars_mate';
@@ -48,9 +55,6 @@ export type FlairDefinition = {
 
 /** How many flair a player wears at once. */
 export const MAX_WORN_FLAIR = 3;
-
-/** The categories in display order. */
-export const FLAIR_CATEGORIES = ['rank', 'feat', 'dubious'] as const;
 
 /** A rating band, both ends inclusive; `null` leaves that end open. */
 export function held(min: number | null, max: number | null): FlairRule {
