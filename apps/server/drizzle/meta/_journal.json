@@ -43,6 +43,13 @@
       "when": 1790310496460,
       "tag": "0005_game_result_photo",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790662634430,
+      "tag": "0006_user_photos",
+      "breakpoints": true
     }
   ]
 }

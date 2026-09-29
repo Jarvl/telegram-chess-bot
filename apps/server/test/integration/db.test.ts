@@ -30,6 +30,7 @@ describe('database', () => {
       'shares',
       'telegram_updates',
       'tips',
+      'user_photos',
       'users',
     ]);
   });

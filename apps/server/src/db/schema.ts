@@ -12,6 +12,7 @@ import { sql } from 'drizzle-orm';
 import {
   bigint,
   boolean,
+  customType,
   doublePrecision,
   index,
   integer,
@@ -26,6 +27,8 @@ import {
 
 const id = () => bigint({ mode: 'number' }).primaryKey().generatedAlwaysAsIdentity();
 const tz = () => timestamp({ withTimezone: true });
+/** drizzle-orm has no `bytea` builder; postgres.js reads and writes it as a Buffer. */
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => 'bytea' });
 
 export const users = pgTable(
   'users',
@@ -39,6 +42,8 @@ export const users = pgTable(
     writeAccessAskedAt: tz(),
     prefs: jsonb().$type<Partial<Prefs>>().notNull().default({}),
     isEngine: boolean().notNull().default(false),
+    /** `user_photos.hash` of the current Telegram photo; null without one (profile photos spec). */
+    photoHash: text(),
     createdAt: tz().notNull().defaultNow(),
     lastSeenAt: tz().notNull().defaultNow(),
     deletedAt: tz(),
@@ -48,6 +53,24 @@ export const users = pgTable(
       .on(t.isEngine)
       .where(sql`${t.isEngine}`),
   ],
+);
+
+/**
+ * Profile photos spec: the small Telegram photo, or an all-null row meaning "checked, none".
+ * `hash` is not unique: two users can have byte-identical photos.
+ */
+export const userPhotos = pgTable(
+  'user_photos',
+  {
+    userId: bigint({ mode: 'number' })
+      .primaryKey()
+      .references(() => users.id),
+    fileUniqueId: text(),
+    hash: text(),
+    bytes: bytea(),
+    checkedAt: tz().notNull().defaultNow(),
+  },
+  (t) => [index('user_photos_hash').on(t.hash)],
 );
 
 export const groups = pgTable('groups', {
@@ -312,6 +335,7 @@ export const tips = pgTable('tips', {
 });
 
 export type UserRow = typeof users.$inferSelect;
+export type UserPhotoRow = typeof userPhotos.$inferSelect;
 export type GroupRow = typeof groups.$inferSelect;
 export type GroupMemberRow = typeof groupMembers.$inferSelect;
 export type ChallengeRow = typeof challenges.$inferSelect;
