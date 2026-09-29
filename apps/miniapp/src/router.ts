@@ -17,6 +17,7 @@ export type Route =
   | { name: 'game'; gameId: string }
   | { name: 'player'; groupId: string; userId: string }
   | { name: 'settings' }
+  | { name: 'flair' }
   | { name: 'groupSettings'; groupId: string };
 
 /** The bottom bar's sections; each keeps its own back stack. */

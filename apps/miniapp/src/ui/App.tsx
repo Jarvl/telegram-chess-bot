@@ -1,5 +1,6 @@
 import { useApp } from './context';
 import { Dialogs } from './dialog';
+import { FlairScreen } from './screens/Flair';
 import { Game } from './screens/Game';
 import { Games } from './screens/Games';
 import { GroupSettings } from './screens/GroupSettings';
@@ -53,6 +54,8 @@ function Screen() {
       );
     case 'settings':
       return <Settings />;
+    case 'flair':
+      return <FlairScreen />;
     case 'groupSettings':
       return <GroupSettings key={route.groupId} groupId={route.groupId} />;
   }

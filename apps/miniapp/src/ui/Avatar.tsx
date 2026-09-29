@@ -2,7 +2,7 @@ import type { GroupRef, PlayerRef } from '@group-chess/shared';
 import { BRAND } from '../brand';
 import { avatarColour, groupColour, groupInitials, personInitial } from './avatarPalette';
 
-type Size = 22 | 34 | 38 | 40 | 56;
+type Size = 22 | 26 | 34 | 38 | 40 | 56;
 
 export function BotMark(props: { size: Size }) {
   return (

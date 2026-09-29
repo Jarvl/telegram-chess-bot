@@ -328,6 +328,160 @@ button {
   font-size: 20px;
 }
 
+/* The Flair screen (flair spec §5.3): a preview of what you wear above three slots, then every
+   flair in its category. Emoji are sized and centred in boxes, never spaced with `letter-spacing`. */
+.flair-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+}
+
+.flair-me {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.flair-me .name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flair-me .flair {
+  font-size: 15px;
+}
+
+.flair-slots {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.flair-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 84px;
+  padding: 0;
+  border: 0;
+  border-radius: 14px;
+  background: var(--page);
+  color: inherit;
+  font: inherit;
+}
+
+.flair-slot-emoji {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  font-size: 34px;
+  line-height: 1;
+}
+
+.flair-slot-emoji.empty {
+  color: var(--sep-strong);
+}
+
+.flair-slot-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--hint);
+}
+
+.flair-slot.on {
+  background: var(--acc-soft);
+  box-shadow: inset 0 0 0 2px var(--acc);
+}
+
+.flair-slot.on .flair-slot-label {
+  color: var(--acc-text);
+}
+
+.flair-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 11px 14px;
+  border: 0;
+  border-top: 1px solid var(--sep);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.card > .flair-row:first-child {
+  border-top: 0;
+}
+
+.flair-tile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--page);
+  font-size: 26px;
+  line-height: 1;
+}
+
+.flair-tile.here {
+  background: var(--acc-soft);
+}
+
+.flair-row.locked .flair-tile {
+  filter: grayscale(1);
+  opacity: 0.45;
+}
+
+/* A description is what tells you how to unlock the flair, so it wraps rather than ellipsising as
+   a `.grow > .primary` line does. */
+.flair-row .grow > .primary {
+  white-space: normal;
+}
+
+.flair-row.locked .primary {
+  color: var(--hint);
+}
+
+.flair-row .earned {
+  display: block;
+  font-size: 12px;
+  color: var(--acc-text);
+}
+
+.flair-check,
+.flair-free {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+}
+
+.flair-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--acc);
+  color: var(--acc-ink);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.flair-free {
+  box-shadow: inset 0 0 0 2px var(--sep-strong);
+}
+
 .chevron {
   color: var(--hint);
   font-size: 22px;
