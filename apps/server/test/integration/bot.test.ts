@@ -68,6 +68,8 @@ const post = (update: unknown, secret: string | null = config.WEBHOOK_SECRET) =>
     body: JSON.stringify(update),
   });
 const jobRows = () => db.select().from(jobs).orderBy(jobs.id);
+/** Every sighting of a person may queue a photo check; these tests are about the other effects. */
+const effectJobs = async () => (await jobRows()).filter((job) => job.kind !== 'fetch_user_photo');
 const messagesSent = async () =>
   (await jobRows()).filter((job) => job.kind === 'send_message').map((job) => job.payload);
 
@@ -87,7 +89,7 @@ describe('webhook', () => {
     expect((await post(update)).status).toBe(200);
     expect((await post(update)).status).toBe(200);
     expect(await db.select().from(challenges)).toHaveLength(1);
-    expect((await jobRows()).map((job) => job.kind)).toEqual(['send_challenge_card', 'send_dm']);
+    expect((await effectJobs()).map((job) => job.kind)).toEqual(['send_challenge_card', 'send_dm']);
     expect((await db.select().from(telegramUpdates)).map((row) => row.updateId)).toEqual([
       update.update_id,
     ]);
@@ -443,7 +445,7 @@ describe('membership events', () => {
     );
     const [group] = await db.select().from(groups);
     expect(group).toMatchObject({ botStatus: 'administrator', botIsAdmin: true, botCanPin: true });
-    expect((await jobRows()).map((job) => [job.kind, job.dedupKey])).toEqual([
+    expect((await effectJobs()).map((job) => [job.kind, job.dedupKey])).toEqual([
       ['send_welcome', `welcome:${group!.publicId}`],
     ]);
   });

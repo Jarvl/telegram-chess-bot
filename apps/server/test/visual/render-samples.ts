@@ -11,6 +11,7 @@ import {
   type SnapshotInput,
   type SnapshotSide,
 } from '../../src/images/snapshotModel';
+import { FIXTURE_JPEG } from '../helpers/photos';
 import { snapshotInput } from '../helpers/snapshotFixtures';
 
 /** Kasparov–Topalov, Wijk aan Zee 1999, through 30…Qc4 (the design's long-game example). */
@@ -104,6 +105,13 @@ const samples: Record<string, Partial<SnapshotInput>> = {
     ply: 1,
     plyCount: 1,
     white: side('white', { name: 'Chess Goat', isBot: true, rating: null, engineLevel: 'club' }),
+  },
+  // Profile photos spec: a stored Telegram photo covers the initial; the other side has none.
+  photo: {
+    board: replay(['e4', 'e5']),
+    ply: 2,
+    plyCount: 2,
+    black: side('black', { photo: FIXTURE_JPEG }),
   },
 };
 

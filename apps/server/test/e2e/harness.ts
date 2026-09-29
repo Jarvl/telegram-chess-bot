@@ -9,12 +9,14 @@ import { eq } from 'drizzle-orm';
 import { games, ratings, users } from '../../src/db/schema';
 import { runMigrations } from '../../src/db/migrate';
 import { touchMember } from '../../src/domain/members';
+import { storePhoto } from '../../src/domain/photos';
 import { startServer } from '../../src/main';
 import { testConfig } from '../helpers/config';
 import { openTestDb, truncateAll } from '../helpers/db';
 import { fakeEngine } from '../helpers/fakeEngine';
 import { FakeTelegram } from '../helpers/fakeTelegram';
 import { insertGame, insertGroup, insertMove, insertUser } from '../helpers/fixtures';
+import { FIXTURE_JPEG } from '../helpers/photos';
 
 const APP_PORT = Number(process.env.E2E_APP_PORT ?? 4180);
 const HARNESS_PORT = Number(process.env.E2E_HARNESS_PORT ?? 4181);
@@ -38,6 +40,8 @@ type SeedRequest = {
   prefs?: Record<string, Record<string, unknown>>;
   groupTitle?: string;
   bobName?: string;
+  /** Gives Alice a stored Telegram photo (profile photos spec). */
+  alicePhoto?: boolean;
 };
 
 const TELEGRAM_USERS = {
@@ -103,6 +107,11 @@ async function main(): Promise<void> {
     }
     const alice = rows.alice!.id;
     const bob = rows.bob!.id;
+    if (request.alicePhoto) {
+      // Checked just now, so Alice's launch queues no fetch; the fake agrees if one runs anyway.
+      await storePhoto(db, alice, { fileUniqueId: 'e2e', bytes: FIXTURE_JPEG });
+      fake.photos.set(TELEGRAM_USERS.alice.id, { fileUniqueId: 'e2e', bytes: FIXTURE_JPEG });
+    }
     let game: { id: number; publicId: string } | null = null;
     if (request.scenario === 'fresh')
       game = await insertGame(db, group.id, alice, bob, { fen: INITIAL_FEN });

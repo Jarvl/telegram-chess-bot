@@ -1,10 +1,12 @@
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { dbNow } from '../../src/db/client';
 import { runMigrations } from '../../src/db/migrate';
-import { jobs, tips } from '../../src/db/schema';
+import { jobs, tips, users } from '../../src/db/schema';
+import { storePhoto } from '../../src/domain/photos';
 import { openTestDb, truncateAll } from '../helpers/db';
 import { insertGame, insertGroup, insertUser } from '../helpers/fixtures';
+import { FIXTURE_JPEG } from '../helpers/photos';
 
 const { db, close } = openTestDb();
 
@@ -12,6 +14,19 @@ beforeEach(() => truncateAll(db));
 afterAll(() => close());
 
 describe('database', () => {
+  it('truncates while a photo write holds its user row, without deadlocking', async () => {
+    // The fetch job locks `users` then writes `user_photos`; truncateAll must take them in that order.
+    const user = await insertUser(db);
+    let truncating: Promise<void> | undefined;
+    await db.transaction(async (tx) => {
+      await tx.select().from(users).where(eq(users.id, user.id)).for('update');
+      truncating = truncateAll(db);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      await storePhoto(tx, user.id, { fileUniqueId: 'u-1', bytes: FIXTURE_JPEG });
+    });
+    await expect(truncating).resolves.toBeUndefined();
+  });
+
   it('has every table after migration and is idempotent to migrate again', async () => {
     await runMigrations(process.env.TEST_DATABASE_URL!);
     const rows = await db.execute(
@@ -30,6 +45,7 @@ describe('database', () => {
       'shares',
       'telegram_updates',
       'tips',
+      'user_photos',
       'users',
     ]);
   });

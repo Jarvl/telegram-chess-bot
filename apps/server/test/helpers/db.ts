@@ -11,6 +11,8 @@ export function openTestDb(): ReturnType<typeof createDb> {
 }
 
 export async function truncateAll(db: Db): Promise<void> {
+  // `user_photos` is left to the cascade from `users`: listing it first would lock it before
+  // `users`, the reverse of the photo job's order, and the two could deadlock.
   await db.execute(
     sql`truncate table tips, admin_actions, shares, board_images, moves, games, challenges, ratings, group_members, jobs, telegram_updates, groups, users restart identity cascade`,
   );

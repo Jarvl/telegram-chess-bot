@@ -37,14 +37,14 @@ export type Seed = {
 export async function seed(
   scenario: 'none' | 'fresh' | 'opening' | 'promotion' | 'finished' | 'ranked',
   prefs: Record<string, Record<string, unknown>> = {},
-  options: { groupTitle?: string; bobName?: string } = {},
+  options: { groupTitle?: string; bobName?: string; alicePhoto?: boolean } = {},
 ): Promise<Seed> {
   const response = await fetch(`${HARNESS}/seed`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ scenario, prefs, ...options }),
   });
-  if (!response.ok) throw new Error(`seed failed: ${response.status}`);
+  if (!response.ok) throw new Error(`seed failed: ${response.status} ${await response.text()}`);
   return (await response.json()) as Seed;
 }
 

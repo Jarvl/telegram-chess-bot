@@ -68,7 +68,9 @@ avatar, the two lines and the result tag.
 
 - **Avatar**, a 72 px circle. A person gets the Mini App's avatar colour for their user id and
   their initial in white, 32 px bold (`avatarColour` and `personInitial`, now in
-  `@group-chess/shared`). The bot gets the goat mark.
+  `@group-chess/shared`). A person with a stored Telegram photo gets that photo over the circle
+  instead ([profile photos spec](./2026-09-29-telegram-profile-photos-design.md)); the card uses
+  whatever is stored when it renders. The bot gets the goat mark.
 - **Line 1**, 14 px apart:
   - the name, 38 px bold `#f5f0dc`, cut with an ellipsis when it does not fit;
   - the rating, 28 px `#bcd3c2`: `ratingLabel(rating, provisional)` for the player's current

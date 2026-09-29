@@ -9,10 +9,12 @@ import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { adminActions, groupMembers, jobs, shares } from '../../src/db/schema';
 import { touchMember } from '../../src/domain/members';
+import { avatarUrl, photoHash, storePhoto } from '../../src/domain/photos';
 import { MAX_SHARES_PER_MINUTE } from '../../src/domain/sharing';
 import { startTestApi, type TestApi } from '../helpers/api';
 import { openTestDb, truncateAll } from '../helpers/db';
 import { insertGame, insertGroup, insertMove, insertUser } from '../helpers/fixtures';
+import { FIXTURE_JPEG } from '../helpers/photos';
 
 const { db, close } = openTestDb();
 let api: TestApi;
@@ -177,6 +179,18 @@ describe('challenges and lobby', () => {
 });
 
 describe('games', () => {
+  it("carries each player's photo url", async () => {
+    const { group, alice, bob, tokens } = await world();
+    await storePhoto(db, alice.id, { fileUniqueId: 'u-1', bytes: FIXTURE_JPEG });
+    const game = await insertGame(db, group.id, alice.id, bob.id);
+    const response = await api.request('GET', `/api/games/${game.publicId}`, {
+      token: tokens.bob,
+    });
+    const dto = GameDtoSchema.parse(await response.json());
+    expect(dto.white.photoUrl).toBe(avatarUrl(photoHash(FIXTURE_JPEG)));
+    expect(dto.black.photoUrl).toBeNull();
+  });
+
   it('plays moves and maps domain errors to statuses', async () => {
     const { group, alice, bob, tokens } = await world();
     const game = await insertGame(db, group.id, alice.id, bob.id);
