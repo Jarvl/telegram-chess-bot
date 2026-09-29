@@ -46,6 +46,12 @@ export const FONT_MANIFEST = [
     url: 'https://raw.githubusercontent.com/notofonts/noto-cjk/Sans2.004/Sans/OTF/SimplifiedChinese/NotoSansCJKsc-Regular.otf',
     sha256: '2c76254f6fc379fddfce0a7e84fb5385bb135d3e399294f6eeb6680d0365b74b',
   },
+  {
+    // The brand footer's wordmark only; last, so it is never a fallback for other text.
+    file: 'YoungSerif-Regular.ttf',
+    url: 'https://fonts.gstatic.com/s/youngserif/v2/3qTpojO2nS2VtkB3KtkQZ2t6.ttf',
+    sha256: 'a0a943015fae6d41423f2f65ff27655055b1f1aca1a890b84c2b3855ae925a2b',
+  },
 ];
 
 export const FONTS_DIR = fileURLToPath(new URL('../apps/server/fonts/', import.meta.url));

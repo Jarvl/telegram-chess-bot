@@ -8,17 +8,17 @@ exit criteria come from PRD §13.
 
 | Layer | Command | Size | Runs on |
 |---|---|---|---|
-| Unit — shared rules and protocol | `pnpm test` | 240 tests, 15 files | every pull request |
-| Unit — server | `pnpm test` | 146 tests, 21 files | every pull request |
-| Integration — server on real PostgreSQL and a fake Bot API | `pnpm test` | 339 tests, 35 files | every pull request |
-| Unit — Mini App on happy-dom | `pnpm test` | 333 tests, 32 files | every pull request |
+| Unit — shared rules and protocol | `pnpm test` | 252 tests, 17 files | every pull request |
+| Unit — server | `pnpm test` | 151 tests, 21 files | every pull request |
+| Integration — server on real PostgreSQL and a fake Bot API | `pnpm test` | 340 tests, 35 files | every pull request |
+| Unit — Mini App on happy-dom | `pnpm test` | 321 tests, 31 files | every pull request |
 | End-to-end — Playwright on Chromium with touch emulation | `pnpm e2e` | 26 specs, 12 files | every pull request, pushes to `main`, manual dispatch |
 | Image smoke — build, boot, probe, stop | `.github/workflows/e2e.yml` `docker` job | 1 scenario | every pull request, pushes to `main`, manual dispatch |
 | Bundle budget | `pnpm build && pnpm check:budget` | 2 budgets | every pull request |
 | Licence allow-list | `pnpm check:licences` | 191 npm packages | every pull request |
 | Dependency advisories | `pnpm audit --prod --audit-level=high` | — | every pull request |
 
-`pnpm test` is 1058 tests in about 70 seconds. Integration tests need `TEST_DATABASE_URL`; without
+`pnpm test` is 1064 tests in about 70 seconds. Integration tests need `TEST_DATABASE_URL`; without
 it only the unit projects run, which is a silent reduction in coverage, so CI always sets it.
 The server's test setup downloads the snapshot card's fonts on first run
 (`scripts/fetch-fonts.mjs`, checksummed), so the first `pnpm test` on a fresh clone needs network

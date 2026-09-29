@@ -121,6 +121,36 @@ describe('send_result_photo', () => {
     expect(await pendingJobs()).toHaveLength(0);
   });
 
+  it('draws the rating change each game made, so the same position rated differently is another image', async () => {
+    const ratings = {
+      whiteRatingBefore: 1500,
+      whiteRdBefore: 350,
+      whiteRdAfter: 290,
+      blackRatingBefore: 1500,
+      blackRdBefore: 350,
+      blackRdAfter: 290,
+    };
+    const { group, alice, bob, game } = await finished({
+      ...ratings,
+      whiteRatingAfter: 1534,
+      blackRatingAfter: 1466,
+    });
+    const rematch = await insertGame(db, group.id, alice.id, bob.id, {
+      ...FINISHED,
+      ...ratings,
+      whiteRatingAfter: 1520,
+      blackRatingAfter: 1480,
+    });
+    await insertMove(db, rematch.id, 1, 'e2e4', 'e4', AFTER_E4);
+    await insertMove(db, rematch.id, 2, 'c7c5', 'c5', AFTER_E4_C5);
+    await post(game.id);
+    await post(rematch.id);
+    await worker.runOnce();
+    await worker.runOnce();
+    expect(fake.callsTo('sendPhoto').map((call) => call.multipart)).toEqual([true, true]);
+    expect(await db.select().from(boardImages)).toHaveLength(2);
+  });
+
   it('prefers the imported Lichess game for Analyze', async () => {
     const { game } = await finished({ lichessUrl: 'https://lichess.org/abcdefgh' });
     await post(game.id);

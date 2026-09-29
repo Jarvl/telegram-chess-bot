@@ -1,4 +1,4 @@
-import type { Colour } from '@group-chess/shared';
+import type { Colour } from '../protocol/enums';
 
 export type PieceLetter = 'q' | 'r' | 'b' | 'n' | 'p';
 

@@ -1,7 +1,13 @@
-import type { GroupRef, PlayerRef } from '@group-chess/shared';
+import {
+  avatarColour,
+  groupColour,
+  groupInitials,
+  personInitial,
+  type GroupRef,
+  type PlayerRef,
+} from '@group-chess/shared';
 import { useState } from 'preact/hooks';
 import { BRAND } from '../brand';
-import { avatarColour, groupColour, groupInitials, personInitial } from './avatarPalette';
 
 type Size = 22 | 34 | 38 | 40 | 56;
 
