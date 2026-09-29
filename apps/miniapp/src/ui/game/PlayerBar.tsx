@@ -1,8 +1,15 @@
-import { ratingLabel, t, type Colour, type GameDto } from '@group-chess/shared';
+import {
+  material,
+  ratingLabel,
+  t,
+  type Colour,
+  type GameDto,
+  type PieceLetter,
+  type SideMaterial,
+} from '@group-chess/shared';
 import { h } from 'preact';
 import { clockLabel, isUrgent, remainingMs } from '../../state/clock';
 import { Avatar } from '../Avatar';
-import { material, type PieceLetter, type SideMaterial } from './material';
 import { sideResult } from './result';
 
 const PIECE_CLASS: Record<PieceLetter, string> = {

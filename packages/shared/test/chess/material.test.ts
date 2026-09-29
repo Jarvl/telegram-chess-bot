@@ -1,6 +1,6 @@
-import { INITIAL_FEN } from '@group-chess/shared';
 import { describe, expect, it } from 'vitest';
-import { material } from '../src/ui/game/material';
+import { INITIAL_FEN } from '../../src/chess/arbiter';
+import { material } from '../../src/chess/material';
 
 describe('material', () => {
   it('has nothing taken and nobody ahead at the start', () => {
