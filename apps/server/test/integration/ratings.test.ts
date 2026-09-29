@@ -166,13 +166,14 @@ describe('rebuildGroupRatings', () => {
 });
 
 describe('getLeaderboard', () => {
-  it('orders by rating, applies the minimum games and hides blocked and deleted players', async () => {
+  it('ranks everyone with a rated game, provisional or not, and hides deleted players', async () => {
     const group = await insertGroup(db);
     const alice = await insertUser(db, { firstName: 'Alice' });
     const bob = await insertUser(db, { firstName: 'Bob' });
     const carol = await insertUser(db, { firstName: 'Carol' });
     const dave = await insertUser(db, { firstName: 'Dave', deletedAt: new Date() });
-    for (const user of [alice, bob, carol, dave]) await touchMember(db, group.id, user.id);
+    const erin = await insertUser(db, { firstName: 'Erin' });
+    for (const user of [alice, bob, carol, dave, erin]) await touchMember(db, group.id, user.id);
     await db.insert(ratings).values([
       {
         groupId: group.id,
@@ -218,12 +219,25 @@ describe('getLeaderboard', () => {
         draws: 0,
         losses: 0,
       },
+      // A row left with no games, as after every one of Erin's games was voided.
+      {
+        groupId: group.id,
+        userId: erin.id,
+        rating: 1500,
+        rd: 350,
+        volatility: 0.06,
+        gamesPlayed: 0,
+        wins: 0,
+        draws: 0,
+        losses: 0,
+      },
     ]);
-    const board = await getLeaderboard(db, group.id, 5);
-    expect(board.map((e) => [e.name, e.rating, e.gamesPlayed])).toEqual([
-      ['Bob', 1600, 5],
-      ['Alice', 1550, 6],
+    const board = await getLeaderboard(db, group.id);
+    expect(board.map((e) => [e.name, e.rating, e.gamesPlayed, e.provisional])).toEqual([
+      ['Carol', 1700, 2, true],
+      ['Bob', 1600, 5, false],
+      ['Alice', 1550, 6, false],
     ]);
-    expect(board[1]?.record).toEqual({ wins: 4, draws: 1, losses: 1 });
+    expect(board[2]?.record).toEqual({ wins: 4, draws: 1, losses: 1 });
   });
 });

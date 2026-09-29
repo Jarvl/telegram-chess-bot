@@ -131,12 +131,10 @@ describe('groups', () => {
 
   it('merges settings over the defaults and validates the result', async () => {
     const group = await ensureGroup(db, { telegramChatId: -1, title: 'Club', type: 'group' });
-    expect(settingsOf(group).leaderboardMinGames).toBe(5);
-    const updated = await updateGroupSettings(db, group.id, { leaderboardMinGames: 3 });
-    expect(updated).toMatchObject({ leaderboardMinGames: 3, ratedDefault: true });
-    await expect(
-      updateGroupSettings(db, group.id, { leaderboardMinGames: -1 }),
-    ).rejects.toMatchObject({
+    expect(settingsOf(group).ratedDefault).toBe(true);
+    const updated = await updateGroupSettings(db, group.id, { allowOpenChallenges: false });
+    expect(updated).toMatchObject({ allowOpenChallenges: false, ratedDefault: true });
+    await expect(updateGroupSettings(db, group.id, { fixedTopicId: -1 })).rejects.toMatchObject({
       code: 'validation',
     });
   });

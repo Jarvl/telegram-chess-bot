@@ -150,16 +150,6 @@ export function GroupSettings(props: { groupId: string }) {
             data-setting="allowOpenChallenges"
           />
         </div>
-        <Field label={t('app.gsettings.min_games')}>
-          <input
-            type="number"
-            min={0}
-            max={100}
-            data-setting="leaderboardMinGames"
-            value={current.leaderboardMinGames}
-            onInput={(event) => set('leaderboardMinGames', Number(event.currentTarget.value))}
-          />
-        </Field>
         {settings.data.isForum ? (
           <>
             <div class="field">

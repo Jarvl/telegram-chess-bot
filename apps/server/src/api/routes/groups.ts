@@ -53,9 +53,7 @@ export function groupsRoutes(api: Hono<ApiEnv>, ctx: ApiContext): void {
 
   api.get('/groups/:g/leaderboard', async (c) => {
     const group = await memberGroup(c);
-    return c.json({
-      players: await getLeaderboard(db, group.id, settingsOf(group).leaderboardMinGames),
-    });
+    return c.json({ players: await getLeaderboard(db, group.id) });
   });
 
   api.get('/groups/:g/players/:u', async (c) => {

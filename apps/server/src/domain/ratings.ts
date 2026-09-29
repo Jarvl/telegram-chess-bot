@@ -7,7 +7,7 @@ import {
   type PlayerRatingState,
   type RatingSnapshot,
 } from '@group-chess/shared';
-import { and, asc, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import type { DbOrTx } from '../db/client';
 import { games, groupMembers, ratings, users, type GameRow, type RatingRow } from '../db/schema';
 import { toPlayerRef } from './players';
@@ -186,12 +186,11 @@ export async function rebuildGroupRatings(
   return { changedGameIds };
 }
 
-/** PRD §7.9: members with enough games, not deleted, not blocked; rating then games played. */
-export async function getLeaderboard(
-  tx: DbOrTx,
-  groupId: number,
-  minGames: number,
-): Promise<LeaderboardEntry[]> {
+/**
+ * PRD §7.9: everyone with a rated game here, not deleted, not blocked; rating then games played.
+ * Provisional players rank alongside settled ones (their rating carries the `?`).
+ */
+export async function getLeaderboard(tx: DbOrTx, groupId: number): Promise<LeaderboardEntry[]> {
   const rows = await tx
     .select({ user: users, rating: ratings, member: groupMembers })
     .from(ratings)
@@ -203,7 +202,7 @@ export async function getLeaderboard(
     .where(
       and(
         eq(ratings.groupId, groupId),
-        gte(ratings.gamesPlayed, minGames),
+        gt(ratings.gamesPlayed, 0),
         isNull(users.deletedAt),
         sql`${groupMembers.blockedAt} is null`,
       ),

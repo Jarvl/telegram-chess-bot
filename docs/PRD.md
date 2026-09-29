@@ -196,7 +196,7 @@ Edits to the game card are silent (no notification). There are no per-move messa
 ### 7.9 Ratings and stats — P0
 
 - Per-group Glicko-2 rating (start 1500, shown as provisional until settled) for rated standard games. Rating changes are shown on the game-end screen and card.
-- Lobby **Players** tab: leaderboard for the group (rating, W/D/L, minimum games configurable), and a player page with record, head-to-head versus the viewer, and recent games.
+- Lobby **Players** tab: leaderboard for the group (rating, W/D/L; everyone with a rated game in the group, provisional players ranked alongside settled ones and marked `?`), and a player page with record, head-to-head versus the viewer, and recent games.
 - No seasons, no resets except by an admin voiding games.
 
 ### 7.10 Lichess analysis — P0
@@ -210,7 +210,6 @@ Edits to the game card are silent (no notification). There are no per-move messa
 In the app, under the group, visible to group admins only (verified against Telegram's chat member API):
 
 - Default time per move; rated by default; allow open challenges.
-- Leaderboard minimum games.
 - Where game cards are posted in forum groups: the topic the challenge was made in, or a fixed topic.
 - Void a game (rating reverted, marked void in history) and block a user from starting games in this group.
 
