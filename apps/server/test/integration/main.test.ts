@@ -1,7 +1,9 @@
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { FLAIR } from '@group-chess/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { flairIntroductions } from '../../src/db/schema';
 import { startServer, type RunningServer } from '../../src/main';
 import { testConfig } from '../helpers/config';
 import { openTestDb, truncateAll } from '../helpers/db';
@@ -36,6 +38,11 @@ describe('startServer', () => {
   it('answers the health probes', async () => {
     expect(await (await fetch(`${base}/healthz`)).text()).toBe('ok');
     expect(await (await fetch(`${base}/readyz`)).text()).toBe('ok');
+  });
+
+  it('records every catalog flair as introduced', async () => {
+    const rows = await db.select().from(flairIntroductions);
+    expect(rows.map((row) => row.flairId).sort()).toEqual(FLAIR.map((f) => f.id).sort());
   });
 
   it('registers the commands per scope at boot', () => {
