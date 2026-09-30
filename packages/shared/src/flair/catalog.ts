@@ -153,8 +153,16 @@ export const FLAIR = [
   { id: 'flawless_mate', emoji: '🪬', category: 'feat', rule: won('flawless_mate') },
   { id: 'quick_mate', emoji: '🏎️', category: 'feat', rule: quickMate(180) },
   { id: 'draws_10', emoji: '🤝', category: 'feat', rule: total('draw', 10) },
+  { id: 'marathon_win', emoji: '🐢', category: 'feat', rule: won('marathon') },
+  { id: 'pacifist_mate', emoji: '🕊️', category: 'feat', rule: won('pacifist_mate') },
+  { id: 'rival_5', emoji: '👬', category: 'feat', rule: against(5) },
   { id: 'scholars_mate_loss', emoji: '🪤', category: 'dubious', rule: lost('scholars_mate') },
   { id: 'bongcloud_win', emoji: '💨', category: 'dubious', rule: won('bongcloud') },
+  { id: 'loss_streak_3', emoji: '👶', category: 'dubious', rule: streak('loss', 3) },
+  { id: 'loss_streak_5', emoji: '💩', category: 'dubious', rule: streak('loss', 5) },
+  { id: 'loss_streak_10', emoji: '🗑️', category: 'dubious', rule: streak('loss', 10) },
+  { id: 'nemesis_5', emoji: '😈', category: 'dubious', rule: against(5, 'loss') },
+  { id: 'resigned', emoji: '🐔', category: 'dubious', rule: ended('loss', 'resignation') },
 ] as const satisfies readonly FlairDefinition[];
 
 export type FlairEntry = (typeof FLAIR)[number];
