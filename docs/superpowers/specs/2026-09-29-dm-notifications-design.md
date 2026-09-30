@@ -71,6 +71,10 @@ null. Result DMs are final and get no row.
      or the challenge is no longer pending, write no row and retire the message just sent. If the
      user has meanwhile moved, write the row as `waiting` and enqueue the §2.2 edit for it.
 
+**Bursts.** If the user's live DM for the game is a turn, reminder or draw offer sent under
+10 seconds ago, a new turn, reminder or draw-offer DM edits that message to the new text instead of
+sending another, so two events close together notify once.
+
 The send job's dedup key becomes one per user and game, `dm:{userId}:g:{gamePublicId}` (challenge
 DMs keep `dm:{userId}:ch:{challengePublicId}`). When a second event for the same user and game
 arrives while a send is still pending, the pending job is re-armed with the **newer payload**, so
@@ -127,8 +131,9 @@ the next move turns it into the waiting line.
   `blocked` failure on send or retire still sets `dmAllowed = false` and now also deletes the
   user's rows.
 - **User deleted the message.** Edit or delete answers "not found"; the job is done.
-- **Sent, but the row write failed.** The message stays untracked, as every DM is today, and the
-  job's retry may send it again. The unique indexes still guarantee at most one row per game.
+- **Sent, but the row write failed.** The job deletes the message it just sent before failing,
+  so the retry's send leaves one message, not two. The unique indexes guarantee at most one row
+  per game.
 - **429.** Existing `retry_after` handling. Retires are not urgent.
 - **Game ends between a send and its row write.** The row write and every trigger lock the same
   game row, so they serialise; the race check (§2.1 step 3) retires a message that lands after
