@@ -151,10 +151,15 @@ export async function finishGame(
     await enqueue(tx, {
       kind: 'award_flair',
       payload: { gameId: game.id },
-      dedupKey: `flair:g:${game.publicId}`,
+      dedupKey: flairAwardDedupKey(game.publicId),
     });
   }
   return requireGameById(tx, game.id);
+}
+
+/** The dedup key of a game's `award_flair` job; the result photo waits while it is pending. */
+export function flairAwardDedupKey(gamePublicId: string): string {
+  return `flair:g:${gamePublicId}`;
 }
 
 /** Spec §7.1: `timeout_abort` when the player to move never moved, otherwise a loss on time (FIDE 6.9). */

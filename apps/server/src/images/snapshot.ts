@@ -3,6 +3,7 @@ import { Resvg } from '@resvg/resvg-js';
 import satori from 'satori';
 import { IMAGE_SIZE, parsePlacement, renderBoardSvg, squarePixel } from './board';
 import { EMOJI } from './emoji';
+import { FLAIR_EMOJI } from './flairEmoji';
 import type { SnapshotFonts } from './fonts';
 import { GOAT_MARK_PNG } from './goatMark';
 import { PIECE_VIEWBOX, PIECES, type PieceCode } from './pieces';
@@ -26,6 +27,8 @@ const CAPTURED_OVERLAP = 14;
 /** The badge's 54px disc and its 4px ring, drawn as a border so the ring stays inside the square. */
 const BADGE = 54 + 2 * 4;
 const BADGE_EMOJI = 32;
+/** Worn flair at the name's size, as in the Mini App's player bar. */
+const FLAIR = 38;
 
 type Style = Record<string, string | number>;
 type Child = El | string;
@@ -94,7 +97,23 @@ function avatar(value: SnapshotAvatar): El {
   );
 }
 
-/** Name, then rating and, once the result is in, the change it made. The name gives way first. */
+/**
+ * The player's worn flair (flair spec §5.1), one picture per emoji, spaced by a gap as in the Mini
+ * App. It never shrinks, so a long name is cut short before it.
+ */
+function flair(bar: SnapshotBar): El[] {
+  const pictures = bar.flair.flatMap((id) => {
+    const svg = FLAIR_EMOJI[id];
+    return svg ? [picture(svgDataUri(svg), FLAIR)] : [];
+  });
+  if (!pictures.length) return [];
+  return [el('div', { display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }, pictures)];
+}
+
+/**
+ * Name, worn flair, then rating and, once the result is in, the change it made, in the order of
+ * the Mini App's player bar. The name gives way first.
+ */
 function nameLine(bar: SnapshotBar): El {
   return el('div', { display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }, [
     el(
@@ -111,6 +130,7 @@ function nameLine(bar: SnapshotBar): El {
       },
       [bar.name],
     ),
+    ...flair(bar),
     ...(bar.rating ? [el('span', { fontSize: 28, color: SAGE, flexShrink: 0 }, [bar.rating])] : []),
     ...(bar.ratingDelta
       ? [

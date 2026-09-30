@@ -1,6 +1,7 @@
 import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { boardImages, games, jobs, shares } from '../../src/db/schema';
+import { boardImages, games, jobs, shares, users } from '../../src/db/schema';
+import { flairAwardDedupKey } from '../../src/domain/games';
 import { loadFonts } from '../../src/images/fonts';
 import { sharePhotoJobHandlers } from '../../src/jobs/handlers/sharePhoto';
 import { enqueue } from '../../src/jobs/queue';
@@ -198,6 +199,50 @@ describe('send_result_photo', () => {
     await post(game.id);
     await worker.runOnce();
     expect(fake.callsTo('sendPhoto')[0]?.body.message_thread_id).toBeUndefined();
+  });
+
+  it('waits for the game’s flair award, so the photo shows flair the game earned', async () => {
+    const { alice, game } = await finished();
+    // The award is queued but not yet due, so the worker picks the result photo first.
+    await enqueue(db, {
+      kind: 'award_flair',
+      payload: { gameId: game.id },
+      dedupKey: flairAwardDedupKey(game.publicId),
+      delaySeconds: 60,
+    });
+    await post(game.id);
+    await worker.runOnce();
+    expect(fake.callsTo('sendPhoto')).toHaveLength(0);
+    const [waiting] = (await pendingJobs()).filter((job) => job.kind === 'send_result_photo');
+    expect(waiting?.attempts).toBe(0);
+    expect(waiting!.runAt.getTime()).toBeGreaterThan(Date.now());
+
+    // The award runs: Alice now wears what she earned, and the photo goes out with it.
+    await db
+      .update(users)
+      .set({ flairWorn: ['win_streak_5'] })
+      .where(eq(users.id, alice.id));
+    await db.update(jobs).set({ doneAt: new Date() }).where(eq(jobs.kind, 'award_flair'));
+    await db.update(jobs).set({ runAt: new Date() }).where(eq(jobs.kind, 'send_result_photo'));
+    await worker.runOnce();
+    expect(fake.callsTo('sendPhoto')).toHaveLength(1);
+  });
+
+  it('does not wait for a flair award that failed', async () => {
+    const { game } = await finished();
+    await enqueue(db, {
+      kind: 'award_flair',
+      payload: { gameId: game.id },
+      dedupKey: flairAwardDedupKey(game.publicId),
+      delaySeconds: 60,
+    });
+    await db
+      .update(jobs)
+      .set({ doneAt: new Date(), failedAt: new Date(), lastError: 'rule threw' })
+      .where(eq(jobs.kind, 'award_flair'));
+    await post(game.id);
+    await worker.runOnce();
+    expect(fake.callsTo('sendPhoto')).toHaveLength(1);
   });
 
   it('posts once, even when the job runs again', async () => {
