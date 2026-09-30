@@ -1,5 +1,6 @@
 import {
   FLAIR,
+  flairBackfillVersion,
   flairById,
   INITIAL_FEN,
   type FlairEntry,
@@ -55,6 +56,8 @@ async function finished(
     status: 'finished',
     result,
     endReason: 'resignation',
+    // An hour long unless a test says otherwise, well outside 🏎️'s three minutes.
+    startedAt: new Date(day(d).getTime() - 3_600_000),
     finishedAt: day(d),
     plyCount: moves.length,
     ...options.over,
@@ -84,9 +87,12 @@ const recorded = async () =>
   ]);
 
 describe('pendingBackfills', () => {
-  const everyFlair: BackfillPair[] = FLAIR.map((f) => ({ id: f.id, version: 1 }));
+  const everyFlair: BackfillPair[] = FLAIR.map((f) => ({
+    id: f.id,
+    version: flairBackfillVersion(f),
+  }));
 
-  it('lists every catalog flair at version 1 when nothing has been backfilled', async () => {
+  it('lists every catalog flair at its version when nothing has been backfilled', async () => {
     expect(await pendingBackfills(db)).toEqual(everyFlair);
   });
 
@@ -119,15 +125,23 @@ describe('backfillPlayer', () => {
 
     expect(await backfillPlayer(db, alice.id, FLAIR)).toEqual({
       // In catalog order.
-      added: ['rank_1600', 'en_passant_win', 'win_streak_5', 'draws_10', 'scholars_mate_loss'],
+      added: [
+        'rank_1600',
+        'en_passant_win',
+        'win_streak_3',
+        'win_streak_5',
+        'draws_10',
+        'scholars_mate_loss',
+      ],
       moved: [],
     });
-    // The en passant win is the first of the five in a row.
+    // The en passant win is the first of the five in a row, so the third in a row is wins[1].
     expect(await earned(alice.id)).toEqual([
       ['draws_10', tenth.id],
       ['en_passant_win', enPassant.id],
       ['rank_1600', rated.id],
       ['scholars_mate_loss', mated.id],
+      ['win_streak_3', wins[1]!.id],
       ['win_streak_5', wins[3]!.id],
     ]);
     const rows = await db.select().from(userFlair).where(eq(userFlair.userId, alice.id));

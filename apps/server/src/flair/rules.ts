@@ -1,9 +1,10 @@
 import { opposite, type Colour, type FlairRule, type PlayerResult } from '@group-chess/shared';
-import { madePattern, type StoredMove } from './patterns';
+import { gaveMate, madePattern, type StoredMove } from './patterns';
 
 /** One of a player's counted games (flair spec §1.3), reduced to the columns flair reads. */
 export type CountedGame = {
   id: number;
+  startedAt: Date;
   finishedAt: Date;
   rated: boolean;
   /** From this player's side. */
@@ -45,11 +46,17 @@ const EVALUATORS: {
     const shown = Math.round(game.ratingAfter);
     return (rule.min === null || shown >= rule.min) && (rule.max === null || shown <= rule.max);
   },
+  made: (rule, { moves, side }) => madePattern(rule.pattern, moves, side),
   won: (rule, { game, moves, side }) =>
     game.result === 'win' && madePattern(rule.pattern, moves, side),
   // The opponent made the pattern: it was done to this player.
   lost: (rule, { game, moves, side }) =>
     game.result === 'loss' && madePattern(rule.pattern, moves, opposite(side)),
+  // Timed from the game's start (the challenge's acceptance) to its end, as games have no clock.
+  quickMate: (rule, { game, moves, side }) =>
+    game.result === 'win' &&
+    gaveMate(moves, side) &&
+    game.finishedAt.getTime() - game.startedAt.getTime() <= rule.seconds * 1000,
   // The last `length` games that pass the filter, this one included, all have the result: the run
   // is at least `length` long, not exactly. An award missed at the `length`-th game is therefore
   // made at the next qualifying one.

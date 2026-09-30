@@ -29,6 +29,31 @@ const SCHOLARS_MATE: Record<Colour, { san: string; lastPly: number }> = {
   black: { san: 'Qxf2#', lastPly: 8 },
 };
 
+/** Whether the game's last move is `side`'s, and mates. */
+export function gaveMate(moves: readonly StoredMove[], side: Colour): boolean {
+  const last = moves.at(-1);
+  return last !== undefined && isBy(last, side) && last.san.endsWith('#');
+}
+
+/**
+ * The side's men on the board after the game's last move, as sorted FEN letters in upper case:
+ * `KQ` for a lone king and queen.
+ */
+function menLeft(moves: readonly StoredMove[], side: Colour): string {
+  const board = moves.at(-1)?.fenAfter.split(' ')[0] ?? '';
+  const own = side === 'white' ? /[A-Z]/g : /[a-z]/g;
+  return (board.match(own) ?? [])
+    .map((letter) => letter.toUpperCase())
+    .sort()
+    .join('');
+}
+
+/** The side's first two moves in SAN, for the Bongcloud: `e4` then `Ke2`, or `e5` then `Ke7`. */
+const BONGCLOUD: Record<Colour, [string, string]> = {
+  white: ['e4', 'Ke2'],
+  black: ['e5', 'Ke7'],
+};
+
 /** One detector per pattern; a pattern without one fails the typecheck. */
 const DETECTORS: Record<MovePattern, Detector> = {
   // A pawn capture onto the third or sixth rank whose destination is the en-passant square of the
@@ -47,6 +72,22 @@ const DETECTORS: Record<MovePattern, Detector> = {
     moves.some((move) => isBy(move, side) && move.san.startsWith('O-O-O')),
   // A fifth UCI character names the piece promoted to, whichever it is.
   promotion: (moves, side) => moves.some((move) => isBy(move, side) && move.uci.length === 5),
+  // A promotion to a knight, bishop or rook.
+  underpromotion: (moves, side) =>
+    moves.some((move) => isBy(move, side) && move.uci.length === 5 && move.uci[4] !== 'q'),
+  // The side mates with nothing left but its king and queen, or its king and two bishops.
+  queen_mate: (moves, side) => gaveMate(moves, side) && menLeft(moves, side) === 'KQ',
+  bishops_mate: (moves, side) => gaveMate(moves, side) && menLeft(moves, side) === 'BBK',
+  // The side mates and the opponent never captured, pawns and en passant included: every capture
+  // has an `x` in its SAN.
+  flawless_mate: (moves, side) =>
+    gaveMate(moves, side) && !moves.some((move) => !isBy(move, side) && move.san.includes('x')),
+  // The side's first move pushes the e-pawn two squares and its second walks the king up behind it.
+  bongcloud: (moves, side) => {
+    const own = moves.filter((move) => isBy(move, side)).slice(0, 2);
+    const [first, second] = BONGCLOUD[side];
+    return own.length === 2 && own[0]!.san === first && own[1]!.san.replace(/[+#]$/, '') === second;
+  },
   // The game's last move is the side's mating capture, made by its fourth move at the latest.
   scholars_mate: (moves, side) => {
     const last = moves.at(-1);

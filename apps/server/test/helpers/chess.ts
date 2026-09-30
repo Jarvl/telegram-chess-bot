@@ -4,6 +4,21 @@ import type { StoredMove } from '../../src/flair/patterns';
 /** White to move, with a pawn on e7 one step from promoting on e8 (flair spec §7). */
 export const PROMOTION_FEN = '3k4/4P3/8/8/8/8/8/4K3 w - - 0 1';
 
+/** White, with only king and queen, mates by `a1a8` (flair spec §1.8). */
+export const QUEEN_MATE_FEN = '7k/8/6K1/8/8/8/8/Q7 w - - 0 1';
+
+/** The same mate with a rook, `a1a8`. */
+export const ROOK_MATE_FEN = '7k/8/6K1/8/8/8/8/R7 w - - 0 1';
+
+/** The queen mate by `b1b8`, with a white pawn still on a2. */
+export const QUEEN_AND_PAWN_MATE_FEN = '7k/8/6K1/8/8/8/P7/1Q6 w - - 0 1';
+
+/** White, with only king and two bishops, mates by `c2e4`. */
+export const BISHOPS_MATE_FEN = 'k7/8/1K1B4/8/8/8/2B5/8 w - - 0 1';
+
+/** The bishops' mate by `c2e4`, with a white pawn still on h2. */
+export const BISHOPS_AND_PAWN_MATE_FEN = 'k7/8/1K1B4/8/8/8/2B4P/8 w - - 0 1';
+
 /**
  * Games for the flair move-pattern tests (flair spec §1.8, §7), in coordinate notation from the
  * initial position. Each line was replayed with the shared arbiter, and the mates are mates at the
@@ -31,6 +46,12 @@ export const LINES = {
   blackScholarsMate: ['a2a3', 'e7e5', 'h2h3', 'f8c5', 'b2b3', 'd8h4', 'c2c3', 'h4f2'], // Qxf2# at ply 8
   mateOnMoveFive: ['e2e4', 'e7e5', 'd1h5', 'b8c6', 'f1c4', 'a7a6', 'b1c3', 'g8f6', 'h5f7'], // ply 9
   checkNotMate: ['e2e4', 'e7e5', 'd1h5', 'b8c6', 'h5f7'], // Qxf7+
+  // Black mates at ply 8 after White took a pawn with Nxd5 at ply 3.
+  mateAfterLosingAPawn: ['b1c3', 'd7d5', 'c3d5', 'e7e5', 'f2f3', 'a7a6', 'g2g4', 'd8h4'],
+  bongcloud: ['e2e4', 'e7e5', 'e1e2'],
+  blackBongcloud: ['e2e4', 'e7e5', 'g1f3', 'e8e7'],
+  kingWalksOnMoveThree: ['e2e4', 'e7e5', 'g1f3', 'b8c6', 'e1e2'],
+  kingWalksAfterD4: ['d2d4', 'e7e5', 'e1d2'],
 } as const;
 
 /**

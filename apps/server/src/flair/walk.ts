@@ -7,8 +7,8 @@ import { ruleHolds, type CountedGame } from './rules';
  * game at which each candidate's rule holds. Scoring each game on the history up to it is correct
  * because a rule depends only on the game and earlier ones (flair spec §1.6).
  *
- * Moves are read only for a game where a `won` or `lost` candidate could hold (the player won or
- * lost it), at most once per game, and the walk stops as soon as every candidate is found.
+ * Moves are read only for a game where a candidate that reads them could hold: any game for `made`,
+ * a win for `won` and `quickMate`, a loss for `lost`. They are read at most once per game, and the walk stops as soon as every candidate is found.
  */
 export async function earliestQualifying(
   history: readonly CountedGame[],
@@ -21,7 +21,8 @@ export async function earliestQualifying(
     const game = history[i]!;
     const needsMoves = remaining.some(
       ({ rule }) =>
-        (rule.kind === 'won' && game.result === 'win') ||
+        rule.kind === 'made' ||
+        ((rule.kind === 'won' || rule.kind === 'quickMate') && game.result === 'win') ||
         (rule.kind === 'lost' && game.result === 'loss'),
     );
     const moves = needsMoves ? await movesOf(game.id) : [];
