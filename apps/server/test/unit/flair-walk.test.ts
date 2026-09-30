@@ -7,6 +7,7 @@ import { LINES, play } from '../helpers/chess';
 
 const game = (id: number, result: PlayerResult, over: Partial<CountedGame> = {}): CountedGame => ({
   id,
+  startedAt: new Date(Date.UTC(2026, 1, id, 11)),
   finishedAt: new Date(Date.UTC(2026, 1, id, 12)),
   rated: true,
   result,
@@ -55,6 +56,17 @@ describe('earliestQualifying', () => {
     const none = movesSpy();
     await earliestQualifying(history, flair('draws_10'), none);
     expect(none).not.toHaveBeenCalled();
+  });
+
+  it('reads moves at every game for a made candidate, and at a win for a quick mate', async () => {
+    const history = games('win', 'draw', 'loss');
+    const made = movesSpy();
+    await earliestQualifying(history, flair('promotion_win'), made);
+    expect(made.mock.calls.map(([id]) => id)).toEqual([1, 2, 3]);
+
+    const quick = movesSpy();
+    await earliestQualifying(history, flair('quick_mate'), quick);
+    expect(quick.mock.calls.map(([id]) => id)).toEqual([1]);
   });
 
   it('reads a game’s moves once however many candidates need them', async () => {

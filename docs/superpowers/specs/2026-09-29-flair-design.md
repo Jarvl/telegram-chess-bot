@@ -88,9 +88,11 @@ catalog.
 Each flair's description is the string `flair.<id>` in `packages/shared/src/i18n/en.ts`. A
 type-level check fails the build when an id has no string.
 
-### 1.2 The 14 flair
+### 1.2 The 22 flair
 
-Emoji and descriptions are copied from the prototype code point for code point.
+The 14 launch flair's emoji and descriptions are copied from the prototype code point for code
+point. The second batch (🌡️ 🌋 🫦 💅 🗼 🪬 🏎️ 💨) came later, and at the same time ♟️ was loosened from
+a win with a promotion to any promotion (`backfill: 2`).
 
 | Category | Emoji | Code points | Id | Rule | Description (`flair.<id>`) |
 |---|---|---|---|---|---|
@@ -103,11 +105,19 @@ Emoji and descriptions are copied from the prototype code point for code point.
 | rank | 🗿 | U+1F5FF | `rank_1700` | `held(1700, 1799)` | Held a rating of 1700–1799 |
 | rank | 🤖 | U+1F916 | `rank_1800` | `held(1800, null)` | Held a rating of 1800 or more |
 | feat | 👑 | U+1F451 | `en_passant_win` | `won('en_passant')` | Capture en passant and win the game |
+| feat | 🌡️ | U+1F321 U+FE0F | `win_streak_3` | `streak('win', 3, { rated: true })` | Win three rated games in a row |
 | feat | 🔥 | U+1F525 | `win_streak_5` | `streak('win', 5, { rated: true })` | Win five rated games in a row |
+| feat | 🌋 | U+1F30B | `win_streak_10` | `streak('win', 10, { rated: true })` | Win ten rated games in a row |
 | feat | 🏰 | U+1F3F0 | `queenside_castle_win` | `won('castle_queenside')` | Win a game you castled queenside in |
-| feat | ♟️ | U+265F U+FE0F | `promotion_win` | `won('promotion')` | Promote a pawn and win the game |
+| feat | ♟️ | U+265F U+FE0F | `promotion_win` | `made('promotion')`, `backfill: 2` | Promote a pawn |
+| feat | 🫦 | U+1FAE6 | `underpromotion_win` | `won('underpromotion')` | Promote a pawn to something other than a queen and win the game |
+| feat | 💅 | U+1F485 | `queen_mate` | `won('queen_mate')` | Checkmate with only a queen left |
+| feat | 🗼 | U+1F5FC | `bishops_mate` | `won('bishops_mate')` | Checkmate with only two bishops left |
+| feat | 🪬 | U+1FAAC | `flawless_mate` | `won('flawless_mate')` | Win by checkmate without losing a piece |
+| feat | 🏎️ | U+1F3CE U+FE0F | `quick_mate` | `quickMate(180)` | Win by checkmate within three minutes |
 | feat | 🤝 | U+1F91D | `draws_10` | `total('draw', 10)` | Draw ten games |
 | dubious | 🪤 | U+1FAA4 | `scholars_mate_loss` | `lost('scholars_mate')` | Lose to a scholar’s mate |
+| dubious | 💨 | U+1F4A8 | `bongcloud_win` | `won('bongcloud')` | Win with the Bongcloud opening |
 
 The ranges use an en dash (U+2013) and "scholar’s" a right single quotation mark (U+2019), as in
 the prototype. Category titles: `flair.category.rank` "Rank ladder", `flair.category.feat` "Feats",
@@ -129,8 +139,10 @@ where its rule holds.
 | Kind | Holds at `g` when |
 |---|---|
 | `held(min, max)` | `g` is rated and the player's rating after it, rounded as displayed, is in `[min, max]` (a null bound is open). The rating is `white_rating_after` or `black_rating_after`, in whichever group `g` was played. So 1199.5 counts as 1200 |
+| `made(pattern)` | the player made `pattern` in `g`, whatever the result |
 | `won(pattern)` | the player won `g` and made `pattern` in it |
 | `lost(pattern)` | the player lost `g` and the opponent made `pattern` in it |
+| `quickMate(seconds)` | the player won `g` with a mating last move, at most `seconds` after `g` started (`started_at`, set when the challenge is accepted, to `finished_at`; games have no clock) |
 | `streak(result, n, { rated })` | `g` passes the filter, and the last `n` games of `H` that pass it (ending with `g`) all have `result`. With `rated: true`, casual games are skipped: they neither extend nor break the run. Games from any group count |
 | `total(result, n, { rated })` | `g` passes the filter, has `result`, and at least `n` games of `H` that pass it have `result` |
 
@@ -146,7 +158,7 @@ player's whole counted history, and each flair is backfilled once on the deploy 
 
 ### 1.6 The rule for every rule kind
 
-**A rule's answer at `g` may depend only on `g` and the player's earlier counted games.** All five
+**A rule's answer at `g` may depend only on `g` and the player's earlier counted games.** All seven
 kinds above satisfy this. It is what makes evaluating each game once, as it ends, correct. It also
 lets the [backfill](./2026-09-29-flair-backfill-design.md) walk a player's history and call the same evaluators at each game. Any new rule kind must satisfy it.
 
@@ -176,6 +188,11 @@ moves at odd plies, Black at even ones.
 | `en_passant` | made a pawn capture (SAN `^[a-h]x[a-h][36]`) onto the en-passant square of the position before it: the fourth field of the previous ply's `fen_after` equals the move's destination (the first move of a game can never be one) |
 | `castle_queenside` | played a move whose SAN starts `O-O-O` |
 | `promotion` | played a move whose UCI has a fifth character (promotion to any piece) |
+| `underpromotion` | played a promotion whose fifth UCI character is not `q` |
+| `queen_mate` | made the game's last move, its SAN ends `#`, and in its `fen_after` the side has exactly a king and a queen |
+| `bishops_mate` | the same, with exactly a king and two bishops |
+| `flawless_mate` | made the game's mating last move, and no move by the opponent has an `x` in its SAN (pawns and en passant included) |
+| `bongcloud` | played `e4` then `Ke2` as its first two moves (Black: `e5` then `Ke7`), whatever the opponent played |
 | `scholars_mate` | made the game's last move, and it is `Qxf7#` at ply ≤ 7 (White) or `Qxf2#` at ply ≤ 8 (Black). In other words the queen mated by capturing on f7 or f2 by its side's fourth move, which covers the Qh5 and Qf3 lines and Black's mirror |
 
 ## 2. Data

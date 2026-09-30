@@ -64,6 +64,7 @@ export async function loadCountedGames(
   const rows = await tx
     .select({
       id: games.id,
+      startedAt: games.startedAt,
       finishedAt: games.finishedAt,
       rated: games.rated,
       result: games.result,
@@ -96,6 +97,7 @@ export async function loadCountedGames(
         const white = row.whiteId === userId;
         return {
           id: row.id,
+          startedAt: row.startedAt,
           finishedAt: row.finishedAt,
           rated: row.rated,
           result: resultFor(row.result, white),

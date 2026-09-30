@@ -6,7 +6,7 @@ import { abortGame, resign } from '../../src/domain/games';
 import { awardFlairForGame } from '../../src/flair/award';
 import { coreJobHandlers } from '../../src/jobs/handlers';
 import { JobWorker } from '../../src/jobs/worker';
-import { LINES, play, PROMOTION_FEN } from '../helpers/chess';
+import { LINES, play, PROMOTION_FEN, QUEEN_MATE_FEN } from '../helpers/chess';
 import { holdOpen, openTestDb, testDeps, truncateAll, withoutWaiting } from '../helpers/db';
 import {
   insertGame,
@@ -46,6 +46,8 @@ async function finished(
     status: 'finished',
     result,
     endReason: 'resignation',
+    // An hour long unless a test says otherwise, well outside 🏎️'s three minutes.
+    startedAt: new Date(day(d).getTime() - 3_600_000),
     finishedAt: day(d),
     plyCount: moves.length,
     ...options.over,
@@ -139,7 +141,7 @@ describe('award_flair', () => {
     expect(await earned(bob.id)).toEqual([]);
   });
 
-  it('awards 🏰 for a win with O-O-O and ♟️ for a win with a promotion', async () => {
+  it('awards 🏰 for a win with O-O-O and ♟️ for a promotion', async () => {
     const { group, alice, bob } = await players();
     const castled = await finished(group.id, alice.id, bob.id, 2, '1-0', {
       line: LINES.bothCastleQueenside,
@@ -165,7 +167,56 @@ describe('award_flair', () => {
     });
     await awardFlairForGame(db, game.id);
     expect(await earned(bob.id)).toEqual([['scholars_mate_loss', game.id]]);
-    expect(await earned(alice.id)).toEqual([]);
+    // Black took nothing before the mate, so White's win is flawless.
+    expect(await earned(alice.id)).toEqual([['flawless_mate', game.id]]);
+  });
+
+  it('awards ♟️ for a promotion in a game the promoter lost', async () => {
+    const { group, alice, bob } = await players();
+    const game = await finished(group.id, alice.id, bob.id, 2, '0-1', {
+      start: PROMOTION_FEN,
+      line: ['e7e8q'],
+    });
+    await awardFlairForGame(db, game.id);
+    expect(await earned(alice.id)).toEqual([['promotion_win', game.id]]);
+    expect(await earned(bob.id)).toEqual([]);
+  });
+
+  it('awards 🏎️ for a mate within three minutes of the start, and not after', async () => {
+    const { group, alice, bob } = await players();
+    const mate = (d: number, seconds: number) =>
+      finished(group.id, alice.id, bob.id, d, '1-0', {
+        start: QUEEN_MATE_FEN,
+        line: ['a1a8'],
+        over: { endReason: 'checkmate', startedAt: new Date(day(d).getTime() - seconds * 1000) },
+      });
+    const slow = await mate(2, 181);
+    await awardFlairForGame(db, slow.id);
+    // Black had nothing to capture with, so the mate is also flawless.
+    expect(await earned(alice.id)).toEqual([
+      ['flawless_mate', slow.id],
+      ['queen_mate', slow.id],
+    ]);
+    const quick = await mate(3, 180);
+    await awardFlairForGame(db, quick.id);
+    expect(await earned(alice.id)).toEqual([
+      ['flawless_mate', slow.id],
+      ['queen_mate', slow.id],
+      ['quick_mate', quick.id],
+    ]);
+  });
+
+  it('awards 🌡️ at the third rated win in a row and 🌋 at the tenth', async () => {
+    const { group, alice, bob } = await players();
+    const played: GameRow[] = [];
+    for (let d = 2; d <= 11; d += 1)
+      played.push(await finished(group.id, alice.id, bob.id, d, '1-0'));
+    for (const game of played) await awardFlairForGame(db, game.id);
+    expect(await earned(alice.id)).toEqual([
+      ['win_streak_10', played[9]!.id],
+      ['win_streak_3', played[2]!.id],
+      ['win_streak_5', played[4]!.id],
+    ]);
   });
 
   it('awards 🔥 at the fifth rated win in a row, skipping a casual game between', async () => {
@@ -181,10 +232,14 @@ describe('award_flair', () => {
     const played: GameRow[] = [];
     for (const [d, result, rated] of plan)
       played.push(await finished(group.id, alice.id, bob.id, d, result, { over: { rated } }));
+    // 🌡️ comes at the third rated win, the casual loss skipped.
     for (const game of played.slice(0, 5)) await awardFlairForGame(db, game.id);
-    expect(await earned(alice.id)).toEqual([]);
+    expect(await earned(alice.id)).toEqual([['win_streak_3', played[3]!.id]]);
     await awardFlairForGame(db, played[5]!.id);
-    expect(await earned(alice.id)).toEqual([['win_streak_5', played[5]!.id]]);
+    expect(await earned(alice.id)).toEqual([
+      ['win_streak_3', played[3]!.id],
+      ['win_streak_5', played[5]!.id],
+    ]);
   });
 
   it('awards 🤝 at the tenth draw, rated or casual', async () => {
@@ -220,7 +275,10 @@ describe('award_flair', () => {
     for (let d = 2; d <= 6; d += 1) wins.push(await finished(group.id, alice.id, bob.id, d, '1-0'));
     // Only the fifth game's job runs, as if the first four ended before this deploy.
     await awardFlairForGame(db, wins[4]!.id);
-    expect(await earned(alice.id)).toEqual([['win_streak_5', wins[4]!.id]]);
+    expect(await earned(alice.id)).toEqual([
+      ['win_streak_3', wins[4]!.id],
+      ['win_streak_5', wins[4]!.id],
+    ]);
   });
 
   it('stores every new flair but fills only the free slots, picking at random', async () => {
@@ -268,7 +326,10 @@ describe('award_flair', () => {
     const wins: GameRow[] = [];
     for (let d = 2; d <= 7; d += 1) wins.push(await finished(group.id, alice.id, bob.id, d, '1-0'));
     for (const game of [...wins.slice(0, 4), wins[5]!]) await awardFlairForGame(db, game.id);
-    expect(await earned(alice.id)).toEqual([['win_streak_5', wins[5]!.id]]);
+    expect(await earned(alice.id)).toEqual([
+      ['win_streak_3', wins[2]!.id],
+      ['win_streak_5', wins[5]!.id],
+    ]);
   });
 
   it('skips a player who deleted their data', async () => {
@@ -283,7 +344,10 @@ describe('award_flair', () => {
     });
     await awardFlairForGame(db, game.id);
     expect(await earned(bob.id)).toEqual([]);
-    expect(await earned(alice.id)).toEqual([['rank_1600', game.id]]);
+    expect(await earned(alice.id)).toEqual([
+      ['flawless_mate', game.id],
+      ['rank_1600', game.id],
+    ]);
   });
 
   it('waits for a change to the worn list in flight, and awards with the colours reversed do not deadlock', async () => {

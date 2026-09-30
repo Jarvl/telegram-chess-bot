@@ -2,6 +2,8 @@ import {
   INITIAL_FEN,
   held,
   lost,
+  made,
+  quickMate,
   streak,
   total,
   won,
@@ -9,10 +11,11 @@ import {
 } from '@group-chess/shared';
 import { describe, expect, it } from 'vitest';
 import { ruleHolds, type CountedGame, type RuleContext } from '../../src/flair/rules';
-import { LINES, PROMOTION_FEN, play } from '../helpers/chess';
+import { LINES, PROMOTION_FEN, QUEEN_MATE_FEN, play } from '../helpers/chess';
 
 const game = (id: number, result: PlayerResult, over: Partial<CountedGame> = {}): CountedGame => ({
   id,
+  startedAt: new Date(Date.UTC(2026, 1, id, 11)),
   finishedAt: new Date(Date.UTC(2026, 1, id, 12)),
   rated: true,
   result,
@@ -86,6 +89,48 @@ describe('won and lost', () => {
         lost('promotion'),
         at([game(1, 'loss')], { moves: play(PROMOTION_FEN, 'e7e8q'), side: 'white' }),
       ),
+    ).toBe(false);
+  });
+});
+
+describe('made', () => {
+  it('holds made(pattern) whenever the player made the pattern, whatever the result', () => {
+    const moves = play(PROMOTION_FEN, 'e7e8q');
+    for (const result of ['win', 'draw', 'loss'] as const)
+      expect(ruleHolds(made('promotion'), at([game(1, result)], { moves }))).toBe(true);
+    // The opponent's promotion is not the player's.
+    expect(ruleHolds(made('promotion'), at([game(1, 'loss')], { moves, side: 'black' }))).toBe(
+      false,
+    );
+    expect(
+      ruleHolds(made('promotion'), at([game(1, 'win')], { moves: play(INITIAL_FEN, 'e2e4') })),
+    ).toBe(false);
+  });
+});
+
+describe('quickMate', () => {
+  const mate = play(QUEEN_MATE_FEN, 'a1a8');
+  const lasting = (seconds: number, over: Partial<CountedGame> = {}) =>
+    game(1, 'win', {
+      startedAt: new Date(Date.UTC(2026, 1, 1, 12) - seconds * 1000),
+      finishedAt: new Date(Date.UTC(2026, 1, 1, 12)),
+      ...over,
+    });
+  it('holds for a win by mate at most the given seconds after the game started', () => {
+    expect(ruleHolds(quickMate(180), at([lasting(180)], { moves: mate }))).toBe(true);
+    expect(ruleHolds(quickMate(180), at([lasting(12)], { moves: mate }))).toBe(true);
+    expect(ruleHolds(quickMate(180), at([lasting(181)], { moves: mate }))).toBe(false);
+  });
+  it('holds only for the side that mated, and only by mate', () => {
+    expect(
+      ruleHolds(
+        quickMate(180),
+        at([lasting(60, { result: 'loss' })], { moves: mate, side: 'black' }),
+      ),
+    ).toBe(false);
+    // A quick win on resignation or time: the last move is not mate.
+    expect(
+      ruleHolds(quickMate(180), at([lasting(60)], { moves: play(QUEEN_MATE_FEN, 'a1a7') })),
     ).toBe(false);
   });
 });

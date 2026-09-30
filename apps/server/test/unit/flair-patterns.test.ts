@@ -1,7 +1,16 @@
 import { INITIAL_FEN } from '@group-chess/shared';
 import { describe, expect, it } from 'vitest';
 import { madePattern } from '../../src/flair/patterns';
-import { LINES, play, PROMOTION_FEN } from '../helpers/chess';
+import {
+  BISHOPS_AND_PAWN_MATE_FEN,
+  BISHOPS_MATE_FEN,
+  LINES,
+  play,
+  PROMOTION_FEN,
+  QUEEN_AND_PAWN_MATE_FEN,
+  QUEEN_MATE_FEN,
+  ROOK_MATE_FEN,
+} from '../helpers/chess';
 
 const from = (line: readonly string[]) => play(INITIAL_FEN, ...line);
 
@@ -49,5 +58,66 @@ describe('scholars_mate', () => {
   it('ignores the same mate on move five and a Qxf7+ that is not mate', () => {
     expect(madePattern('scholars_mate', from(LINES.mateOnMoveFive), 'white')).toBe(false);
     expect(madePattern('scholars_mate', from(LINES.checkNotMate), 'white')).toBe(false);
+  });
+});
+
+describe('underpromotion', () => {
+  it('sees a promotion to a knight, bishop or rook, and not to a queen', () => {
+    for (const piece of ['n', 'b', 'r'])
+      expect(madePattern('underpromotion', play(PROMOTION_FEN, `e7e8${piece}`), 'white')).toBe(
+        true,
+      );
+    expect(madePattern('underpromotion', play(PROMOTION_FEN, 'e7e8q'), 'white')).toBe(false);
+    expect(madePattern('underpromotion', play(PROMOTION_FEN, 'e7e8n'), 'black')).toBe(false);
+  });
+});
+
+describe('queen_mate', () => {
+  it('sees a mate by a side left with only its king and queen', () => {
+    expect(madePattern('queen_mate', play(QUEEN_MATE_FEN, 'a1a8'), 'white')).toBe(true);
+    expect(madePattern('queen_mate', play(QUEEN_MATE_FEN, 'a1a8'), 'black')).toBe(false);
+  });
+  it('ignores a mate with anything else still on the board, or with no queen', () => {
+    expect(madePattern('queen_mate', play(QUEEN_AND_PAWN_MATE_FEN, 'b1b8'), 'white')).toBe(false);
+    expect(madePattern('queen_mate', play(ROOK_MATE_FEN, 'a1a8'), 'white')).toBe(false);
+    // A queen move that is not mate.
+    expect(madePattern('queen_mate', play(QUEEN_MATE_FEN, 'a1a7'), 'white')).toBe(false);
+  });
+});
+
+describe('bishops_mate', () => {
+  it('sees a mate by a side left with only its king and two bishops', () => {
+    expect(madePattern('bishops_mate', play(BISHOPS_MATE_FEN, 'c2e4'), 'white')).toBe(true);
+    expect(madePattern('bishops_mate', play(BISHOPS_MATE_FEN, 'c2e4'), 'black')).toBe(false);
+  });
+  it('ignores a mate with anything else still on the board', () => {
+    expect(madePattern('bishops_mate', play(BISHOPS_AND_PAWN_MATE_FEN, 'c2e4'), 'white')).toBe(
+      false,
+    );
+    expect(madePattern('bishops_mate', play(QUEEN_MATE_FEN, 'a1a8'), 'white')).toBe(false);
+  });
+});
+
+describe('flawless_mate', () => {
+  it('sees a mate by a side that never had a man captured', () => {
+    expect(madePattern('flawless_mate', from(LINES.scholarsMateQh5), 'white')).toBe(true);
+    expect(madePattern('flawless_mate', from(LINES.scholarsMateQh5), 'black')).toBe(false);
+  });
+  it('ignores a mate after the opponent took so much as a pawn, and a game without mate', () => {
+    expect(madePattern('flawless_mate', from(LINES.mateAfterLosingAPawn), 'black')).toBe(false);
+    expect(madePattern('flawless_mate', from(LINES.checkNotMate), 'white')).toBe(false);
+  });
+});
+
+describe('bongcloud', () => {
+  it('sees the e-pawn then the king on the side’s first two moves', () => {
+    expect(madePattern('bongcloud', from(LINES.bongcloud), 'white')).toBe(true);
+    expect(madePattern('bongcloud', from(LINES.bongcloud), 'black')).toBe(false);
+    expect(madePattern('bongcloud', from(LINES.blackBongcloud), 'black')).toBe(true);
+    expect(madePattern('bongcloud', from(LINES.blackBongcloud), 'white')).toBe(false);
+  });
+  it('ignores a king walk on a later move or after another first move', () => {
+    expect(madePattern('bongcloud', from(LINES.kingWalksOnMoveThree), 'white')).toBe(false);
+    expect(madePattern('bongcloud', from(LINES.kingWalksAfterD4), 'white')).toBe(false);
   });
 });

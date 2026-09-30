@@ -22,7 +22,16 @@ export const FLAIR_CATEGORIES = ['rank', 'feat', 'dubious'] as const;
 export type FlairCategory = (typeof FLAIR_CATEGORIES)[number];
 
 /** Things a side can do in a game, found by the server in the game's stored moves (spec §1.8). */
-export type MovePattern = 'en_passant' | 'castle_queenside' | 'promotion' | 'scholars_mate';
+export type MovePattern =
+  | 'en_passant'
+  | 'castle_queenside'
+  | 'promotion'
+  | 'underpromotion'
+  | 'queen_mate'
+  | 'bishops_mate'
+  | 'flawless_mate'
+  | 'bongcloud'
+  | 'scholars_mate';
 
 /** A game's result from one player's side. */
 export type PlayerResult = 'win' | 'draw' | 'loss';
@@ -31,7 +40,9 @@ export type PlayerResult = 'win' | 'draw' | 'loss';
  * What earns a flair (spec §1.4), evaluated for one player at one of their counted games:
  * - `held`: their rating after a rated game, rounded as displayed, is in `[min, max]`; a null bound
  *   is open.
+ * - `made`: they made `pattern`, whatever the result.
  * - `won`: they won and made `pattern`. `lost`: they lost and their opponent made `pattern`.
+ * - `quickMate`: they won by mate at most `seconds` after the game started.
  * - `streak`: the last `length` games that pass the filter all have `result`.
  * - `total`: at least `count` games that pass the filter have `result`.
  *
@@ -41,8 +52,10 @@ export type PlayerResult = 'win' | 'draw' | 'loss';
  */
 export type FlairRule =
   | { kind: 'held'; min: number | null; max: number | null }
+  | { kind: 'made'; pattern: MovePattern }
   | { kind: 'won'; pattern: MovePattern }
   | { kind: 'lost'; pattern: MovePattern }
+  | { kind: 'quickMate'; seconds: number }
   | { kind: 'streak'; result: PlayerResult; length: number; rated: boolean }
   | { kind: 'total'; result: PlayerResult; count: number; rated: boolean };
 
@@ -64,6 +77,11 @@ export function held(min: number | null, max: number | null): FlairRule {
   return { kind: 'held', min, max };
 }
 
+/** Make `pattern` in a game, whatever the result. */
+export function made(pattern: MovePattern): FlairRule {
+  return { kind: 'made', pattern };
+}
+
 /** Win a game in which you made `pattern`. */
 export function won(pattern: MovePattern): FlairRule {
   return { kind: 'won', pattern };
@@ -72,6 +90,11 @@ export function won(pattern: MovePattern): FlairRule {
 /** Lose a game in which your opponent made `pattern`. */
 export function lost(pattern: MovePattern): FlairRule {
   return { kind: 'lost', pattern };
+}
+
+/** Win by mate at most `seconds` after the game started. */
+export function quickMate(seconds: number): FlairRule {
+  return { kind: 'quickMate', seconds };
 }
 
 /** `length` games in a row with `result`. With `rated`, casual games are skipped. */
@@ -103,11 +126,20 @@ export const FLAIR = [
   { id: 'rank_1700', emoji: '🗿', category: 'rank', rule: held(1700, 1799) },
   { id: 'rank_1800', emoji: '🤖', category: 'rank', rule: held(1800, null) },
   { id: 'en_passant_win', emoji: '👑', category: 'feat', rule: won('en_passant') },
+  { id: 'win_streak_3', emoji: '🌡️', category: 'feat', rule: streak('win', 3, { rated: true }) },
   { id: 'win_streak_5', emoji: '🔥', category: 'feat', rule: streak('win', 5, { rated: true }) },
+  { id: 'win_streak_10', emoji: '🌋', category: 'feat', rule: streak('win', 10, { rated: true }) },
   { id: 'queenside_castle_win', emoji: '🏰', category: 'feat', rule: won('castle_queenside') },
-  { id: 'promotion_win', emoji: '♟️', category: 'feat', rule: won('promotion') },
+  // Once a win with a promotion; loosened to any promotion, and backfilled again for it.
+  { id: 'promotion_win', emoji: '♟️', category: 'feat', rule: made('promotion'), backfill: 2 },
+  { id: 'underpromotion_win', emoji: '🫦', category: 'feat', rule: won('underpromotion') },
+  { id: 'queen_mate', emoji: '💅', category: 'feat', rule: won('queen_mate') },
+  { id: 'bishops_mate', emoji: '🗼', category: 'feat', rule: won('bishops_mate') },
+  { id: 'flawless_mate', emoji: '🪬', category: 'feat', rule: won('flawless_mate') },
+  { id: 'quick_mate', emoji: '🏎️', category: 'feat', rule: quickMate(180) },
   { id: 'draws_10', emoji: '🤝', category: 'feat', rule: total('draw', 10) },
   { id: 'scholars_mate_loss', emoji: '🪤', category: 'dubious', rule: lost('scholars_mate') },
+  { id: 'bongcloud_win', emoji: '💨', category: 'dubious', rule: won('bongcloud') },
 ] as const satisfies readonly FlairDefinition[];
 
 export type FlairEntry = (typeof FLAIR)[number];

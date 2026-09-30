@@ -64,11 +64,102 @@ describe('the flair catalog', () => {
       en_passant_win: { kind: 'won', pattern: 'en_passant' },
       win_streak_5: { kind: 'streak', result: 'win', length: 5, rated: true },
       queenside_castle_win: { kind: 'won', pattern: 'castle_queenside' },
-      promotion_win: { kind: 'won', pattern: 'promotion' },
+      // Loosened after launch from a win with a promotion to any promotion.
+      promotion_win: { kind: 'made', pattern: 'promotion' },
       draws_10: { kind: 'total', result: 'draw', count: 10, rated: false },
       scholars_mate_loss: { kind: 'lost', pattern: 'scholars_mate' },
     });
   });
+
+  it('holds the second batch in display order, with its rules and descriptions', () => {
+    const second: [category: string, id: string, codePoints: string, rule: object, text: string][] =
+      [
+        [
+          'feat',
+          'win_streak_3',
+          '1F321 FE0F',
+          streak('win', 3, { rated: true }),
+          'Win three rated games in a row',
+        ],
+        [
+          'feat',
+          'win_streak_10',
+          '1F30B',
+          streak('win', 10, { rated: true }),
+          'Win ten rated games in a row',
+        ],
+        [
+          'feat',
+          'underpromotion_win',
+          '1FAE6',
+          { kind: 'won', pattern: 'underpromotion' },
+          'Promote a pawn to something other than a queen and win the game',
+        ],
+        [
+          'feat',
+          'queen_mate',
+          '1F485',
+          { kind: 'won', pattern: 'queen_mate' },
+          'Checkmate with only a queen left',
+        ],
+        [
+          'feat',
+          'bishops_mate',
+          '1F5FC',
+          { kind: 'won', pattern: 'bishops_mate' },
+          'Checkmate with only two bishops left',
+        ],
+        [
+          'feat',
+          'flawless_mate',
+          '1FAAC',
+          { kind: 'won', pattern: 'flawless_mate' },
+          'Win by checkmate without losing a piece',
+        ],
+        [
+          'feat',
+          'quick_mate',
+          '1F3CE FE0F',
+          { kind: 'quickMate', seconds: 180 },
+          'Win by checkmate within three minutes',
+        ],
+        [
+          'dubious',
+          'bongcloud_win',
+          '1F4A8',
+          { kind: 'won', pattern: 'bongcloud' },
+          'Win with the Bongcloud opening',
+        ],
+      ];
+    expect(
+      second.map(([, id]) => {
+        const flair = flairById(id);
+        return (
+          flair && [
+            flair.category,
+            id,
+            codePoints(flair.emoji),
+            flair.rule,
+            t(flairDescriptionKey(flair.id)),
+          ]
+        );
+      }),
+    ).toEqual(second);
+    // The win streaks read as a ladder around 🔥, and the mates follow the promotions.
+    expect(
+      FLAIR.filter((f) => f.category === 'feat')
+        .map((f) => f.emoji)
+        .join(''),
+    ).toBe('👑🌡️🔥🌋🏰♟️🫦💅🗼🪬🏎️🤝');
+    expect(
+      FLAIR.filter((f) => f.category === 'dubious')
+        .map((f) => f.emoji)
+        .join(''),
+    ).toBe('🪤💨');
+  });
+
+  it('backfills ♟️ again for its loosened rule', () =>
+    expect(flairBackfillVersion(flairById('promotion_win')!)).toBe(2));
 
   it('gives every flair a backfill version, 1 unless its entry says otherwise', () => {
     const flair: FlairDefinition = {
@@ -123,7 +214,7 @@ describe('the flair catalog', () => {
       'Capture en passant and win the game',
       'Win five rated games in a row',
       'Win a game you castled queenside in',
-      'Promote a pawn and win the game',
+      'Promote a pawn',
       'Draw ten games',
       'Lose to a scholar’s mate',
     ]);

@@ -18,9 +18,7 @@ describe('<Flair>', () => {
     ).root.querySelector('.flair')!;
     expect([...flair.children].map((child) => child.textContent)).toEqual(['🧑‍🦼', '♟️']);
     expect(flair.getAttribute('role')).toBe('img');
-    expect(flair.getAttribute('aria-label')).toBe(
-      'Held a rating of 1200–1299, Promote a pawn and win the game',
-    );
+    expect(flair.getAttribute('aria-label')).toBe('Held a rating of 1200–1299, Promote a pawn');
   });
   it('keeps the order the player chose, not the catalog’s', () => {
     const flair = renderApp(
