@@ -23,7 +23,7 @@ import { listMoves, requireGameById } from '../../domain/games';
 import { requireGroup } from '../../domain/groups';
 import { getPhotoBytes } from '../../domain/photos';
 import { getPlayerRating } from '../../domain/ratings';
-import { displayName, requireUser } from '../../domain/users';
+import { displayName, nameWithFlair, requireUser } from '../../domain/users';
 import { getCachedFileId, snapshotImageKey, storeFileId } from '../../images/cache';
 import type { SnapshotFonts } from '../../images/fonts';
 import { renderSnapshotPng, renderSnapshotSvg } from '../../images/snapshot';
@@ -166,10 +166,10 @@ const sendSharePhoto =
       ply: share.ply,
       orientation: share.userId === game.blackId ? 'black' : 'white',
       caption: renderShareCaption({
-        sharer: displayName(sharer),
+        sharer: nameWithFlair(sharer),
         moveNumber: shareMoveNumber(share.ply),
-        white: displayName(white),
-        black: displayName(black),
+        white: nameWithFlair(white),
+        black: nameWithFlair(black),
       }),
       buttons: [
         [
@@ -239,8 +239,8 @@ const sendResultPhoto =
       // The winner's view of their win; a draw or a void is shown from White's side.
       orientation: game.result === '0-1' ? 'black' : 'white',
       caption: renderResultCaption({
-        white: displayName(white),
-        black: displayName(black),
+        white: nameWithFlair(white),
+        black: nameWithFlair(black),
         result: game.result,
         endReason: game.endReason,
         ratings: ratingChanges(game),

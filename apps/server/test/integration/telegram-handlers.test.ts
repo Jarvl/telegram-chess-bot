@@ -95,6 +95,29 @@ describe('send_challenge_card', () => {
     ]);
   });
 
+  it('puts worn flair after each name, outside the mention', async () => {
+    const { group, alice, bob } = await people();
+    await db
+      .update(users)
+      .set({ flairWorn: ['en_passant_win'] })
+      .where(eq(users.id, alice.id));
+    await db
+      .update(users)
+      .set({ flairWorn: ['win_streak_5', 'draws_10'] })
+      .where(eq(users.id, bob.id));
+    const challenge = await insertChallenge(db, group.id, alice.id, bob.id);
+    await enqueue(db, { kind: 'send_challenge_card', payload: { challengeId: challenge.id } });
+    await worker.runOnce();
+    const [call] = fake.callsTo('sendMessage');
+    expect(call?.body.text).toBe('♟ @alice 👑 challenges Bob 🔥🤝\n1 day per move · Rated');
+    // ' 👑' is three UTF-16 units, so the mention of 'Bob' moves from offset 20 to 23.
+    expect((call?.body.entities as unknown[])[0]).toMatchObject({
+      type: 'text_mention',
+      offset: 23,
+      length: 3,
+    });
+  });
+
   it('hands the message id to a game accepted before the card was sent', async () => {
     const { group, alice, bob } = await people();
     const game = await insertGame(db, group.id, alice.id, bob.id);

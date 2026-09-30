@@ -22,7 +22,13 @@ import type { InlineKeyboardButton, InlineKeyboardMarkup, MessageEntity } from '
 
 export const MAX_BUTTON_URL_LENGTH = 2000;
 
-export type PersonView = { name: string; username: string | null; telegramUserId: number | null };
+export type PersonView = {
+  name: string;
+  username: string | null;
+  telegramUserId: number | null;
+  /** Worn flair's emoji run together (`👑🚶`), `''` when none: shown after the name everywhere. */
+  flair: string;
+};
 
 export type RenderedMessage = {
   text: string;
@@ -56,7 +62,7 @@ export type GameCardView = {
   /** Rating labels (`1520`, `1498?`); null for casual games. */
   whiteRating: { before: string; after: string | null } | null;
   blackRating: { before: string; after: string | null } | null;
-  abortedBy: string | null;
+  abortedBy: PersonView | null;
   analysisUrl: string | null;
   lichessUrl: string | null;
   openLink: string;
@@ -65,7 +71,15 @@ export type GameCardView = {
 
 const MENTION_MARK = '\u0000';
 
-/** Renders a template whose `{opponent}` slot is a mention: `@username`, else a text_mention entity (spec §5.4). */
+/** A person as the cards name them: the name, then their worn flair (flair beside names). */
+function label(person: PersonView): string {
+  return person.flair ? `${person.name} ${person.flair}` : person.name;
+}
+
+/**
+ * Renders a template whose `{opponent}` slot is a mention: `@username`, else a text_mention entity
+ * (spec §5.4). Flair follows the mention, outside the entity, which covers only the name.
+ */
 function withMention(
   key: MessageKey,
   params: MessageParams,
@@ -74,10 +88,11 @@ function withMention(
 ): { text: string; entities: MessageEntity[] } {
   const rendered = t(key, { ...params, [slot]: MENTION_MARK });
   const offset = rendered.indexOf(MENTION_MARK);
+  const flair = person.flair ? ` ${person.flair}` : '';
   if (person.username) {
-    return { text: rendered.replace(MENTION_MARK, `@${person.username}`), entities: [] };
+    return { text: rendered.replace(MENTION_MARK, `@${person.username}${flair}`), entities: [] };
   }
-  const text = rendered.replace(MENTION_MARK, person.name);
+  const text = rendered.replace(MENTION_MARK, `${person.name}${flair}`);
   if (person.telegramUserId === null) return { text, entities: [] };
   return {
     text,
@@ -112,13 +127,13 @@ function terms(view: ChallengeCardView): string {
   if (view.challengerColour === 'random') return t('card.challenge.terms', base);
   return t('card.challenge.terms_colour', {
     ...base,
-    challenger: view.challenger.name,
+    challenger: label(view.challenger),
     colour: t(`colour.${view.challengerColour}`),
   });
 }
 
 export function renderChallengeCard(view: ChallengeCardView): RenderedMessage {
-  const challenger = view.challenger.name;
+  const challenger = label(view.challenger);
   if (view.status === 'pending') {
     const line1 = view.opponent
       ? withMention('card.challenge.direct', { challenger }, 'opponent', view.opponent)
@@ -140,7 +155,7 @@ export function renderChallengeCard(view: ChallengeCardView): RenderedMessage {
       reply_markup: keyboard([[accept, declineOrCancel], lobbyRow(view)]),
     };
   }
-  const params = { challenger, opponent: view.opponent?.name ?? '' };
+  const params = { challenger, opponent: view.opponent ? label(view.opponent) : '' };
   const key: MessageKey = view.opponent
     ? view.status === 'declined'
       ? 'card.challenge.declined'
@@ -154,8 +169,8 @@ export function renderChallengeCard(view: ChallengeCardView): RenderedMessage {
 }
 
 export function renderGameCard(view: GameCardView): RenderedMessage {
-  const white = view.white.name;
-  const black = view.black.name;
+  const white = label(view.white);
+  const black = label(view.black);
   const rematch = {
     text: t('button.rematch'),
     callback_data: encodeCallbackData({ action: 'rematch', gameId: view.publicId }),
@@ -211,7 +226,7 @@ export function renderGameCard(view: GameCardView): RenderedMessage {
       view.endReason === 'timeout_abort' && view.timePerMove !== null
         ? t('card.aborted.no_move', { span: timeSpanLabel(view.timePerMove as TimePerMoveSeconds) })
         : view.abortedBy
-          ? t('card.aborted.by_player', { name: view.abortedBy })
+          ? t('card.aborted.by_player', { name: label(view.abortedBy) })
           : null;
     const lines = [t('card.aborted.title', { white, black })];
     if (reason) lines.push(reason);

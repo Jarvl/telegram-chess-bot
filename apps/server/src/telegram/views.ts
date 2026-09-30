@@ -10,7 +10,7 @@ import type { DbOrTx } from '../db/client';
 import type { ChallengeRow, GameRow, GroupRow, UserRow } from '../db/schema';
 import { listMoves } from '../domain/games';
 import { getPlayerRating } from '../domain/ratings';
-import { displayName, requireUser } from '../domain/users';
+import { displayName, flairEmoji, requireUser } from '../domain/users';
 import type { ChallengeCardView, GameCardView, PersonView } from './cards';
 import { miniAppLink } from './links';
 
@@ -19,6 +19,7 @@ export function personView(user: UserRow): PersonView {
     name: displayName(user),
     username: user.deletedAt ? null : user.username,
     telegramUserId: user.deletedAt ? null : user.telegramUserId,
+    flair: flairEmoji(user),
   };
 }
 

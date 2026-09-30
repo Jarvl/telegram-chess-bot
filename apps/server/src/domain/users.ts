@@ -1,4 +1,11 @@
-import { PREFS_DEFAULTS, PrefsSchema, type Prefs } from '@group-chess/shared';
+import {
+  MAX_WORN_FLAIR,
+  PREFS_DEFAULTS,
+  PrefsSchema,
+  flairById,
+  type FlairEntry,
+  type Prefs,
+} from '@group-chess/shared';
 import { eq, sql } from 'drizzle-orm';
 import type { DbOrTx } from '../db/client';
 import { users, type UserRow } from '../db/schema';
@@ -100,4 +107,30 @@ export async function setDmAllowed(tx: DbOrTx, userId: number, allowed: boolean)
 export function displayName(user: Pick<UserRow, 'firstName' | 'username' | 'deletedAt'>): string {
   if (user.deletedAt) return 'Deleted player';
   return user.username ? `@${user.username}` : user.firstName;
+}
+
+type Wearer = Pick<UserRow, 'deletedAt' | 'isEngine' | 'flairWorn'>;
+
+/**
+ * What a player wears, in slot order. Deleted players and the bot wear none; a stored id the catalog
+ * no longer has is skipped, and a fourth is not worn: the app refuses a player with more.
+ */
+export function wornFlair(user: Wearer): FlairEntry[] {
+  if (user.deletedAt || user.isEngine) return [];
+  return user.flairWorn.flatMap((id) => flairById(id) ?? []).slice(0, MAX_WORN_FLAIR);
+}
+
+/** The worn flair's emoji run together (`👑🚶`), or `''` when none is worn. */
+export function flairEmoji(user: Wearer): string {
+  return wornFlair(user)
+    .map((flair) => flair.emoji)
+    .join('');
+}
+
+/** A player as the group chat names them: the display name, then their worn flair. */
+export function nameWithFlair(
+  user: Pick<UserRow, 'firstName' | 'username' | 'deletedAt' | 'isEngine' | 'flairWorn'>,
+): string {
+  const flair = flairEmoji(user);
+  return flair ? `${displayName(user)} ${flair}` : displayName(user);
 }
