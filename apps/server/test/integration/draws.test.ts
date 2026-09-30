@@ -28,6 +28,29 @@ let n = 0;
 const play = (gameId: string, userId: number, uci: string, expectedPly: number) =>
   playMove(deps, { gameId, userId, uci, expectedPly, clientMoveId: `draw-test-${(n += 1)}` });
 
+const resultDms = async () =>
+  (await db.select().from(jobs))
+    .filter((job) => job.kind === 'send_dm' && job.payload.template === 'result')
+    .map((job) => job.payload.userId);
+
+describe('draw result DMs', () => {
+  it('sends the result DM to the offerer when the draw is accepted', async () => {
+    const { game, alice, bob } = await setup();
+    await offerDraw(deps, { gameId: game.publicId, userId: alice.id });
+    await acceptDraw(deps, { gameId: game.publicId, userId: bob.id });
+    expect(await resultDms()).toEqual([alice.id]);
+  });
+
+  it("sends the result DM to the claimer's opponent", async () => {
+    const { game, alice, bob } = await setup({
+      fen: '8/8/8/8/8/8/1R6/K6k w - - 100 60',
+      plyCount: 120,
+    });
+    await claimDraw(deps, { gameId: game.publicId, userId: bob.id });
+    expect(await resultDms()).toEqual([alice.id]);
+  });
+});
+
 describe('draw offers', () => {
   it('sends a draw offer DM when the recipient is to move', async () => {
     const { game, alice, bob } = await setup();

@@ -19,8 +19,9 @@ import { enqueueEngineMove, isEngineGame } from './engineGames';
 import { DomainError } from './errors';
 import { buildGameDto, colourOf, positionKeys } from './gameDto';
 import { deadlineExpression, reminderExpression } from './limits';
-import { moveLabel, waitingText } from '../telegram/dmText';
-import { markWaiting } from './dms';
+import { gameEndedStub, moveLabel, waitingText } from '../telegram/dmText';
+import { resultRecipients } from './dmRules';
+import { markWaiting, retireGameDms } from './dms';
 import { applyGameResultToRatings, getPlayerRating } from './ratings';
 import { nameWithFlair, requireUser, wantsDms } from './users';
 
@@ -94,12 +95,17 @@ export async function getGameDto(
 
 const ABORT_REASONS: ReadonlySet<EndInput['endReason']> = new Set(['abort', 'timeout_abort']);
 
-/** Ends a game inside `tx`: status and result, ratings and snapshots, then the card, result photo and import jobs. */
+/**
+ * Ends a game inside `tx`: status and result, ratings and snapshots, then the card, result photo
+ * and import jobs, and the players' DMs. `endedBy` is the player whose action ended it, or null
+ * when nobody's did (a timeout, a void): the result DM goes to whoever did not end it.
+ */
 export async function finishGame(
   tx: DbOrTx,
   game: GameRow,
   end: EndInput,
   now: Date,
+  endedBy: Colour | null = null,
 ): Promise<GameRow> {
   // A voided game is not worth an import; the fallback analysis link still works (review finding 10).
   // Spec §8: engine games post no card and are never imported — the Lichess quota is shared across
@@ -148,6 +154,7 @@ export async function finishGame(
       dedupKey: `lichess:${game.publicId}`,
     });
   }
+  if (!engineGame) await endGameDms(tx, game, end.endReason, endedBy);
   // Flair spec §3.2: a decided game against a person is scored; aborts, voids and bot games are not.
   if (isCountedGame(updated)) {
     await enqueue(tx, {
@@ -157,6 +164,37 @@ export async function finishGame(
     });
   }
   return requireGameById(tx, game.id);
+}
+
+/**
+ * DM notifications spec §2.4 and §4.2: every live DM for the game is retired — a waiting line
+ * keeps its own text, anything else says the game ended — and the result DM is queued for each
+ * player who did not end it.
+ */
+async function endGameDms(
+  tx: DbOrTx,
+  game: GameRow,
+  endReason: EndReason,
+  endedBy: Colour | null,
+): Promise<void> {
+  const [white, black] = await Promise.all([
+    requireUser(tx, game.whiteId),
+    requireUser(tx, game.blackId),
+  ]);
+  await retireGameDms(tx, game.id, (row) =>
+    row.kind === 'waiting'
+      ? row.stub
+      : gameEndedStub(nameWithFlair(row.userId === white.id ? black : white)),
+  );
+  for (const colour of resultRecipients(endReason, endedBy)) {
+    const userId = colour === 'white' ? white.id : black.id;
+    await enqueue(tx, {
+      kind: 'send_dm',
+      payload: { userId, template: 'result', gameId: game.id },
+      dedupKey: `dm:${userId}:g:${game.publicId}`,
+      mergePayload: true,
+    });
+  }
 }
 
 /** The dedup key of a game's `award_flair` job; the result photo waits while it is pending. */
@@ -298,7 +336,7 @@ async function commitMove(tx: DbOrTx, input: CommitInput): Promise<GameRow> {
       result.outcome.kind === 'checkmate'
         ? { result: result.outcome.winner === 'white' ? '1-0' : '0-1', endReason: 'checkmate' }
         : { result: '1/2-1/2', endReason: result.outcome.reason };
-    return finishGame(tx, moved, end, now);
+    return finishGame(tx, moved, end, now, colour);
   }
 
   let premovesCancelled = false;
@@ -392,7 +430,7 @@ export async function resign(
     const { game, colour, now, ended } = await lockActiveGame(tx, input.gameId, input.userId);
     if (ended) return loadGameDto(tx, game, input.userId);
     const end: EndInput = { result: colour === 'white' ? '0-1' : '1-0', endReason: 'resignation' };
-    return loadGameDto(tx, await finishGame(tx, game, end, now), input.userId);
+    return loadGameDto(tx, await finishGame(tx, game, end, now, colour), input.userId);
   });
   deps.bus.publish(input.gameId);
   return dto;

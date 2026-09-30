@@ -57,6 +57,61 @@ const secondsUntil = async (column: 'deadline_at' | 'reminder_at', id: number) =
   return row?.seconds === null ? null : Number(row?.seconds);
 };
 
+const resultDms = async () =>
+  (await db.select().from(jobs))
+    .filter((job) => job.kind === 'send_dm' && job.payload.template === 'result')
+    .map((job) => job.payload.userId);
+
+describe('game end DMs', () => {
+  const liveDm = (userId: number, gameId: number, kind: 'turn' | 'waiting', stub: string) =>
+    db.insert(dmMessages).values({
+      userId,
+      chatId: userId,
+      gameId,
+      telegramMessageId: 100 + userId,
+      kind,
+      stub,
+      sentAt: new Date(),
+    });
+
+  it('sends the result DM to the player who did not resign', async () => {
+    const { game, alice, bob } = await setup();
+    await resign(deps, { gameId: game.publicId, userId: alice.id });
+    expect(await resultDms()).toEqual([bob.id]);
+  });
+
+  it('sends the result DM to the mated player only', async () => {
+    const { game, bob, alice } = await setup({ fen: BEFORE_SCHOLARS_MATE, plyCount: 6 });
+    await move(game.publicId, alice.id, 'h5f7', 6);
+    expect(await resultDms()).toEqual([bob.id]);
+  });
+
+  it('sends no result DM for an abort or a void', async () => {
+    const { game, alice, carol } = await setup();
+    await abortGame(deps, { gameId: game.publicId, userId: alice.id });
+    const other = await insertGame(db, game.groupId, alice.id, carol.id);
+    await voidGame(deps, { gameId: other.publicId, adminUserId: alice.id });
+    expect(await resultDms()).toEqual([]);
+  });
+
+  it("retires both players' live DMs when the game ends, even with DMs off", async () => {
+    const { game, alice, bob } = await setup();
+    await db
+      .update(users)
+      .set({ prefs: { notifications: false } })
+      .where(eq(users.id, bob.id));
+    await liveDm(alice.id, game.id, 'waiting', '✓ You played 1. e4 · waiting for Bob');
+    await liveDm(bob.id, game.id, 'turn', 'Game vs Alice ended');
+    await resign(deps, { gameId: game.publicId, userId: alice.id });
+    expect(await db.select().from(dmMessages)).toEqual([]);
+    const retires = (await db.select().from(jobs)).filter((job) => job.kind === 'retire_dm');
+    expect(retires.map((job) => [job.payload.userId, job.payload.text])).toEqual([
+      [alice.id, '✓ You played 1. e4 · waiting for Bob'],
+      [bob.id, 'Game vs Alice ended'],
+    ]);
+  });
+});
+
 describe('playMove', () => {
   it('plays a legal move, resets the opponent’s clock and enqueues the card edit and turn DM', async () => {
     const { game, alice, bob } = await setup();
@@ -214,7 +269,10 @@ describe('playMove', () => {
         `result:g:${game.publicId}`,
       ]),
     );
-    expect((await jobList()).map((job) => job.kind)).not.toContain('send_dm');
+    // The mated player hears the result; nobody gets a turn DM.
+    expect(
+      (await jobList()).filter((job) => job.kind === 'send_dm').map((job) => job.payload.template),
+    ).toEqual(['result']);
   });
 
   it('clears the opponent’s draw offer when the mover is not the offerer, and keeps the mover’s own', async () => {
@@ -242,7 +300,7 @@ describe('playMove', () => {
 
 describe('resign, abort, void', () => {
   it('resigns as a rated loss', async () => {
-    const { game, bob } = await setup({ fen: AFTER_E4_E5, plyCount: 2 });
+    const { game, alice, bob } = await setup({ fen: AFTER_E4_E5, plyCount: 2 });
     const dto = await resign(deps, { gameId: game.publicId, userId: bob.id });
     expect(dto).toMatchObject({ status: 'finished', result: '1-0', endReason: 'resignation' });
     expect(await db.select().from(ratings)).toHaveLength(2);
@@ -250,6 +308,11 @@ describe('resign, abort, void', () => {
       ['edit_card', `card:g:${game.publicId}`, { gameId: game.id }],
       ['send_result_photo', `result:g:${game.publicId}`, { gameId: game.id }],
       ['lichess_import', `lichess:${game.publicId}`, { gameId: game.id }],
+      [
+        'send_dm',
+        `dm:${alice.id}:g:${game.publicId}`,
+        { userId: alice.id, template: 'result', gameId: game.id },
+      ],
       ['award_flair', `flair:g:${game.publicId}`, { gameId: game.id }],
     ]);
   });

@@ -73,6 +73,24 @@ describe('forfeitOverdueGames', () => {
   });
 });
 
+describe('timeout result DMs', () => {
+  it('sends the result DM to both players on timeout', async () => {
+    const { group, alice, bob } = await people();
+    const game = await insertGame(db, group.id, alice.id, bob.id, {
+      deadlineInSeconds: -1,
+      fen: AFTER_E4_E5,
+      plyCount: 2,
+    });
+    await insertMove(db, game.id, 1, 'e2e4', 'e4', AFTER_E4);
+    await insertMove(db, game.id, 2, 'e7e5', 'e5', AFTER_E4_E5);
+    await forfeitOverdueGames(deps);
+    const dms = (await db.select().from(jobs)).filter(
+      (job) => job.kind === 'send_dm' && job.payload.template === 'result',
+    );
+    expect(dms.map((job) => job.payload.userId).sort()).toEqual([alice.id, bob.id].sort());
+  });
+});
+
 describe('sendDueReminders', () => {
   it('enqueues one reminder DM for the player to move and clears the column', async () => {
     const { group, alice, bob } = await people();
