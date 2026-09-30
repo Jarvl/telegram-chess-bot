@@ -13,6 +13,11 @@ export type EnqueueInput = {
    * instead of re-arming it, for causes that repeat without being new (a photo check per sighting).
    */
   rearm?: boolean;
+  /**
+   * With a dedup key: a re-armed pending job takes the new payload's keys over its own
+   * (`payload || new`), so a job built from current state still carries every flag it was given.
+   */
+  mergePayload?: boolean;
   delaySeconds?: number;
   maxAttempts?: number;
 };
@@ -46,6 +51,11 @@ export async function enqueue(tx: DbOrTx, input: EnqueueInput): Promise<void> {
       target: jobs.dedupKey,
       targetWhere: sql`done_at is null`,
       // The re-arm is a new cause, so the attempt count starts over.
-      set: { runAt: sql`excluded.run_at`, attempts: 0, lastError: null },
+      set: {
+        runAt: sql`excluded.run_at`,
+        attempts: 0,
+        lastError: null,
+        ...(input.mergePayload ? { payload: sql`${jobs.payload} || excluded.payload` } : {}),
+      },
     });
 }
