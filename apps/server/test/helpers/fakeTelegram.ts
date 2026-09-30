@@ -19,6 +19,8 @@ export class FakeTelegram {
   fileStatus: number | null = null;
   /** Awaited before the file endpoint answers, to act while a download is in flight. */
   onFile: (() => Promise<unknown>) | null = null;
+  /** Awaited before `sendMessage` answers, to change state while a DM is in flight. */
+  onSend: (() => Promise<unknown>) | null = null;
   url = '';
   private failures = new Map<string, FakeFailure[]>();
   private held = new Set<string>();
@@ -52,10 +54,13 @@ export class FakeTelegram {
         // Simulates a Telegram that never answers: the socket is left open for the caller's own
         // timeout to abort, instead of this fake ever writing a response.
         if (this.held.delete(method)) return;
-        const { status, json } = this.respond(method, body);
-        res.statusCode = status;
-        res.setHeader('content-type', 'application/json');
-        res.end(JSON.stringify(json));
+        void (async () => {
+          if (method === 'sendMessage' && this.onSend) await this.onSend();
+          const { status, json } = this.respond(method, body);
+          res.statusCode = status;
+          res.setHeader('content-type', 'application/json');
+          res.end(JSON.stringify(json));
+        })();
       });
     });
   }
@@ -83,6 +88,7 @@ export class FakeTelegram {
     this.photos.clear();
     this.fileStatus = null;
     this.onFile = null;
+    this.onSend = null;
   }
 
   failNext(method: string, failure: FakeFailure): void {

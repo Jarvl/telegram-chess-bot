@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { challenges, games, groups, jobs, users } from '../../src/db/schema';
+import { challenges, dmMessages, games, groups, jobs, users } from '../../src/db/schema';
 import { enqueue } from '../../src/jobs/queue';
 import { telegramJobHandlers } from '../../src/jobs/handlers/telegram';
 import { JobWorker } from '../../src/jobs/worker';
@@ -22,6 +22,7 @@ let fake: FakeTelegram;
 let worker: JobWorker;
 const CHAT = -1001000000002;
 const AFTER_E4 = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1';
+const AFTER_E5 = 'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2';
 
 beforeAll(async () => {
   fake = await FakeTelegram.start();
@@ -255,6 +256,10 @@ describe('send_dm', () => {
 
   it('sends the turn DM with both buttons and skips users who declined DMs', async () => {
     const { group, alice, bob } = await people();
+    await db
+      .update(users)
+      .set({ flairWorn: ['rank_under_1200'] })
+      .where(eq(users.id, bob.id));
     // Bob is White and has moved; it is Alice's (Black's) turn, and only Alice allows DMs.
     const game = await insertGame(db, group.id, bob.id, alice.id, {
       cardMessageId: 900,
@@ -275,7 +280,7 @@ describe('send_dm', () => {
     expect(sent).toHaveLength(1);
     expect(sent[0]?.body).toMatchObject({
       chat_id: 11,
-      text: 'Your move vs Bob · 1. e4 · 23 h left',
+      text: 'Your move vs Bob 🦍 · 1. e4 · 23 h left',
     });
     expect(sent[0]?.body.reply_markup).toEqual({
       inline_keyboard: [
@@ -332,6 +337,152 @@ describe('send_dm', () => {
       chat_id: 11,
       text: 'Your move vs Bob · 1. e4 · 23 h left\n\nYour premoves were cancelled.',
     });
+  });
+});
+
+describe('send_dm live rows', () => {
+  async function aliceToMove(overrides: Parameters<typeof insertGame>[4] = {}) {
+    const { group, alice, bob } = await people();
+    const game = await insertGame(db, group.id, bob.id, alice.id, {
+      cardMessageId: 900,
+      fen: AFTER_E4,
+      plyCount: 1,
+      ...overrides,
+    });
+    await insertMove(db, game.id, 1, 'e2e4', 'e4', AFTER_E4);
+    return { group, alice, bob, game };
+  }
+  const dm = (userId: number, gameId: number, template: string) =>
+    enqueue(db, { kind: 'send_dm', payload: { userId, template, gameId } });
+  const dmRows = () => db.select().from(dmMessages);
+  const drain = async () => {
+    for (let i = 0; i < 4; i += 1) await worker.runOnce();
+  };
+
+  it('records the turn DM as the live row', async () => {
+    const { alice, game } = await aliceToMove();
+    await dm(alice.id, game.id, 'turn');
+    await drain();
+    expect(await dmRows()).toMatchObject([
+      {
+        userId: alice.id,
+        chatId: 11,
+        gameId: game.id,
+        telegramMessageId: 101,
+        kind: 'turn',
+        stub: 'Game vs Bob ended',
+      },
+    ]);
+  });
+
+  it('records the challenge DM as the live row', async () => {
+    const { group, alice, bob } = await people();
+    const challenge = await insertChallenge(db, group.id, bob.id, alice.id);
+    await enqueue(db, {
+      kind: 'send_dm',
+      payload: { userId: alice.id, template: 'challenge', challengeId: challenge.id },
+    });
+    await drain();
+    expect(await dmRows()).toMatchObject([
+      { challengeId: challenge.id, kind: 'challenge', stub: 'Challenge from Bob expired' },
+    ]);
+  });
+
+  it('adds the draw offer line when the opponent offered with their move', async () => {
+    const { alice, game } = await aliceToMove({ drawOfferBy: 'white', drawOfferPly: 0 });
+    await dm(alice.id, game.id, 'turn');
+    await drain();
+    expect(fake.callsTo('sendMessage')[0]?.body.text).toBe(
+      'Your move vs Bob · 1. e4 · 23 h left\n\nBob offers a draw.',
+    );
+  });
+
+  it('sends the draw offer DM', async () => {
+    const { alice, game } = await aliceToMove({ drawOfferBy: 'white', drawOfferPly: 1 });
+    await dm(alice.id, game.id, 'draw_offer');
+    await drain();
+    expect(fake.callsTo('sendMessage')[0]?.body.text).toBe('Bob offers a draw · 1. e4 · 23 h left');
+    expect(await dmRows()).toMatchObject([{ kind: 'draw_offer' }]);
+  });
+
+  it('falls back to the turn DM when the offer is no longer standing', async () => {
+    const { alice, game } = await aliceToMove();
+    await dm(alice.id, game.id, 'draw_offer');
+    await drain();
+    expect(fake.callsTo('sendMessage')[0]?.body.text).toBe('Your move vs Bob · 1. e4 · 23 h left');
+  });
+
+  it('sends the result DM with the rating change and records no row', async () => {
+    const { alice, game } = await aliceToMove({
+      status: 'finished',
+      result: '1-0',
+      endReason: 'resignation',
+      blackRatingBefore: 1500,
+      blackRatingAfter: 1491,
+      blackRdBefore: 70,
+      blackRdAfter: 60,
+    });
+    await dm(alice.id, game.id, 'result');
+    await drain();
+    const sent = fake.callsTo('sendMessage');
+    expect(sent[0]?.body.text).toBe('You lost vs Bob · Resignation · 1491 (−9)');
+    expect(sent[0]?.body.reply_markup).toMatchObject({
+      inline_keyboard: [[{ text: '♟ Open game' }], [{ text: 'Go to group' }]],
+    });
+    expect(await dmRows()).toEqual([]);
+  });
+
+  it('sends no result DM while the game is still running', async () => {
+    const { alice, game } = await aliceToMove();
+    await dm(alice.id, game.id, 'result');
+    await drain();
+    expect(fake.callsTo('sendMessage')).toEqual([]);
+  });
+
+  it('records a DM sent after the player already moved as waiting', async () => {
+    const { alice, game } = await aliceToMove();
+    fake.onSend = async () => {
+      await insertMove(db, game.id, 2, 'e7e5', 'e5', AFTER_E5);
+      await db.update(games).set({ fen: AFTER_E5, plyCount: 2 }).where(eq(games.id, game.id));
+    };
+    await dm(alice.id, game.id, 'turn');
+    await drain();
+    expect(await dmRows()).toMatchObject([
+      { kind: 'waiting', stub: '✓ You played 1... e5 · waiting for Bob' },
+    ]);
+    expect(fake.callsTo('editMessageText')[0]?.body).toMatchObject({
+      chat_id: 11,
+      text: '✓ You played 1... e5 · waiting for Bob',
+    });
+  });
+
+  it('retires a DM that lands after the game ended', async () => {
+    const { alice, game } = await aliceToMove();
+    fake.onSend = async () => {
+      await db
+        .update(games)
+        .set({ status: 'finished', result: '1-0', endReason: 'resignation' })
+        .where(eq(games.id, game.id));
+    };
+    await dm(alice.id, game.id, 'turn');
+    await drain();
+    expect(await dmRows()).toEqual([]);
+    expect(fake.callsTo('deleteMessage').map((call) => call.body)).toEqual([
+      { chat_id: 11, message_id: 101 },
+    ]);
+  });
+
+  it('forgets the live rows of a user who blocked the bot', async () => {
+    const { alice, game } = await aliceToMove();
+    await dm(alice.id, game.id, 'turn');
+    await drain();
+    fake.failNext('sendMessage', {
+      error_code: 403,
+      description: 'Forbidden: bot was blocked by the user',
+    });
+    await dm(alice.id, game.id, 'reminder');
+    await drain();
+    expect(await dmRows()).toEqual([]);
   });
 });
 
