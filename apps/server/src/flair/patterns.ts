@@ -82,6 +82,11 @@ const DETECTORS: Record<MovePattern, Detector> = {
   // has an `x` in its SAN.
   flawless_mate: (moves, side) =>
     gaveMate(moves, side) && !moves.some((move) => !isBy(move, side) && move.san.includes('x')),
+  // The game is past move 100: more than 200 plies, whichever side made them.
+  marathon: (moves) => moves.length > 200,
+  // The side mates and never captured, pawns, en passant and capturing promotions included.
+  pacifist_mate: (moves, side) =>
+    gaveMate(moves, side) && !moves.some((move) => isBy(move, side) && move.san.includes('x')),
   // The side's first move pushes the e-pawn two squares and its second walks the king up behind it.
   bongcloud: (moves, side) => {
     const own = moves.filter((move) => isBy(move, side)).slice(0, 2);

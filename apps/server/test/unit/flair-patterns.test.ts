@@ -1,9 +1,10 @@
-import { INITIAL_FEN } from '@group-chess/shared';
+import { INITIAL_FEN, type Colour } from '@group-chess/shared';
 import { describe, expect, it } from 'vitest';
-import { madePattern } from '../../src/flair/patterns';
+import { gaveMate, madePattern, type StoredMove } from '../../src/flair/patterns';
 import {
   BISHOPS_AND_PAWN_MATE_FEN,
   BISHOPS_MATE_FEN,
+  CAPTURE_PROMOTION_MATE_FEN,
   LINES,
   play,
   PROMOTION_FEN,
@@ -120,4 +121,37 @@ describe('bongcloud', () => {
     expect(madePattern('bongcloud', from(LINES.kingWalksOnMoveThree), 'white')).toBe(false);
     expect(madePattern('bongcloud', from(LINES.kingWalksAfterD4), 'white')).toBe(false);
   });
+});
+
+describe('marathon', () => {
+  const plies = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({ ply: i + 1, uci: 'a1a1', san: 'Ka1', fenAfter: '' }));
+  it('sees a game past move 100, for either side', () => {
+    expect(madePattern('marathon', plies(200), 'white')).toBe(false);
+    expect(madePattern('marathon', plies(201), 'white')).toBe(true);
+    expect(madePattern('marathon', plies(201), 'black')).toBe(true);
+  });
+});
+
+describe('pacifist_mate', () => {
+  it('sees a mate by a side that never captured, whatever the opponent took', () => {
+    expect(madePattern('pacifist_mate', from(LINES.foolsMate), 'black')).toBe(true);
+    // White captured on d5 at ply 3; Black still never did.
+    expect(madePattern('pacifist_mate', from(LINES.mateAfterLosingAPawn), 'black')).toBe(true);
+    // The mated side made no capture either, but gave no mate.
+    expect(madePattern('pacifist_mate', from(LINES.foolsMate), 'white')).toBe(false);
+  });
+  it('ignores a mate after any capture of the side’s own', () => {
+    const own: [StoredMove[], Colour][] = [
+      [from(LINES.scholarsMateQh5), 'white'], // Qxf7#
+      [play(CAPTURE_PROMOTION_MATE_FEN, 'g7h8q'), 'white'], // gxh8=Q#
+      [from(LINES.blackEnPassantThenMate), 'black'], // dxc3 en passant, then Qh4#
+    ];
+    for (const [moves, side] of own) {
+      expect(gaveMate(moves, side)).toBe(true);
+      expect(madePattern('pacifist_mate', moves, side)).toBe(false);
+    }
+  });
+  it('ignores a game without a mate', () =>
+    expect(madePattern('pacifist_mate', from(LINES.bongcloud), 'white')).toBe(false));
 });

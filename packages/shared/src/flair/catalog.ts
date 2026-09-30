@@ -31,6 +31,8 @@ export type MovePattern =
   | 'queen_mate'
   | 'bishops_mate'
   | 'flawless_mate'
+  | 'marathon'
+  | 'pacifist_mate'
   | 'bongcloud'
   | 'scholars_mate';
 
