@@ -10,6 +10,7 @@
  *   games (backfill spec §1). Flair already earned is kept.
  */
 import type { MessageKey } from '../i18n';
+import type { EndReason } from '../protocol/enums';
 
 /**
  * The categories, in display order: the rank ladder (ratings held), feats (things done in play, such
@@ -30,6 +31,8 @@ export type MovePattern =
   | 'queen_mate'
   | 'bishops_mate'
   | 'flawless_mate'
+  | 'marathon'
+  | 'pacifist_mate'
   | 'bongcloud'
   | 'scholars_mate';
 
@@ -43,10 +46,14 @@ export type PlayerResult = 'win' | 'draw' | 'loss';
  * - `made`: they made `pattern`, whatever the result.
  * - `won`: they won and made `pattern`. `lost`: they lost and their opponent made `pattern`.
  * - `quickMate`: they won by mate at most `seconds` after the game started.
- * - `streak`: the last `length` games that pass the filter all have `result`.
+ * - `ended`: their result was `result` and the game ended by `reason`.
+ * - `against`: at least `count` of their games were against this game's opponent, in any group,
+ *   rated or casual; with `result`, this game has it and only games with it count.
+ * - `streak`: the last `length` rated games all have `result`. Every streak is rated: casual games
+ *   neither extend nor break the run.
  * - `total`: at least `count` games that pass the filter have `result`.
  *
- * With `rated`, the filter skips casual games. A rule's answer at a game may depend only on that
+ * With `rated`, `total` skips casual games. A rule's answer at a game may depend only on that
  * game and the player's earlier counted games (§1.6), which is what lets each game be evaluated
  * once, as it ends.
  */
@@ -56,7 +63,9 @@ export type FlairRule =
   | { kind: 'won'; pattern: MovePattern }
   | { kind: 'lost'; pattern: MovePattern }
   | { kind: 'quickMate'; seconds: number }
-  | { kind: 'streak'; result: PlayerResult; length: number; rated: boolean }
+  | { kind: 'ended'; result: PlayerResult; reason: EndReason }
+  | { kind: 'against'; count: number; result: PlayerResult | null }
+  | { kind: 'streak'; result: PlayerResult; length: number }
   | { kind: 'total'; result: PlayerResult; count: number; rated: boolean };
 
 export type FlairDefinition = {
@@ -97,13 +106,19 @@ export function quickMate(seconds: number): FlairRule {
   return { kind: 'quickMate', seconds };
 }
 
-/** `length` games in a row with `result`. With `rated`, casual games are skipped. */
-export function streak(
-  result: PlayerResult,
-  length: number,
-  options?: { rated?: boolean },
-): FlairRule {
-  return { kind: 'streak', result, length, rated: options?.rated ?? false };
+/** Get `result` in a game that ended by `reason`, such as a loss by resignation. */
+export function ended(result: PlayerResult, reason: EndReason): FlairRule {
+  return { kind: 'ended', result, reason };
+}
+
+/** Play `count` games against one person, or with `result`, get it against them `count` times. */
+export function against(count: number, result?: PlayerResult): FlairRule {
+  return { kind: 'against', count, result: result ?? null };
+}
+
+/** `length` rated games in a row with `result`; casual games are skipped. */
+export function streak(result: PlayerResult, length: number): FlairRule {
+  return { kind: 'streak', result, length };
 }
 
 /** `count` games with `result`, in a row or not. With `rated`, casual games are skipped. */
@@ -126,9 +141,9 @@ export const FLAIR = [
   { id: 'rank_1700', emoji: '🗿', category: 'rank', rule: held(1700, 1799) },
   { id: 'rank_1800', emoji: '🤖', category: 'rank', rule: held(1800, null) },
   { id: 'en_passant_win', emoji: '👑', category: 'feat', rule: won('en_passant') },
-  { id: 'win_streak_3', emoji: '🌡️', category: 'feat', rule: streak('win', 3, { rated: true }) },
-  { id: 'win_streak_5', emoji: '🔥', category: 'feat', rule: streak('win', 5, { rated: true }) },
-  { id: 'win_streak_10', emoji: '🌋', category: 'feat', rule: streak('win', 10, { rated: true }) },
+  { id: 'win_streak_3', emoji: '🌡️', category: 'feat', rule: streak('win', 3) },
+  { id: 'win_streak_5', emoji: '🔥', category: 'feat', rule: streak('win', 5) },
+  { id: 'win_streak_10', emoji: '🌋', category: 'feat', rule: streak('win', 10) },
   { id: 'queenside_castle_win', emoji: '🏰', category: 'feat', rule: won('castle_queenside') },
   // Once a win with a promotion; loosened to any promotion, and backfilled again for it.
   { id: 'promotion_win', emoji: '♟️', category: 'feat', rule: made('promotion'), backfill: 2 },
@@ -138,8 +153,16 @@ export const FLAIR = [
   { id: 'flawless_mate', emoji: '🪬', category: 'feat', rule: won('flawless_mate') },
   { id: 'quick_mate', emoji: '🏎️', category: 'feat', rule: quickMate(180) },
   { id: 'draws_10', emoji: '🤝', category: 'feat', rule: total('draw', 10) },
+  { id: 'marathon_win', emoji: '🐢', category: 'feat', rule: won('marathon') },
+  { id: 'pacifist_mate', emoji: '🕊️', category: 'feat', rule: won('pacifist_mate') },
+  { id: 'rival_5', emoji: '👬', category: 'feat', rule: against(5) },
   { id: 'scholars_mate_loss', emoji: '🪤', category: 'dubious', rule: lost('scholars_mate') },
   { id: 'bongcloud_win', emoji: '💨', category: 'dubious', rule: won('bongcloud') },
+  { id: 'loss_streak_3', emoji: '👶', category: 'dubious', rule: streak('loss', 3) },
+  { id: 'loss_streak_5', emoji: '💩', category: 'dubious', rule: streak('loss', 5) },
+  { id: 'loss_streak_10', emoji: '🗑️', category: 'dubious', rule: streak('loss', 10) },
+  { id: 'nemesis_5', emoji: '😈', category: 'dubious', rule: against(5, 'loss') },
+  { id: 'resigned', emoji: '🐔', category: 'dubious', rule: ended('loss', 'resignation') },
 ] as const satisfies readonly FlairDefinition[];
 
 export type FlairEntry = (typeof FLAIR)[number];

@@ -69,6 +69,8 @@ export async function loadCountedGames(
       rated: games.rated,
       result: games.result,
       whiteId: games.whiteId,
+      blackId: games.blackId,
+      endReason: games.endReason,
       whiteRatingAfter: games.whiteRatingAfter,
       blackRatingAfter: games.blackRatingAfter,
     })
@@ -104,6 +106,8 @@ export async function loadCountedGames(
           // The rating this side left the game with, unrounded; null when the game left none.
           ratingAfter: white ? row.whiteRatingAfter : row.blackRatingAfter,
           side: white ? 'white' : 'black',
+          endReason: row.endReason,
+          opponentId: white ? row.blackId : row.whiteId,
         };
       })
   );

@@ -80,19 +80,20 @@ export const FLAIR = [/* §1.2, in display order */] as const satisfies readonly
 export type FlairId = (typeof FLAIR)[number]['id'];
 ```
 
-Small constructors (`held`, `won`, `lost`, `streak`, `total`) keep entries to one line each,
-for example `{ id: 'win_streak_5', emoji: '🔥', category: 'feat', rule: streak('win', 5, { rated: true }) }`.
+Small constructors (`held`, `made`, `won`, `lost`, `quickMate`, `ended`, `against`, `streak`, `total`) keep entries to one line each,
+for example `{ id: 'win_streak_5', emoji: '🔥', category: 'feat', rule: streak('win', 5) }`.
 The module also exports `flairById(id)`, which returns `undefined` for an id no longer in the
 catalog.
 
 Each flair's description is the string `flair.<id>` in `packages/shared/src/i18n/en.ts`. A
 type-level check fails the build when an id has no string.
 
-### 1.2 The 22 flair
+### 1.2 The 30 flair
 
 The 14 launch flair's emoji and descriptions are copied from the prototype code point for code
 point. The second batch (🌡️ 🌋 🫦 💅 🗼 🪬 🏎️ 💨) came later, and at the same time ♟️ was loosened from
-a win with a promotion to any promotion (`backfill: 2`).
+a win with a promotion to any promotion (`backfill: 2`). The third batch (🐢 🕊️ 👬 👶 💩 🗑️ 😈 🐔)
+came after that, with the `ended` and `against` rule kinds and streaks made always rated (§1.4).
 
 | Category | Emoji | Code points | Id | Rule | Description (`flair.<id>`) |
 |---|---|---|---|---|---|
@@ -105,9 +106,9 @@ a win with a promotion to any promotion (`backfill: 2`).
 | rank | 🗿 | U+1F5FF | `rank_1700` | `held(1700, 1799)` | Held a rating of 1700–1799 |
 | rank | 🤖 | U+1F916 | `rank_1800` | `held(1800, null)` | Held a rating of 1800 or more |
 | feat | 👑 | U+1F451 | `en_passant_win` | `won('en_passant')` | Capture en passant and win the game |
-| feat | 🌡️ | U+1F321 U+FE0F | `win_streak_3` | `streak('win', 3, { rated: true })` | Win three rated games in a row |
-| feat | 🔥 | U+1F525 | `win_streak_5` | `streak('win', 5, { rated: true })` | Win five rated games in a row |
-| feat | 🌋 | U+1F30B | `win_streak_10` | `streak('win', 10, { rated: true })` | Win ten rated games in a row |
+| feat | 🌡️ | U+1F321 U+FE0F | `win_streak_3` | `streak('win', 3)` | Win three rated games in a row |
+| feat | 🔥 | U+1F525 | `win_streak_5` | `streak('win', 5)` | Win five rated games in a row |
+| feat | 🌋 | U+1F30B | `win_streak_10` | `streak('win', 10)` | Win ten rated games in a row |
 | feat | 🏰 | U+1F3F0 | `queenside_castle_win` | `won('castle_queenside')` | Win a game you castled queenside in |
 | feat | ♟️ | U+265F U+FE0F | `promotion_win` | `made('promotion')`, `backfill: 2` | Promote a pawn |
 | feat | 🫦 | U+1FAE6 | `underpromotion_win` | `won('underpromotion')` | Promote a pawn to something other than a queen and win the game |
@@ -116,8 +117,16 @@ a win with a promotion to any promotion (`backfill: 2`).
 | feat | 🪬 | U+1FAAC | `flawless_mate` | `won('flawless_mate')` | Win by checkmate without losing a piece |
 | feat | 🏎️ | U+1F3CE U+FE0F | `quick_mate` | `quickMate(180)` | Win by checkmate within three minutes |
 | feat | 🤝 | U+1F91D | `draws_10` | `total('draw', 10)` | Draw ten games |
+| feat | 🐢 | U+1F422 | `marathon_win` | `won('marathon')` | Win a game longer than 100 moves |
+| feat | 🕊️ | U+1F54A U+FE0F | `pacifist_mate` | `won('pacifist_mate')` | Checkmate without making a single capture |
+| feat | 👬 | U+1F46C | `rival_5` | `against(5)` | Play the same person five times |
 | dubious | 🪤 | U+1FAA4 | `scholars_mate_loss` | `lost('scholars_mate')` | Lose to a scholar’s mate |
 | dubious | 💨 | U+1F4A8 | `bongcloud_win` | `won('bongcloud')` | Win with the Bongcloud opening |
+| dubious | 👶 | U+1F476 | `loss_streak_3` | `streak('loss', 3)` | Lose three rated games in a row |
+| dubious | 💩 | U+1F4A9 | `loss_streak_5` | `streak('loss', 5)` | Lose five rated games in a row |
+| dubious | 🗑️ | U+1F5D1 U+FE0F | `loss_streak_10` | `streak('loss', 10)` | Lose ten rated games in a row |
+| dubious | 😈 | U+1F608 | `nemesis_5` | `against(5, 'loss')` | Lose five games to the same person |
+| dubious | 🐔 | U+1F414 | `resigned` | `ended('loss', 'resignation')` | Resign a game |
 
 The ranges use an en dash (U+2013) and "scholar’s" a right single quotation mark (U+2019), as in
 the prototype. Category titles: `flair.category.rank` "Rank ladder", `flair.category.feat` "Feats",
@@ -143,13 +152,20 @@ where its rule holds.
 | `won(pattern)` | the player won `g` and made `pattern` in it |
 | `lost(pattern)` | the player lost `g` and the opponent made `pattern` in it |
 | `quickMate(seconds)` | the player won `g` with a mating last move, at most `seconds` after `g` started (`started_at`, set when the challenge is accepted, to `finished_at`; games have no clock) |
-| `streak(result, n, { rated })` | `g` passes the filter, and the last `n` games of `H` that pass it (ending with `g`) all have `result`. With `rated: true`, casual games are skipped: they neither extend nor break the run. Games from any group count |
+| `ended(result, reason)` | the player's result in `g` is `result` and `g` ended by `reason` (`games.end_reason`, an `EndReason`) |
+| `against(n, result?)` | at least `n` games of `H` were against `g`'s opponent (by user id, in any group, rated or casual). With `result`, `g` has it and only games of `H` with it are counted |
+| `streak(result, n)` | `g` is rated, and the last `n` rated games of `H` (ending with `g`) all have `result`. Casual games are skipped: they neither extend nor break the run. Every streak is rated; the builder takes no option. Games from any group count |
 | `total(result, n, { rated })` | `g` passes the filter, has `result`, and at least `n` games of `H` that pass it have `result` |
 
-`streak` and `total` hold whenever the run or the count is at least `n`, not only exactly at `n`.
+`streak`, `total` and `against` hold whenever the run or the count is at least `n`, not only exactly at `n`.
 An award that was missed at the `n`-th game (see §6) is therefore made at the next qualifying one.
 
-`rated` defaults to false. `held` needs no filter because it is rated by definition.
+`total`'s `rated` defaults to false. `held` needs no filter because it is rated by definition.
+
+To serve `ended` and `against`, each counted game also carries its `end_reason` and the other
+side's user id (`black_id` or `white_id`), read by the same query. A player who used Delete my data
+keeps their user row, so games against them still group by opponent. An `end_reason` that is null
+matches no `ended` rule.
 
 ### 1.5 Every earlier game counts
 
@@ -158,7 +174,7 @@ player's whole counted history, and each flair is backfilled once on the deploy 
 
 ### 1.6 The rule for every rule kind
 
-**A rule's answer at `g` may depend only on `g` and the player's earlier counted games.** All seven
+**A rule's answer at `g` may depend only on `g` and the player's earlier counted games.** All nine
 kinds above satisfy this. It is what makes evaluating each game once, as it ends, correct. It also
 lets the [backfill](./2026-09-29-flair-backfill-design.md) walk a player's history and call the same evaluators at each game. Any new rule kind must satisfy it.
 
@@ -192,6 +208,8 @@ moves at odd plies, Black at even ones.
 | `queen_mate` | made the game's last move, its SAN ends `#`, and in its `fen_after` the side has exactly a king and a queen |
 | `bishops_mate` | the same, with exactly a king and two bishops |
 | `flawless_mate` | made the game's mating last move, and no move by the opponent has an `x` in its SAN (pawns and en passant included) |
+| `marathon` | is in a game of more than 200 plies, that is, one past move 100. The side does not matter |
+| `pacifist_mate` | made the game's mating last move, and none of its own moves has an `x` in its SAN (pawns, en passant and capturing promotions included). The opponent may capture |
 | `bongcloud` | played `e4` then `Ke2` as its first two moves (Black: `e5` then `Ke7`), whatever the opponent played |
 | `scholars_mate` | made the game's last move, and it is `Qxf7#` at ply ≤ 7 (White) or `Qxf2#` at ply ≤ 8 (Black). In other words the queen mated by capturing on f7 or f2 by its side's fourth move, which covers the Qh5 and Qf3 lines and Black's mirror |
 
@@ -418,11 +436,17 @@ redesign's tokens; the chips reuse `.tag`.
   - `promotion`, including underpromotion;
   - `scholars_mate` via Qh5 and Qf3, and Black's mirror, against `Qxf7#` at ply 9 and a
     `Qxf7+` that is not mate;
+  - `marathon` at 200 plies (no) and 201 (yes);
+  - `pacifist_mate` with no captures, against a capture, an en passant capture, a capturing
+    promotion and a win that is not mate; the opponent's captures do not matter;
   - each only for the side that made the move.
 - **Server unit tests, evaluators:**
   - `held` at band edges, with rounding (1199.5 → 1200) and for casual games;
   - `won` and `lost` by result;
-  - `streak` skipping casual games and broken by a draw or a loss;
+  - `streak` skipping casual games and broken by a draw or a loss, for wins and losses;
+  - `ended` by result and by reason, and never for a null reason;
+  - `against` counting only games against `g`'s opponent, with and without `result`, and
+    requiring `g` itself to have `result`;
   - `total` counting only games that pass the filter;
 - **Server integration tests (PostgreSQL):**
   - `finishGame` enqueues `award_flair` for games against people, and not for bot games or aborts;
@@ -430,6 +454,9 @@ redesign's tokens; the chips reuse `.tag`.
     the fifth rated win in a row with a casual game in between, the tenth draw, a rated game
     leaving a rating in a band;
   - 🪤 goes only to the side that was mated;
+  - 🐔 on a resignation, 😈 on the fifth loss to one person with games against others between,
+    👬 to both players at their fifth game together, 🗑️ on the tenth rated loss in a row;
+  - the backfill awards the third batch for past games;
   - new flair fills free slots, and a random subset when there are more than free slots;
   - a re-run job changes nothing;
   - a void keeps flair;
@@ -443,6 +470,7 @@ redesign's tokens; the chips reuse `.tag`.
   - `<Flair>`, including unknown ids;
   - flair on `GameCard`, `PlayerBar`, `PlayerRow` and the player header;
   - the Settings row before and after its data loads;
+  - the Flair screen's catalog counts after the third batch;
   - every Flair screen row state;
   - slot selection;
   - the optimistic save and its revert with a toast.
@@ -451,6 +479,8 @@ redesign's tokens; the chips reuse `.tag`.
   - it also covers a game screen and a leaderboard whose players wear three flair and have long
     names;
   - the end-to-end harness can seed earned and worn flair for its players.
+- **Images:** `scripts/vendor-snapshot-art.mjs` is re-run after adding flair, so
+  `apps/server/src/images/flairEmoji.ts` has a picture for every id.
 - **Gates:** the full check suite passes (lint, format, typecheck, tests, bundle budget,
   licences), followed by a visual pass in the browser against the prototype.
 

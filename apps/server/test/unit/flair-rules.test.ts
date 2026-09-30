@@ -1,5 +1,7 @@
 import {
   INITIAL_FEN,
+  against,
+  ended,
   held,
   lost,
   made,
@@ -21,6 +23,8 @@ const game = (id: number, result: PlayerResult, over: Partial<CountedGame> = {})
   result,
   ratingAfter: null,
   side: 'white',
+  endReason: 'checkmate',
+  opponentId: 100,
   ...over,
 });
 /** Scores the last game of `history`. */
@@ -136,7 +140,7 @@ describe('quickMate', () => {
 });
 
 describe('streak', () => {
-  const five = streak('win', 5, { rated: true });
+  const five = streak('win', 5);
   it('holds at the fifth win in a row and at every win after it', () => {
     const wins = [1, 2, 3, 4, 5, 6].map((id) => game(id, 'win'));
     expect(ruleHolds(five, at(wins.slice(0, 4)))).toBe(false);
@@ -161,13 +165,6 @@ describe('streak', () => {
     expect(
       ruleHolds(five, at([...ratedWins(1, 2, 3, 4, 5), game(6, 'win', { rated: false })])),
     ).toBe(false);
-    // Unless the rule asks for rated games, casual ones count.
-    expect(
-      ruleHolds(
-        streak('win', 3),
-        at([game(1, 'win'), game(2, 'win', { rated: false }), game(3, 'win')]),
-      ),
-    ).toBe(true);
   });
   it('breaks on a rated draw or loss', () => {
     const history = [
@@ -186,12 +183,52 @@ describe('streak', () => {
       ruleHolds(five, at([...ratedWins(1, 2, 3, 4, 5), game(6, 'loss'), game(7, 'win')])),
     ).toBe(false);
   });
-  it('runs on the rule’s own result, not only on wins', () =>
-    // Two losses in a row, the second casual, which a streak that does not ask for rated games
-    // counts.
+  it('runs a losing streak over rated games only, a casual loss neither extending nor breaking it', () => {
+    const casual = { rated: false };
+    const run = [game(1, 'loss'), game(2, 'loss', casual), game(3, 'loss'), game(4, 'win', casual)];
+    expect(ruleHolds(streak('loss', 3), at(run.slice(0, 3)))).toBe(false);
+    expect(ruleHolds(streak('loss', 3), at([...run, game(5, 'loss')]))).toBe(true);
+    // Scored at a casual game, a streak never holds.
+    expect(ruleHolds(streak('loss', 2), at(run.slice(0, 2)))).toBe(false);
+  });
+});
+
+describe('ended', () => {
+  it('holds for the result and the reason together', () => {
+    const resigned = game(1, 'loss', { endReason: 'resignation' });
+    expect(ruleHolds(ended('loss', 'resignation'), at([resigned]))).toBe(true);
     expect(
-      ruleHolds(streak('loss', 2), at([game(1, 'loss'), game(2, 'loss', { rated: false })])),
-    ).toBe(true));
+      ruleHolds(ended('loss', 'resignation'), at([game(1, 'win', { endReason: 'resignation' })])),
+    ).toBe(false);
+    expect(
+      ruleHolds(ended('loss', 'resignation'), at([game(1, 'loss', { endReason: 'timeout' })])),
+    ).toBe(false);
+    expect(
+      ruleHolds(ended('loss', 'resignation'), at([game(1, 'loss', { endReason: null })])),
+    ).toBe(false);
+  });
+});
+
+describe('against', () => {
+  const vs = (id: number, opponentId: number, result: PlayerResult = 'win') =>
+    game(id, result, { opponentId, rated: id % 2 === 0 });
+  it('counts only games against this game’s opponent, rated or casual', () => {
+    const fourVs7 = [vs(1, 7), vs(2, 8), vs(3, 7), vs(4, 7), vs(5, 9), vs(6, 7)];
+    expect(ruleHolds(against(5), at(fourVs7))).toBe(false);
+    expect(ruleHolds(against(5), at([...fourVs7, vs(7, 7, 'draw')]))).toBe(true);
+    // Scored at a game against someone else, the count is theirs.
+    expect(ruleHolds(against(5), at([...fourVs7, vs(7, 7), vs(8, 8)]))).toBe(false);
+  });
+  it('with a result, counts only those games and needs this game to have it', () => {
+    const losses = [1, 2, 3, 4].map((id) => vs(id, 7, 'loss'));
+    expect(ruleHolds(against(5, 'loss'), at([...losses, vs(5, 7, 'win'), vs(6, 7, 'loss')]))).toBe(
+      true,
+    );
+    expect(ruleHolds(against(5, 'loss'), at([...losses, vs(5, 7, 'loss'), vs(6, 7, 'win')]))).toBe(
+      false,
+    );
+    expect(ruleHolds(against(5, 'loss'), at([...losses, vs(5, 8, 'loss')]))).toBe(false);
+  });
 });
 
 describe('total', () => {

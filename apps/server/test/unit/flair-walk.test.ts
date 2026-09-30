@@ -13,6 +13,8 @@ const game = (id: number, result: PlayerResult, over: Partial<CountedGame> = {})
   result,
   ratingAfter: null,
   side: 'white',
+  endReason: 'checkmate',
+  opponentId: 100,
   ...over,
 });
 const flair = (...ids: string[]): FlairEntry[] => ids.map((id) => flairById(id)!);
@@ -67,6 +69,12 @@ describe('earliestQualifying', () => {
     const quick = movesSpy();
     await earliestQualifying(history, flair('quick_mate'), quick);
     expect(quick.mock.calls.map(([id]) => id)).toEqual([1]);
+  });
+
+  it('reads no moves for ended and against candidates', async () => {
+    const movesOf = movesSpy();
+    await earliestQualifying(games('win', 'loss', 'draw'), flair('resigned', 'rival_5'), movesOf);
+    expect(movesOf).not.toHaveBeenCalled();
   });
 
   it('reads a game’s moves once however many candidates need them', async () => {

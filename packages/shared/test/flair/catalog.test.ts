@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  against,
+  ended,
   FLAIR,
   FLAIR_CATEGORIES,
   flairById,
@@ -8,6 +10,7 @@ import {
   flairDescriptionKey,
   streak,
   total,
+  won,
   type FlairDefinition,
 } from '../../src/flair/catalog';
 import { t } from '../../src/i18n';
@@ -62,7 +65,7 @@ describe('the flair catalog', () => {
       rank_1700: band(1700, 1799),
       rank_1800: band(1800, null),
       en_passant_win: { kind: 'won', pattern: 'en_passant' },
-      win_streak_5: { kind: 'streak', result: 'win', length: 5, rated: true },
+      win_streak_5: { kind: 'streak', result: 'win', length: 5 },
       queenside_castle_win: { kind: 'won', pattern: 'castle_queenside' },
       // Loosened after launch from a win with a promotion to any promotion.
       promotion_win: { kind: 'made', pattern: 'promotion' },
@@ -74,20 +77,8 @@ describe('the flair catalog', () => {
   it('holds the second batch in display order, with its rules and descriptions', () => {
     const second: [category: string, id: string, codePoints: string, rule: object, text: string][] =
       [
-        [
-          'feat',
-          'win_streak_3',
-          '1F321 FE0F',
-          streak('win', 3, { rated: true }),
-          'Win three rated games in a row',
-        ],
-        [
-          'feat',
-          'win_streak_10',
-          '1F30B',
-          streak('win', 10, { rated: true }),
-          'Win ten rated games in a row',
-        ],
+        ['feat', 'win_streak_3', '1F321 FE0F', streak('win', 3), 'Win three rated games in a row'],
+        ['feat', 'win_streak_10', '1F30B', streak('win', 10), 'Win ten rated games in a row'],
         [
           'feat',
           'underpromotion_win',
@@ -145,17 +136,66 @@ describe('the flair catalog', () => {
         );
       }),
     ).toEqual(second);
-    // The win streaks read as a ladder around 🔥, and the mates follow the promotions.
-    expect(
-      FLAIR.filter((f) => f.category === 'feat')
+    // The win streaks read as a ladder around 🔥, and the mates follow the promotions. Later
+    // batches may add flair anywhere, so only these two batches' relative order is pinned.
+    const known = new Set<string>([...LAUNCH_IDS, ...second.map(([, id]) => id)]);
+    const order = (category: string) =>
+      FLAIR.filter((f) => f.category === category && known.has(f.id))
         .map((f) => f.emoji)
-        .join(''),
-    ).toBe('👑🌡️🔥🌋🏰♟️🫦💅🗼🪬🏎️🤝');
+        .join('');
+    expect(order('feat')).toBe('👑🌡️🔥🌋🏰♟️🫦💅🗼🪬🏎️🤝');
+    expect(order('dubious')).toBe('🪤💨');
+  });
+
+  it('holds the third batch in display order, with its rules and descriptions', () => {
+    const third: [category: string, id: string, codePoints: string, rule: object, text: string][] =
+      [
+        ['feat', 'marathon_win', '1F422', won('marathon'), 'Win a game longer than 100 moves'],
+        [
+          'feat',
+          'pacifist_mate',
+          '1F54A FE0F',
+          won('pacifist_mate'),
+          'Checkmate without making a single capture',
+        ],
+        ['feat', 'rival_5', '1F46C', against(5), 'Play the same person five times'],
+        ['dubious', 'loss_streak_3', '1F476', streak('loss', 3), 'Lose three rated games in a row'],
+        ['dubious', 'loss_streak_5', '1F4A9', streak('loss', 5), 'Lose five rated games in a row'],
+        [
+          'dubious',
+          'loss_streak_10',
+          '1F5D1 FE0F',
+          streak('loss', 10),
+          'Lose ten rated games in a row',
+        ],
+        ['dubious', 'nemesis_5', '1F608', against(5, 'loss'), 'Lose five games to the same person'],
+        ['dubious', 'resigned', '1F414', ended('loss', 'resignation'), 'Resign a game'],
+      ];
     expect(
-      FLAIR.filter((f) => f.category === 'dubious')
-        .map((f) => f.emoji)
-        .join(''),
-    ).toBe('🪤💨');
+      third.map(([, id]) => {
+        const flair = flairById(id);
+        return (
+          flair && [
+            flair.category,
+            id,
+            codePoints(flair.emoji),
+            flair.rule,
+            t(flairDescriptionKey(flair.id)),
+          ]
+        );
+      }),
+    ).toEqual(third);
+    const ids = (category: string) => FLAIR.filter((f) => f.category === category).map((f) => f.id);
+    expect(ids('feat').slice(-4)).toEqual(['draws_10', 'marathon_win', 'pacifist_mate', 'rival_5']);
+    expect(ids('dubious')).toEqual([
+      'scholars_mate_loss',
+      'bongcloud_win',
+      'loss_streak_3',
+      'loss_streak_5',
+      'loss_streak_10',
+      'nemesis_5',
+      'resigned',
+    ]);
   });
 
   it('backfills ♟️ again for its loosened rule', () =>
@@ -238,13 +278,8 @@ describe('the flair catalog', () => {
     expect(flairById('retired_flair')).toBeUndefined();
   });
 
-  it('leaves streaks and totals unrated unless asked', () => {
+  it('makes every streak rated, and leaves totals unrated unless asked', () => {
     expect(total('draw', 10)).toEqual({ kind: 'total', result: 'draw', count: 10, rated: false });
-    expect(streak('win', 5, { rated: true })).toEqual({
-      kind: 'streak',
-      result: 'win',
-      length: 5,
-      rated: true,
-    });
+    expect(streak('win', 5)).toEqual({ kind: 'streak', result: 'win', length: 5 });
   });
 });
