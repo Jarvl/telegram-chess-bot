@@ -136,7 +136,7 @@ describe('firing premoves', () => {
       userId: bob.id,
       template: 'turn',
       gameId: game.id,
-      premovesCancelled: true,
+      premovesCancelledAtPly: 13,
     });
   });
 
@@ -152,7 +152,7 @@ describe('firing premoves', () => {
       userId: bob.id,
       template: 'turn',
       gameId: game.id,
-      premovesCancelled: true,
+      premovesCancelledAtPly: 1,
     });
   });
 
@@ -172,7 +172,7 @@ describe('firing premoves', () => {
       userId: bob.id,
       template: 'turn',
       gameId: game.id,
-      premovesCancelled: true,
+      premovesCancelledAtPly: 3,
     });
   });
 

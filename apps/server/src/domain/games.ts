@@ -384,7 +384,8 @@ async function commitMove(tx: DbOrTx, input: CommitInput): Promise<GameRow> {
         userId: opponentId,
         template: 'turn',
         gameId: game.id,
-        ...(premovesCancelled ? { premovesCancelled: true } : {}),
+        // The ply it applies to, so a merged payload cannot repeat it on a later turn.
+        ...(premovesCancelled ? { premovesCancelledAtPly: ply } : {}),
       },
       dedupKey: `dm:${opponentId}:g:${game.publicId}`,
       mergePayload: true,

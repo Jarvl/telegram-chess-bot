@@ -3,6 +3,12 @@ import type { Colour, EndReason } from '@group-chess/shared';
 /** Telegram lets a bot delete its own messages for 48 hours; an hour short leaves room for queue lag. */
 export const DM_DELETE_WINDOW_MS = 47 * 60 * 60 * 1000;
 
+/**
+ * A game DM sent this recently is edited to the newer text rather than replaced, so two events
+ * close together (a move, then a draw offer) buzz the phone once.
+ */
+export const DM_COALESCE_MS = 10_000;
+
 export function canDelete(sentAt: Date, now: Date): boolean {
   return now.getTime() - sentAt.getTime() < DM_DELETE_WINDOW_MS;
 }

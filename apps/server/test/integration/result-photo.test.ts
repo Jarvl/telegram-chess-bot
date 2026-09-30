@@ -242,7 +242,10 @@ describe('send_result_photo', () => {
     await db.update(jobs).set({ doneAt: new Date() }).where(eq(jobs.kind, 'award_flair'));
     // The database clock, which the worker compares `run_at` against: the host clock can run
     // ahead of it by enough that the photo would not be due yet.
-    await db.update(jobs).set({ runAt: sql`now()` }).where(eq(jobs.kind, 'send_result_photo'));
+    await db
+      .update(jobs)
+      .set({ runAt: sql`now()` })
+      .where(eq(jobs.kind, 'send_result_photo'));
     await worker.runOnce();
     expect(fake.callsTo('sendPhoto')).toHaveLength(1);
   });

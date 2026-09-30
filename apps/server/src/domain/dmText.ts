@@ -35,8 +35,13 @@ export function turnText(
   return lines.join('\n\n');
 }
 
-export function reminderText(p: { opponent: string; timeLeft: string }): string {
-  return t('dm.reminder', p);
+export function reminderText(p: {
+  opponent: string;
+  timeLeft: string;
+  drawOffered: boolean;
+}): string {
+  const line = t('dm.reminder', { opponent: p.opponent, timeLeft: p.timeLeft });
+  return p.drawOffered ? `${line}\n\n${t('dm.draw_offer_line', { opponent: p.opponent })}` : line;
 }
 
 export function drawOfferText(p: Clocked): string {

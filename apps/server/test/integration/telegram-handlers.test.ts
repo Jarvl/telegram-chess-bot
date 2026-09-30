@@ -1,6 +1,7 @@
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { challenges, dmMessages, games, groups, jobs, users } from '../../src/db/schema';
+import { challenges, dmMessages, games, groups, jobs, moves, users } from '../../src/db/schema';
+import { recordDm } from '../../src/domain/dms';
 import { enqueue } from '../../src/jobs/queue';
 import { telegramJobHandlers } from '../../src/jobs/handlers/telegram';
 import { JobWorker } from '../../src/jobs/worker';
@@ -330,7 +331,7 @@ describe('send_dm', () => {
     await insertMove(db, game.id, 1, 'e2e4', 'e4', AFTER_E4);
     await enqueue(db, {
       kind: 'send_dm',
-      payload: { userId: alice.id, template: 'turn', gameId: game.id, premovesCancelled: true },
+      payload: { userId: alice.id, template: 'turn', gameId: game.id, premovesCancelledAtPly: 1 },
     });
     await worker.runOnce();
     expect(fake.callsTo('sendMessage')[0]?.body).toMatchObject({
@@ -472,10 +473,98 @@ describe('send_dm live rows', () => {
     ]);
   });
 
+  it('keeps the draw offer line on a reminder', async () => {
+    const { alice, game } = await aliceToMove({ drawOfferBy: 'white', drawOfferPly: 1 });
+    await db
+      .update(games)
+      .set({ deadlineAt: sql`now() + interval '7 hours 30 minutes'` })
+      .where(eq(games.id, game.id));
+    await dm(alice.id, game.id, 'reminder');
+    await drain();
+    expect(fake.callsTo('sendMessage')[0]?.body.text).toBe(
+      '7 h left for your move vs Bob\n\nBob offers a draw.',
+    );
+  });
+
+  it('does not repeat a premoves-cancelled line from an earlier turn', async () => {
+    const { alice, game } = await aliceToMove();
+    await enqueue(db, {
+      kind: 'send_dm',
+      payload: { userId: alice.id, template: 'turn', gameId: game.id, premovesCancelledAtPly: 0 },
+    });
+    await drain();
+    expect(fake.callsTo('sendMessage')[0]?.body.text).toBe('Your move vs Bob · 1. e4 · 23 h left');
+  });
+
+  it('edits a DM sent moments ago instead of notifying again', async () => {
+    const { alice, game } = await aliceToMove({ drawOfferBy: 'white', drawOfferPly: 1 });
+    await recordDm(db, {
+      userId: alice.id,
+      chatId: 11,
+      gameId: game.id,
+      telegramMessageId: 55,
+      kind: 'turn',
+      stub: 'Game vs Bob ended',
+    });
+    await dm(alice.id, game.id, 'draw_offer');
+    await drain();
+    expect(fake.callsTo('sendMessage')).toEqual([]);
+    expect(fake.callsTo('editMessageText')[0]?.body).toMatchObject({
+      chat_id: 11,
+      message_id: 55,
+      text: 'Bob offers a draw · 1. e4 · 23 h left',
+    });
+    expect(await dmRows()).toMatchObject([{ telegramMessageId: 55, kind: 'draw_offer' }]);
+  });
+
+  it('notifies again when the live DM is older than ten seconds', async () => {
+    const { alice, game } = await aliceToMove({ drawOfferBy: 'white', drawOfferPly: 1 });
+    await recordDm(db, {
+      userId: alice.id,
+      chatId: 11,
+      gameId: game.id,
+      telegramMessageId: 55,
+      kind: 'turn',
+      stub: 'Game vs Bob ended',
+    });
+    await db.update(dmMessages).set({ sentAt: sql`now() - interval '11 seconds'` });
+    await dm(alice.id, game.id, 'draw_offer');
+    await drain();
+    expect(fake.callsTo('sendMessage')).toHaveLength(1);
+    expect(fake.callsTo('deleteMessage').map((call) => call.body.message_id)).toEqual([55]);
+  });
+
+  it('keeps a DM as it is when state moved on without the player moving', async () => {
+    const { alice, game } = await aliceToMove();
+    // Somehow no longer Alice's move, yet she has no move of her own to show.
+    fake.onSend = async () => {
+      await db.update(games).set({ fen: AFTER_E5 }).where(eq(games.id, game.id));
+    };
+    await dm(alice.id, game.id, 'turn');
+    await drain();
+    expect(await dmRows()).toMatchObject([{ kind: 'turn' }]);
+    expect(fake.callsTo('editMessageText')).toEqual([]);
+  });
+
+  it('deletes a sent DM that could not be recorded, so a retry does not leave two', async () => {
+    const { alice, game } = await aliceToMove();
+    fake.onSend = async () => {
+      await db.delete(moves).where(eq(moves.gameId, game.id));
+      await db.delete(games).where(eq(games.id, game.id));
+    };
+    await dm(alice.id, game.id, 'turn');
+    await worker.runOnce();
+    expect(fake.callsTo('deleteMessage').map((call) => call.body)).toEqual([
+      { chat_id: 11, message_id: 101 },
+    ]);
+  });
+
   it('forgets the live rows of a user who blocked the bot', async () => {
     const { alice, game } = await aliceToMove();
     await dm(alice.id, game.id, 'turn');
     await drain();
+    // Old enough that the reminder is sent as a new DM rather than edited into this one.
+    await db.update(dmMessages).set({ sentAt: sql`now() - interval '1 minute'` });
     fake.failNext('sendMessage', {
       error_code: 403,
       description: 'Forbidden: bot was blocked by the user',

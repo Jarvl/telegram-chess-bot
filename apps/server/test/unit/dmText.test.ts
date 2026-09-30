@@ -44,8 +44,14 @@ describe('turnText', () => {
 
 describe('reminderText', () => {
   it('names the time left and the opponent', () => {
-    expect(reminderText({ opponent: '@bob', timeLeft: '7 h' })).toBe(
+    expect(reminderText({ opponent: '@bob', timeLeft: '7 h', drawOffered: false })).toBe(
       '7 h left for your move vs @bob',
+    );
+  });
+
+  it('keeps a standing draw offer', () => {
+    expect(reminderText({ opponent: '@bob', timeLeft: '7 h', drawOffered: true })).toBe(
+      '7 h left for your move vs @bob\n\n@bob offers a draw.',
     );
   });
 });
