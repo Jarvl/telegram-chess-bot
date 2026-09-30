@@ -1,6 +1,6 @@
 {
-  "id": "a00e2277-cfb2-48df-9505-722b15263621",
-  "prevId": "6f9796ab-ff76-447b-8be0-cc6089e285f3",
+  "id": "46bbb39c-8108-4438-8ade-5cd6ce30395f",
+  "prevId": "a00e2277-cfb2-48df-9505-722b15263621",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -14,15 +14,15 @@
           "primaryKey": true,
           "notNull": true,
           "identity": {
-            "type": "always",
             "name": "admin_actions_id_seq",
-            "schema": "public",
             "increment": "1",
-            "startWith": "1",
             "minValue": "1",
             "maxValue": "9223372036854775807",
+            "startWith": "1",
             "cache": "1",
-            "cycle": false
+            "cycle": false,
+            "schema": "public",
+            "type": "always"
           }
         },
         "group_id": {
@@ -75,20 +75,20 @@
         "admin_actions_group_id_groups_id_fk": {
           "name": "admin_actions_group_id_groups_id_fk",
           "tableFrom": "admin_actions",
-          "tableTo": "groups",
           "columnsFrom": ["group_id"],
+          "tableTo": "groups",
           "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         },
         "admin_actions_admin_user_id_users_id_fk": {
           "name": "admin_actions_admin_user_id_users_id_fk",
           "tableFrom": "admin_actions",
-          "tableTo": "users",
           "columnsFrom": ["admin_user_id"],
+          "tableTo": "users",
           "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -139,15 +139,15 @@
           "primaryKey": true,
           "notNull": true,
           "identity": {
-            "type": "always",
             "name": "challenges_id_seq",
-            "schema": "public",
             "increment": "1",
-            "startWith": "1",
             "minValue": "1",
             "maxValue": "9223372036854775807",
+            "startWith": "1",
             "cache": "1",
-            "cycle": false
+            "cycle": false,
+            "schema": "public",
+            "type": "always"
           }
         },
         "public_id": {
@@ -255,9 +255,9 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         },
         "challenges_group_status": {
           "name": "challenges_group_status",
@@ -276,46 +276,46 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {
         "challenges_group_id_groups_id_fk": {
           "name": "challenges_group_id_groups_id_fk",
           "tableFrom": "challenges",
-          "tableTo": "groups",
           "columnsFrom": ["group_id"],
+          "tableTo": "groups",
           "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         },
         "challenges_challenger_id_users_id_fk": {
           "name": "challenges_challenger_id_users_id_fk",
           "tableFrom": "challenges",
-          "tableTo": "users",
           "columnsFrom": ["challenger_id"],
+          "tableTo": "users",
           "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         },
         "challenges_opponent_id_users_id_fk": {
           "name": "challenges_opponent_id_users_id_fk",
           "tableFrom": "challenges",
-          "tableTo": "users",
           "columnsFrom": ["opponent_id"],
+          "tableTo": "users",
           "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "challenges_publicId_unique": {
           "name": "challenges_publicId_unique",
-          "nullsNotDistinct": false,
-          "columns": ["public_id"]
+          "columns": ["public_id"],
+          "nullsNotDistinct": false
         }
       },
       "policies": {},
@@ -332,15 +332,15 @@
           "primaryKey": true,
           "notNull": true,
           "identity": {
-            "type": "always",
             "name": "dm_messages_id_seq",
-            "schema": "public",
             "increment": "1",
-            "startWith": "1",
             "minValue": "1",
             "maxValue": "9223372036854775807",
+            "startWith": "1",
             "cache": "1",
-            "cycle": false
+            "cycle": false,
+            "schema": "public",
+            "type": "always"
           }
         },
         "user_id": {
@@ -410,10 +410,10 @@
             }
           ],
           "isUnique": true,
-          "where": "\"dm_messages\".\"game_id\" is not null",
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "where": "\"dm_messages\".\"game_id\" is not null",
+          "concurrently": false
         },
         "dm_messages_user_challenge": {
           "name": "dm_messages_user_challenge",
@@ -432,39 +432,39 @@
             }
           ],
           "isUnique": true,
-          "where": "\"dm_messages\".\"challenge_id\" is not null",
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "where": "\"dm_messages\".\"challenge_id\" is not null",
+          "concurrently": false
         }
       },
       "foreignKeys": {
         "dm_messages_user_id_users_id_fk": {
           "name": "dm_messages_user_id_users_id_fk",
           "tableFrom": "dm_messages",
-          "tableTo": "users",
           "columnsFrom": ["user_id"],
+          "tableTo": "users",
           "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         },
         "dm_messages_game_id_games_id_fk": {
           "name": "dm_messages_game_id_games_id_fk",
           "tableFrom": "dm_messages",
-          "tableTo": "games",
           "columnsFrom": ["game_id"],
+          "tableTo": "games",
           "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         },
         "dm_messages_challenge_id_challenges_id_fk": {
           "name": "dm_messages_challenge_id_challenges_id_fk",
           "tableFrom": "dm_messages",
-          "tableTo": "challenges",
           "columnsFrom": ["challenge_id"],
+          "tableTo": "challenges",
           "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -546,15 +546,15 @@
           "primaryKey": true,
           "notNull": true,
           "identity": {
-            "type": "always",
             "name": "games_id_seq",
-            "schema": "public",
             "increment": "1",
-            "startWith": "1",
             "minValue": "1",
             "maxValue": "9223372036854775807",
+            "startWith": "1",
             "cache": "1",
-            "cycle": false
+            "cycle": false,
+            "schema": "public",
+            "type": "always"
           }
         },
         "public_id": {
@@ -810,10 +810,10 @@
             }
           ],
           "isUnique": false,
-          "where": "\"games\".\"status\" = 'active'",
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "where": "\"games\".\"status\" = 'active'",
+          "concurrently": false
         },
         "games_reminder_active": {
           "name": "games_reminder_active",
@@ -826,10 +826,10 @@
             }
           ],
           "isUnique": false,
-          "where": "\"games\".\"status\" = 'active' and \"games\".\"reminder_at\" is not null",
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "where": "\"games\".\"status\" = 'active' and \"games\".\"reminder_at\" is not null",
+          "concurrently": false
         },
         "games_group_status_last_move": {
           "name": "games_group_status_last_move",
@@ -854,9 +854,9 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         },
         "games_white": {
           "name": "games_white",
@@ -869,9 +869,9 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         },
         "games_black": {
           "name": "games_black",
@@ -884,46 +884,46 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {
         "games_group_id_groups_id_fk": {
           "name": "games_group_id_groups_id_fk",
           "tableFrom": "games",
-          "tableTo": "groups",
           "columnsFrom": ["group_id"],
+          "tableTo": "groups",
           "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         },
         "games_white_id_users_id_fk": {
           "name": "games_white_id_users_id_fk",
           "tableFrom": "games",
-          "tableTo": "users",
           "columnsFrom": ["white_id"],
+          "tableTo": "users",
           "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         },
         "games_black_id_users_id_fk": {
           "name": "games_black_id_users_id_fk",
           "tableFrom": "games",
-          "tableTo": "users",
           "columnsFrom": ["black_id"],
+          "tableTo": "users",
           "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "games_publicId_unique": {
           "name": "games_publicId_unique",
-          "nullsNotDistinct": false,
-          "columns": ["public_id"]
+          "columns": ["public_id"],
+          "nullsNotDistinct": false
         }
       },
       "policies": {},
@@ -1004,29 +1004,29 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {
         "group_members_group_id_groups_id_fk": {
           "name": "group_members_group_id_groups_id_fk",
           "tableFrom": "group_members",
-          "tableTo": "groups",
           "columnsFrom": ["group_id"],
+          "tableTo": "groups",
           "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         },
         "group_members_user_id_users_id_fk": {
           "name": "group_members_user_id_users_id_fk",
           "tableFrom": "group_members",
-          "tableTo": "users",
           "columnsFrom": ["user_id"],
+          "tableTo": "users",
           "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -1050,15 +1050,15 @@
           "primaryKey": true,
           "notNull": true,
           "identity": {
-            "type": "always",
             "name": "groups_id_seq",
-            "schema": "public",
             "increment": "1",
-            "startWith": "1",
             "minValue": "1",
             "maxValue": "9223372036854775807",
+            "startWith": "1",
             "cache": "1",
-            "cycle": false
+            "cycle": false,
+            "schema": "public",
+            "type": "always"
           }
         },
         "public_id": {
@@ -1147,13 +1147,13 @@
       "uniqueConstraints": {
         "groups_publicId_unique": {
           "name": "groups_publicId_unique",
-          "nullsNotDistinct": false,
-          "columns": ["public_id"]
+          "columns": ["public_id"],
+          "nullsNotDistinct": false
         },
         "groups_telegramChatId_unique": {
           "name": "groups_telegramChatId_unique",
-          "nullsNotDistinct": false,
-          "columns": ["telegram_chat_id"]
+          "columns": ["telegram_chat_id"],
+          "nullsNotDistinct": false
         }
       },
       "policies": {},
@@ -1170,15 +1170,15 @@
           "primaryKey": true,
           "notNull": true,
           "identity": {
-            "type": "always",
             "name": "jobs_id_seq",
-            "schema": "public",
             "increment": "1",
-            "startWith": "1",
             "minValue": "1",
             "maxValue": "9223372036854775807",
+            "startWith": "1",
             "cache": "1",
-            "cycle": false
+            "cycle": false,
+            "schema": "public",
+            "type": "always"
           }
         },
         "kind": {
@@ -1271,10 +1271,10 @@
             }
           ],
           "isUnique": true,
-          "where": "\"jobs\".\"done_at\" is null",
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "where": "\"jobs\".\"done_at\" is null",
+          "concurrently": false
         },
         "jobs_run_at_pending": {
           "name": "jobs_run_at_pending",
@@ -1287,10 +1287,10 @@
             }
           ],
           "isUnique": false,
-          "where": "\"jobs\".\"done_at\" is null",
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "where": "\"jobs\".\"done_at\" is null",
+          "concurrently": false
         }
       },
       "foreignKeys": {},
@@ -1353,11 +1353,11 @@
         "moves_game_id_games_id_fk": {
           "name": "moves_game_id_games_id_fk",
           "tableFrom": "moves",
-          "tableTo": "games",
           "columnsFrom": ["game_id"],
+          "tableTo": "games",
           "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -1369,8 +1369,8 @@
       "uniqueConstraints": {
         "moves_client_move_unique": {
           "name": "moves_client_move_unique",
-          "nullsNotDistinct": false,
-          "columns": ["game_id", "client_move_id"]
+          "columns": ["game_id", "client_move_id"],
+          "nullsNotDistinct": false
         }
       },
       "policies": {},
@@ -1451,20 +1451,20 @@
         "ratings_group_id_groups_id_fk": {
           "name": "ratings_group_id_groups_id_fk",
           "tableFrom": "ratings",
-          "tableTo": "groups",
           "columnsFrom": ["group_id"],
+          "tableTo": "groups",
           "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         },
         "ratings_user_id_users_id_fk": {
           "name": "ratings_user_id_users_id_fk",
           "tableFrom": "ratings",
-          "tableTo": "users",
           "columnsFrom": ["user_id"],
+          "tableTo": "users",
           "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -1488,15 +1488,15 @@
           "primaryKey": true,
           "notNull": true,
           "identity": {
-            "type": "always",
             "name": "shares_id_seq",
-            "schema": "public",
             "increment": "1",
-            "startWith": "1",
             "minValue": "1",
             "maxValue": "9223372036854775807",
+            "startWith": "1",
             "cache": "1",
-            "cycle": false
+            "cycle": false,
+            "schema": "public",
+            "type": "always"
           }
         },
         "game_id": {
@@ -1549,29 +1549,29 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {
         "shares_game_id_games_id_fk": {
           "name": "shares_game_id_games_id_fk",
           "tableFrom": "shares",
-          "tableTo": "games",
           "columnsFrom": ["game_id"],
+          "tableTo": "games",
           "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         },
         "shares_user_id_users_id_fk": {
           "name": "shares_user_id_users_id_fk",
           "tableFrom": "shares",
-          "tableTo": "users",
           "columnsFrom": ["user_id"],
+          "tableTo": "users",
           "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -1622,15 +1622,15 @@
           "primaryKey": true,
           "notNull": true,
           "identity": {
-            "type": "always",
             "name": "tips_id_seq",
-            "schema": "public",
             "increment": "1",
-            "startWith": "1",
             "minValue": "1",
             "maxValue": "9223372036854775807",
+            "startWith": "1",
             "cache": "1",
-            "cycle": false
+            "cycle": false,
+            "schema": "public",
+            "type": "always"
           }
         },
         "user_id": {
@@ -1676,19 +1676,19 @@
         "tips_user_id_users_id_fk": {
           "name": "tips_user_id_users_id_fk",
           "tableFrom": "tips",
-          "tableTo": "users",
           "columnsFrom": ["user_id"],
+          "tableTo": "users",
           "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "tips_telegramPaymentChargeId_unique": {
           "name": "tips_telegramPaymentChargeId_unique",
-          "nullsNotDistinct": false,
-          "columns": ["telegram_payment_charge_id"]
+          "columns": ["telegram_payment_charge_id"],
+          "nullsNotDistinct": false
         }
       },
       "policies": {},
@@ -1729,20 +1729,20 @@
         "user_flair_user_id_users_id_fk": {
           "name": "user_flair_user_id_users_id_fk",
           "tableFrom": "user_flair",
-          "tableTo": "users",
           "columnsFrom": ["user_id"],
+          "tableTo": "users",
           "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         },
         "user_flair_game_id_games_id_fk": {
           "name": "user_flair_game_id_games_id_fk",
           "tableFrom": "user_flair",
-          "tableTo": "games",
           "columnsFrom": ["game_id"],
+          "tableTo": "games",
           "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -1804,20 +1804,20 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {
         "user_photos_user_id_users_id_fk": {
           "name": "user_photos_user_id_users_id_fk",
           "tableFrom": "user_photos",
-          "tableTo": "users",
           "columnsFrom": ["user_id"],
+          "tableTo": "users",
           "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -1836,15 +1836,15 @@
           "primaryKey": true,
           "notNull": true,
           "identity": {
-            "type": "always",
             "name": "users_id_seq",
-            "schema": "public",
             "increment": "1",
-            "startWith": "1",
             "minValue": "1",
             "maxValue": "9223372036854775807",
+            "startWith": "1",
             "cache": "1",
-            "cycle": false
+            "cycle": false,
+            "schema": "public",
+            "type": "always"
           }
         },
         "telegram_user_id": {
@@ -1944,10 +1944,10 @@
             }
           ],
           "isUnique": true,
-          "where": "\"users\".\"is_engine\"",
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "where": "\"users\".\"is_engine\"",
+          "concurrently": false
         }
       },
       "foreignKeys": {},
@@ -1955,8 +1955,8 @@
       "uniqueConstraints": {
         "users_telegramUserId_unique": {
           "name": "users_telegramUserId_unique",
-          "nullsNotDistinct": false,
-          "columns": ["telegram_user_id"]
+          "columns": ["telegram_user_id"],
+          "nullsNotDistinct": false
         }
       },
       "policies": {},
@@ -1966,10 +1966,10 @@
   },
   "enums": {},
   "schemas": {},
+  "views": {},
   "sequences": {},
   "roles": {},
   "policies": {},
-  "views": {},
   "_meta": {
     "columns": {},
     "schemas": {},
