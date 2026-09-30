@@ -19,8 +19,9 @@ file's source and copyright; `apps/server/fonts/OFL.txt` is the licence.
 
 # Emoji attribution
 
-The trophy, skull and scales badges in `emoji.ts` are Noto Color Emoji images by Google, from
-[googlefonts/noto-emoji](https://github.com/googlefonts/noto-emoji) (`2D/svg`, tag
-`v2026-09-24-unicode18_0`) under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0),
-regenerated with `scripts/vendor-snapshot-art.mjs`. The only change is removing each file's XML
-declaration and comments.
+The trophy, skull and scales badges in `emoji.ts`, and the flair in `flairEmoji.ts`, are Noto Color
+Emoji images by Google, from [googlefonts/noto-emoji](https://github.com/googlefonts/noto-emoji)
+(`2D/svg`, tag `v2026-09-24-unicode18_0`) under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0),
+regenerated with `scripts/vendor-snapshot-art.mjs`. The only changes are removing each file's XML
+declaration, doctype and comments (substituting the doctype's namespace entities where a file
+declares them) and Illustrator's private editing data.
