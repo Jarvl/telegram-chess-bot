@@ -3,6 +3,9 @@ import { dbNow } from '../db/client';
 import { challenges, games, groupMembers, userFlair, users } from '../db/schema';
 import type { Deps } from './deps';
 import { colourOf } from './gameDto';
+import { deletedStub } from '../telegram/dmText';
+import { retireChallengeDm } from './challenges';
+import { retireUserDms } from './dms';
 import { finishGame } from './games';
 import { deletePhoto } from './photos';
 import { enqueue } from '../jobs/queue';
@@ -11,6 +14,9 @@ import { enqueue } from '../jobs/queue';
 export async function deleteMyData(deps: Deps, userId: number): Promise<void> {
   const finished = await deps.db.transaction(async (tx) => {
     const now = await dbNow(tx);
+    // DM notifications spec §2.4: first, so the user's own DMs all read "Game ended" rather than
+    // the game-end stubs `finishGame` would give them, and while the chat id is still known.
+    await retireUserDms(tx, userId, deletedStub());
     const active = await tx
       .select()
       .from(games)
@@ -27,6 +33,7 @@ export async function deleteMyData(deps: Deps, userId: number): Promise<void> {
         game,
         { result: colour === 'white' ? '0-1' : '1-0', endReason: 'resignation' },
         now,
+        colour,
       );
       publicIds.push(game.publicId);
     }
@@ -48,6 +55,11 @@ export async function deleteMyData(deps: Deps, userId: number): Promise<void> {
           resolvedAt: sql`now()`,
         })
         .where(eq(challenges.id, challenge.id));
+      await retireChallengeDm(
+        tx,
+        challenge,
+        challenge.challengerId === userId ? 'cancelled' : 'declined',
+      );
       await enqueue(tx, {
         kind: 'edit_card',
         payload: { challengeId: challenge.id },

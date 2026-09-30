@@ -15,7 +15,9 @@ import {
   reminderExpression,
 } from './limits';
 import { isBlocked } from './members';
-import { requireUser, wantsDms } from './users';
+import { challengeStub, type ChallengeOutcome } from '../telegram/dmText';
+import { retireChallengeDms } from './dms';
+import { nameWithFlair, requireUser, wantsDms } from './users';
 
 export type CreateChallengeInput = {
   groupId: number;
@@ -92,6 +94,16 @@ function editCard(tx: DbOrTx, challenge: Pick<ChallengeRow, 'id' | 'publicId'>):
     payload: { challengeId: challenge.id },
     dedupKey: `card:ch:${challenge.publicId}`,
   });
+}
+
+/** DM notifications spec §2.4: once a challenge is settled, the challenged player's DM about it goes. */
+export async function retireChallengeDm(
+  tx: DbOrTx,
+  challenge: Pick<ChallengeRow, 'id' | 'challengerId'>,
+  outcome: ChallengeOutcome,
+): Promise<void> {
+  const challenger = await requireUser(tx, challenge.challengerId);
+  await retireChallengeDms(tx, challenge.id, challengeStub(nameWithFlair(challenger), outcome));
 }
 
 /** Spec §7.1/§7.8: limits checked, the card send and the opponent's DM enqueued in the same transaction. */
@@ -234,6 +246,7 @@ export async function acceptChallenge(
       .set({ status: 'accepted', opponentId: accepter.id, gameId: game.id, resolvedAt: sql`now()` })
       .where(eq(challenges.id, challenge.id))
       .returning();
+    await retireChallengeDm(tx, challenge, 'accepted');
     await enqueue(tx, {
       kind: 'edit_card',
       payload: { gameId: game.id },
@@ -276,6 +289,7 @@ export async function declineChallenge(
       .where(eq(challenges.id, challenge.id))
       .returning();
     await editCard(tx, challenge);
+    await retireChallengeDm(tx, challenge, 'declined');
     return declined ?? challenge;
   });
 }
@@ -298,6 +312,7 @@ export async function cancelChallenge(
       .where(eq(challenges.id, challenge.id))
       .returning();
     await editCard(tx, challenge);
+    await retireChallengeDm(tx, challenge, 'cancelled');
     return cancelled ?? challenge;
   });
 }
@@ -306,7 +321,11 @@ export async function cancelChallenge(
 export async function expireChallenges(deps: Deps, limit = 100): Promise<number> {
   return deps.db.transaction(async (tx) => {
     const due = await tx
-      .select({ id: challenges.id, publicId: challenges.publicId })
+      .select({
+        id: challenges.id,
+        publicId: challenges.publicId,
+        challengerId: challenges.challengerId,
+      })
       .from(challenges)
       .where(and(eq(challenges.status, 'pending'), lte(challenges.expiresAt, sql`now()`)))
       .orderBy(asc(challenges.expiresAt))
@@ -318,6 +337,7 @@ export async function expireChallenges(deps: Deps, limit = 100): Promise<number>
         .set({ status: 'expired', resolvedAt: sql`now()` })
         .where(and(eq(challenges.id, challenge.id), eq(challenges.status, 'pending')));
       await editCard(tx, challenge);
+      await retireChallengeDm(tx, challenge, 'expired');
     }
     return due.length;
   });
