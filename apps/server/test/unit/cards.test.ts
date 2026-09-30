@@ -8,9 +8,12 @@ import {
   type GameCardView,
 } from '../../src/telegram/cards';
 
-const alice = { name: 'Alice', username: 'alice', telegramUserId: 1 };
-const bob = { name: 'Bob', username: 'bob', telegramUserId: 2 };
-const bobNoHandle = { name: 'Bob', username: null, telegramUserId: 2 };
+const alice = { name: 'Alice', username: 'alice', telegramUserId: 1, flair: '' };
+const bob = { name: 'Bob', username: 'bob', telegramUserId: 2, flair: '' };
+const bobNoHandle = { name: 'Bob', username: null, telegramUserId: 2, flair: '' };
+// Flair emoji are two UTF-16 units each, which is what Telegram counts entity offsets in.
+const aliceFlair = { ...alice, flair: '👑' };
+const bobFlair = { ...bob, flair: '🔥🤝' };
 const lobbyLink = 'https://t.me/GroupChessBot/chess?startapp=l_grp0000001';
 const lobbyRow = [{ text: '♟ Group lobby', url: lobbyLink }];
 
@@ -186,7 +189,7 @@ describe('renderGameCard', () => {
     expect(noMove.text).toBe('♟ Alice vs Bob · Aborted\nno move within 1 day');
     expect(noMove.reply_markup?.inline_keyboard[0]?.map((b) => b.text)).toEqual(['🔁 Rematch']);
     const byPlayer = renderGameCard(
-      game({ status: 'finished', result: '*', endReason: 'abort', abortedBy: 'Bob' }),
+      game({ status: 'finished', result: '*', endReason: 'abort', abortedBy: bob }),
     );
     expect(byPlayer.text).toBe('♟ Alice vs Bob · Aborted\naborted by Bob');
     expect(byPlayer.reply_markup?.inline_keyboard[1]).toEqual(lobbyRow);
@@ -212,6 +215,88 @@ describe('renderGameCard', () => {
     );
     expect(noMoves.text).toBe('♟ Alice vs Bob · Voided by an admin');
     expect(noMoves.reply_markup).toEqual({ inline_keyboard: [lobbyRow] });
+  });
+});
+
+describe('flair beside names', () => {
+  it('follows the challenger and the mentioned opponent', () => {
+    const card = renderChallengeCard(challenge({ challenger: aliceFlair, opponent: bobFlair }));
+    expect(card.text).toBe('♟ Alice 👑 challenges @bob 🔥🤝\n1 day per move · Rated');
+  });
+
+  it('stays outside a text_mention, which still covers exactly the name', () => {
+    const card = renderChallengeCard(
+      challenge({
+        challenger: aliceFlair,
+        opponent: { ...bobNoHandle, flair: '🔥🤝' },
+        challengerColour: 'white',
+      }),
+    );
+    expect(card.text).toBe(
+      '♟ Alice 👑 challenges Bob 🔥🤝\n1 day per move · Rated · Alice 👑 plays White',
+    );
+    const [mention] = card.entities;
+    expect(mention).toMatchObject({ type: 'text_mention', length: 3 });
+    expect(card.text.slice(mention!.offset, mention!.offset + mention!.length)).toBe('Bob');
+  });
+
+  it('follows the names on open and settled challenges', () => {
+    expect(renderChallengeCard(challenge({ challenger: aliceFlair, opponent: null })).text).toBe(
+      '♟ Alice 👑 is looking for a game\n1 day per move · Rated',
+    );
+    expect(
+      renderChallengeCard(
+        challenge({ status: 'declined', challenger: aliceFlair, opponent: bobFlair }),
+      ).text,
+    ).toBe('♟ Alice 👑 vs Bob 🔥🤝 · Declined');
+    expect(
+      renderChallengeCard(challenge({ status: 'expired', challenger: aliceFlair, opponent: null }))
+        .text,
+    ).toBe('♟ Alice 👑 · Challenge expired');
+  });
+
+  it('follows both players and the player to move on a running game', () => {
+    expect(renderGameCard(game({ white: aliceFlair, black: bobFlair })).text).toBe(
+      '♟ Alice 👑 (1520) vs Bob 🔥🤝 (1498?)\n1 day per move · Rated · Move 7 · Alice 👑 to move',
+    );
+    expect(
+      renderGameCard(
+        game({ white: aliceFlair, black: bobFlair, rated: false, sideToMove: 'black' }),
+      ).text,
+    ).toBe('♟ Alice 👑 vs Bob 🔥🤝\n1 day per move · Casual · Move 7 · Bob 🔥🤝 to move');
+  });
+
+  it('follows both players on finished, aborted and voided games', () => {
+    const finished = { status: 'finished', result: '1-0', endReason: 'checkmate' } as const;
+    expect(
+      renderGameCard(
+        game({
+          ...finished,
+          white: aliceFlair,
+          black: bobFlair,
+          whiteRating: { before: '1520', after: '1534' },
+          blackRating: { before: '1498', after: '1484' },
+        }),
+      ).text,
+    ).toContain('♟ Alice 👑 (1520 → 1534) vs Bob 🔥🤝 (1498 → 1484)');
+    expect(
+      renderGameCard(game({ ...finished, white: aliceFlair, black: bobFlair, rated: false })).text,
+    ).toContain('♟ Alice 👑 vs Bob 🔥🤝\n');
+    expect(
+      renderGameCard(
+        game({
+          status: 'finished',
+          result: '*',
+          endReason: 'abort',
+          white: aliceFlair,
+          black: bobFlair,
+          abortedBy: bobFlair,
+        }),
+      ).text,
+    ).toBe('♟ Alice 👑 vs Bob 🔥🤝 · Aborted\naborted by Bob 🔥🤝');
+    expect(
+      renderGameCard(game({ ...finished, voided: true, white: aliceFlair, black: bobFlair })).text,
+    ).toContain('♟ Alice 👑 vs Bob 🔥🤝 · Voided by an admin');
   });
 });
 

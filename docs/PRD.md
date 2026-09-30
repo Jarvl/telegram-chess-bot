@@ -173,6 +173,9 @@ The bot posts nothing to the group except the following:
 | Shared position | A player or spectator taps Share position in the app | Portrait snapshot card of that position (the board between both players' bars with their ratings and captured material, the result once the game is over, and a Chess Goat footer naming the bot), caption "Alice shared move 23 of Alice vs Bob", **♟ Open live game** button. Group members reply in the chat as usual |
 | Reply to `/challenge` | Only when the command cannot be fulfilled | One short line (for example, the opponent already has 2 games with you) |
 
+Wherever these messages name a player, in the text or in a photo's caption, the player's worn flair
+follows the name ("Alice 👑 vs Bob 🔥🤝"). The snapshot images themselves do not carry it yet.
+
 Edits to the game card are silent (no notification). There are no per-move messages, no nudges in the group, no bump or re-post behaviour. Status-line edits are throttled to at most one per move.
 
 ### 7.6 Sharing positions — P0

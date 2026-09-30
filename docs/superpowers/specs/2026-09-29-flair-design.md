@@ -26,7 +26,7 @@ it appears beside her name on everyone's game lists the next time they load.
 | The catalog of 14 flair, its rule vocabulary and move patterns (§1) | Awarding flair for games that finished before the flair shipped (since added by the [backfill](./2026-09-29-flair-backfill-design.md)) |
 | `user_flair`, `users.flair_worn` and `flair_introductions` (§2) | Removing flair when a game is voided or ratings are rebuilt |
 | The `award_flair` job, enqueued when a game ends (§3) | A notice or DM when flair is earned |
-| `PlayerRef.flair`, `GET` and `PUT /api/me/flair` (§4) | Flair on group cards, result photos, shared positions or bot messages |
+| `PlayerRef.flair`, `GET` and `PUT /api/me/flair` (§4) | Flair on group cards, result photos, shared positions or bot messages (since added to the cards' and captions' text; the images still carry none) |
 | Flair beside names, the Settings row and the Flair screen (§5) | Flair in challenge rows, the New game opponent list or group settings |
 | PRD updates (§8) | Tapping a worn emoji to explain it |
 

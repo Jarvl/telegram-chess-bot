@@ -73,6 +73,27 @@ const pendingJobs = () =>
     .where(sql`${jobs.doneAt} is null`);
 
 describe('send_share_photo', () => {
+  it('names the sharer and both players with their worn flair', async () => {
+    const { alice, bob, carol, game } = await table();
+    await db
+      .update(users)
+      .set({ flairWorn: ['en_passant_win'] })
+      .where(eq(users.id, alice.id));
+    await db
+      .update(users)
+      .set({ flairWorn: ['draws_10'] })
+      .where(eq(users.id, bob.id));
+    await db
+      .update(users)
+      .set({ flairWorn: ['rank_1500'] })
+      .where(eq(users.id, carol.id));
+    await share(game.id, carol.id, 2);
+    await worker.runOnce();
+    expect(fake.callsTo('sendPhoto')[0]?.body.caption).toBe(
+      'Carol 🚶 shared move 1 of Alice 👑 vs Bob 🤝',
+    );
+  });
+
   it('uploads the rendered board with caption, topic and button, then stores the message and file ids', async () => {
     const { group, alice, game } = await table();
     const row = await share(game.id, alice.id, 2);

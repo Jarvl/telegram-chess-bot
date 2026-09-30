@@ -87,6 +87,23 @@ const pendingJobs = () =>
     .where(sql`${jobs.doneAt} is null`);
 
 describe('send_result_photo', () => {
+  it('names both players with their worn flair in the caption', async () => {
+    const { alice, bob, game } = await finished();
+    await db
+      .update(users)
+      .set({ flairWorn: ['en_passant_win'] })
+      .where(eq(users.id, alice.id));
+    await db
+      .update(users)
+      .set({ flairWorn: ['draws_10'] })
+      .where(eq(users.id, bob.id));
+    await post(game.id);
+    await worker.runOnce();
+    expect(fake.callsTo('sendPhoto')[0]?.body.caption).toBe(
+      'Alice 👑 vs Bob 🤝 · 1-0 · Resignation',
+    );
+  });
+
   it('posts the final position to the game’s topic with the result, rating changes and buttons', async () => {
     const { game } = await finished({
       whiteRatingBefore: 1500,
