@@ -33,6 +33,7 @@ import { groupMessageLink, miniAppLink } from '../../telegram/links';
 import { moveLabel } from '../../telegram/dmText';
 import { challengeCardView, gameCardView } from '../../telegram/views';
 import { enqueue } from '../queue';
+import { retireDm } from './dm';
 import type { JobHandler, JobHandlers, JobResult } from '../types';
 
 export type TelegramHandlerContext = { deps: Deps; api: TelegramApi; config: Config };
@@ -351,6 +352,7 @@ export function telegramJobHandlers(ctx: TelegramHandlerContext): JobHandlers {
     send_challenge_card: sendChallengeCard(ctx),
     edit_card: editCard(ctx),
     send_dm: sendDm(ctx),
+    retire_dm: retireDm(ctx),
     send_welcome: sendWelcome(ctx),
     send_message: sendMessage(ctx),
   };
