@@ -106,6 +106,20 @@ const samples: Record<string, Partial<SnapshotInput>> = {
     plyCount: 1,
     white: side('white', { name: 'Chess Goat', isBot: true, rating: null, engineLevel: 'club' }),
   },
+  // Flair spec §5.1: worn flair after the name; with a long name, the name is cut short first.
+  flair: {
+    ...finishedAt(KASPAROV_TOPALOV),
+    result: '1-0',
+    white: side('white', {
+      name: '@gregory_pyle_the_great_and_terrible',
+      flair: ['rank_1200', 'win_streak_5', 'promotion_win'],
+      ratingChange: { before: 1512, after: 1528, rdAfter: 50 },
+    }),
+    black: side('black', {
+      flair: ['scholars_mate_loss'],
+      ratingChange: { before: 1587, after: 1571, rdAfter: 50 },
+    }),
+  },
   // Profile photos spec: a stored Telegram photo covers the initial; the other side has none.
   photo: {
     board: replay(['e4', 'e5']),

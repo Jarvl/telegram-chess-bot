@@ -66,6 +66,31 @@ describe('buildSnapshotModel', () => {
     expect(model.bottom.avatar).toEqual({ kind: 'bot' });
   });
 
+  it("keeps a person's worn flair in slot order, skipping ids the catalog does not know", () => {
+    const model = buildSnapshotModel(
+      snapshotInput({
+        white: { ...snapshotInput().white, flair: ['win_streak_5', 'retired_flair', 'rank_1500'] },
+      }),
+    );
+    expect(model.bottom.flair).toEqual(['win_streak_5', 'rank_1500']);
+    expect(model.top.flair).toEqual([]);
+  });
+
+  it('gives the bot no flair', () => {
+    const model = buildSnapshotModel(
+      snapshotInput({
+        white: {
+          ...snapshotInput().white,
+          name: 'Chess Goat',
+          isBot: true,
+          engineLevel: 'strong',
+          flair: ['rank_1800'],
+        },
+      }),
+    );
+    expect(model.bottom.flair).toEqual([]);
+  });
+
   it('marks a provisional rating, leaves out a missing one, and shows a bot its level', () => {
     const model = buildSnapshotModel(
       snapshotInput({

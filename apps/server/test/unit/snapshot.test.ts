@@ -1,6 +1,9 @@
+import { FLAIR } from '@group-chess/shared';
+import { Resvg } from '@resvg/resvg-js';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { snapshotImageKey } from '../../src/images/cache';
 import { EMOJI } from '../../src/images/emoji';
+import { FLAIR_EMOJI } from '../../src/images/flairEmoji';
 import { loadFonts, type SnapshotFonts } from '../../src/images/fonts';
 import { GOAT_MARK_PNG } from '../../src/images/goatMark';
 import { renderSnapshotPng, renderSnapshotSvg } from '../../src/images/snapshot';
@@ -98,6 +101,22 @@ describe('renderSnapshotSvg', () => {
     expect(() => renderSnapshotPng(svg)).not.toThrow();
   });
 
+  it("draws worn flair after the player's name, in slot order, in their bar", async () => {
+    const worn = ['win_streak_5', 'rank_1500'];
+    const bare = await render();
+    expect(worn.flatMap((id) => placed(bare, FLAIR_EMOJI[id]!))).toHaveLength(0);
+    const svg = await render({ black: { ...snapshotInput().black, flair: worn } });
+    const [fire, walker] = worn.map((id) => placed(svg, FLAIR_EMOJI[id]!));
+    expect([fire, walker].map((where) => where!.length)).toEqual([1, 1]);
+    // Black is at the top when White shares; the name starts right of the 40px pad and 72px avatar.
+    for (const where of [fire![0]!, walker![0]!]) {
+      expect(where.y).toBeLessThan(128);
+      expect(where.x).toBeGreaterThan(40 + 72 + 20);
+    }
+    expect(fire![0]!.x).toBeLessThan(walker![0]!.x);
+    expect(() => renderSnapshotPng(svg)).not.toThrow();
+  });
+
   it("puts a trophy on the winner's king and a skull on the loser's", async () => {
     const svg = await render(mated());
     const [trophy] = placed(svg, EMOJI.trophy);
@@ -134,5 +153,21 @@ describe('snapshotImageKey', () => {
     expect(snapshotImageKey(svg)).toMatch(/^[0-9a-f]{64}$/);
     expect(snapshotImageKey(svg)).toBe(snapshotImageKey(await render()));
     expect(snapshotImageKey(svg)).not.toBe(snapshotImageKey(await render(mated())));
+  });
+});
+
+describe('FLAIR_EMOJI', () => {
+  it('has a colour picture for every flair in the catalog', () => {
+    for (const { id } of FLAIR)
+      expect(FLAIR_EMOJI[id], id).toMatch(/^<svg[^>]*viewBox="0 0 128 128"/);
+  });
+
+  // A picture that is not well-formed XML is left out of the card without an error.
+  it('has pictures that parse and draw something', () => {
+    for (const [id, svg] of Object.entries(FLAIR_EMOJI)) {
+      const pixels = new Resvg(svg).render().pixels;
+      const opaque = pixels.filter((_, index) => index % 4 === 3 && pixels[index]! > 0).length;
+      expect(opaque, id).toBeGreaterThan(1000);
+    }
   });
 });

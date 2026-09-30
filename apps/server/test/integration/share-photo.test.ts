@@ -166,6 +166,20 @@ describe('send_share_photo', () => {
     expect(await db.select().from(boardImages)).toHaveLength(2);
   });
 
+  it('renders a new card once a player wears different flair', async () => {
+    const { alice, carol, game } = await table();
+    await share(game.id, carol.id, 2);
+    await worker.runOnce();
+    await db
+      .update(users)
+      .set({ flairWorn: ['win_streak_5'] })
+      .where(eq(users.id, alice.id));
+    await share(game.id, carol.id, 2);
+    await worker.runOnce();
+    expect(fake.callsTo('sendPhoto').map((call) => call.multipart)).toEqual([true, true]);
+    expect(await db.select().from(boardImages)).toHaveLength(2);
+  });
+
   it('renders from the black side when Black shares, which is a different image', async () => {
     const { alice, bob, game } = await table();
     await share(game.id, alice.id, 2);

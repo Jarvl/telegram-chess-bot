@@ -16,6 +16,7 @@ export function snapshotInput(overrides: Partial<SnapshotInput> = {}): SnapshotI
       engineLevel: null,
       ratingChange: null,
       photo: null,
+      flair: [],
     },
     black: {
       id: '8',
@@ -25,6 +26,7 @@ export function snapshotInput(overrides: Partial<SnapshotInput> = {}): SnapshotI
       engineLevel: null,
       ratingChange: null,
       photo: null,
+      flair: [],
     },
     status: 'active',
     result: null,
