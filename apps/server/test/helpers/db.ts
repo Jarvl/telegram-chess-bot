@@ -16,7 +16,7 @@ export async function truncateAll(db: Db): Promise<void> {
   // could deadlock with one. `flair_backfills` is written by the backfill job, which locks no rows,
   // and sits before `users` with the rest.
   await db.execute(
-    sql`truncate table tips, admin_actions, shares, board_images, moves, games, challenges, ratings, group_members, jobs, telegram_updates, groups, flair_backfills, users restart identity cascade`,
+    sql`truncate table tips, admin_actions, shares, board_images, moves, dm_messages, games, challenges, ratings, group_members, jobs, telegram_updates, groups, flair_backfills, users restart identity cascade`,
   );
   // The engine user is created by migration 0002, not by any test — truncating `users`
   // removes it, so put it back to keep the helper's contract "empty database, plus the

@@ -12,6 +12,7 @@ import { sql } from 'drizzle-orm';
 import {
   bigint,
   boolean,
+  check,
   customType,
   doublePrecision,
   index,
@@ -213,6 +214,40 @@ export const games = pgTable(
   ],
 );
 
+export type DmKind = 'turn' | 'reminder' | 'draw_offer' | 'waiting' | 'challenge';
+
+/**
+ * DM notifications spec §1: a DM that is still live — the bot will later replace, edit or retire
+ * it. At most one per user and game, or user and challenge. Result DMs are final and get no row.
+ */
+export const dmMessages = pgTable(
+  'dm_messages',
+  {
+    id: id(),
+    userId: bigint({ mode: 'number' })
+      .notNull()
+      .references(() => users.id),
+    /** The user's Telegram id when sent; kept so a retire still works after Delete my data. */
+    chatId: bigint({ mode: 'number' }).notNull(),
+    gameId: bigint({ mode: 'number' }).references(() => games.id),
+    challengeId: bigint({ mode: 'number' }).references(() => challenges.id),
+    telegramMessageId: bigint({ mode: 'number' }).notNull(),
+    kind: text().$type<DmKind>().notNull(),
+    /** The one line left behind when the message is too old to delete. */
+    stub: text().notNull(),
+    sentAt: tz().notNull(),
+  },
+  (t) => [
+    check('dm_messages_one_subject', sql`(${t.gameId} is null) <> (${t.challengeId} is null)`),
+    uniqueIndex('dm_messages_user_game')
+      .on(t.userId, t.gameId)
+      .where(sql`${t.gameId} is not null`),
+    uniqueIndex('dm_messages_user_challenge')
+      .on(t.userId, t.challengeId)
+      .where(sql`${t.challengeId} is not null`),
+  ],
+);
+
 /**
  * Flair spec §2: one row per flair a user has earned. `earnedAt` is the finish time of the game
  * in `gameId`, the game that earned it.
@@ -383,6 +418,7 @@ export type GroupRow = typeof groups.$inferSelect;
 export type GroupMemberRow = typeof groupMembers.$inferSelect;
 export type ChallengeRow = typeof challenges.$inferSelect;
 export type GameRow = typeof games.$inferSelect;
+export type DmMessageRow = typeof dmMessages.$inferSelect;
 export type MoveRow = typeof moves.$inferSelect;
 export type RatingRow = typeof ratings.$inferSelect;
 export type JobRow = typeof jobs.$inferSelect;
