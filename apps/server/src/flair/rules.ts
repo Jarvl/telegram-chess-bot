@@ -1,4 +1,10 @@
-import { opposite, type Colour, type FlairRule, type PlayerResult } from '@group-chess/shared';
+import {
+  opposite,
+  type Colour,
+  type EndReason,
+  type FlairRule,
+  type PlayerResult,
+} from '@group-chess/shared';
 import { gaveMate, madePattern, type StoredMove } from './patterns';
 
 /** One of a player's counted games (flair spec §1.3), reduced to the columns flair reads. */
@@ -13,6 +19,10 @@ export type CountedGame = {
   ratingAfter: number | null;
   /** The side this player had in the game. */
   side: Colour;
+  /** How the game ended; a counted game always has one, but a null matches no `ended` rule. */
+  endReason: EndReason | null;
+  /** The other side's user id: never the bot, whose games are not counted. */
+  opponentId: number;
 };
 
 /**
@@ -72,6 +82,16 @@ const EVALUATORS: {
     game.result === rule.result &&
     history.filter((past) => passesFilter(rule, past) && past.result === rule.result).length >=
       rule.count,
+  ended: (rule, { game }) => game.result === rule.result && game.endReason === rule.reason,
+  // Games against this game's opponent, this one included, in any group and rated or casual. With
+  // a result, this game must have it too, so the award comes at a game that does.
+  against: (rule, { game, history }) =>
+    (rule.result === null || game.result === rule.result) &&
+    history.filter(
+      (past) =>
+        past.opponentId === game.opponentId &&
+        (rule.result === null || past.result === rule.result),
+    ).length >= rule.count,
 };
 
 /** Whether `rule` holds for the player at `ctx.game` (flair spec §1.4). */

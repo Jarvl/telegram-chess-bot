@@ -10,6 +10,7 @@
  *   games (backfill spec §1). Flair already earned is kept.
  */
 import type { MessageKey } from '../i18n';
+import type { EndReason } from '../protocol/enums';
 
 /**
  * The categories, in display order: the rank ladder (ratings held), feats (things done in play, such
@@ -43,6 +44,9 @@ export type PlayerResult = 'win' | 'draw' | 'loss';
  * - `made`: they made `pattern`, whatever the result.
  * - `won`: they won and made `pattern`. `lost`: they lost and their opponent made `pattern`.
  * - `quickMate`: they won by mate at most `seconds` after the game started.
+ * - `ended`: their result was `result` and the game ended by `reason`.
+ * - `against`: at least `count` of their games were against this game's opponent, in any group,
+ *   rated or casual; with `result`, this game has it and only games with it count.
  * - `streak`: the last `length` rated games all have `result`. Every streak is rated: casual games
  *   neither extend nor break the run.
  * - `total`: at least `count` games that pass the filter have `result`.
@@ -57,6 +61,8 @@ export type FlairRule =
   | { kind: 'won'; pattern: MovePattern }
   | { kind: 'lost'; pattern: MovePattern }
   | { kind: 'quickMate'; seconds: number }
+  | { kind: 'ended'; result: PlayerResult; reason: EndReason }
+  | { kind: 'against'; count: number; result: PlayerResult | null }
   | { kind: 'streak'; result: PlayerResult; length: number }
   | { kind: 'total'; result: PlayerResult; count: number; rated: boolean };
 
@@ -96,6 +102,16 @@ export function lost(pattern: MovePattern): FlairRule {
 /** Win by mate at most `seconds` after the game started. */
 export function quickMate(seconds: number): FlairRule {
   return { kind: 'quickMate', seconds };
+}
+
+/** Get `result` in a game that ended by `reason`, such as a loss by resignation. */
+export function ended(result: PlayerResult, reason: EndReason): FlairRule {
+  return { kind: 'ended', result, reason };
+}
+
+/** Play `count` games against one person, or with `result`, get it against them `count` times. */
+export function against(count: number, result?: PlayerResult): FlairRule {
+  return { kind: 'against', count, result: result ?? null };
 }
 
 /** `length` rated games in a row with `result`; casual games are skipped. */

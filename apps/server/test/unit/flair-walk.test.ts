@@ -13,6 +13,8 @@ const game = (id: number, result: PlayerResult, over: Partial<CountedGame> = {})
   result,
   ratingAfter: null,
   side: 'white',
+  endReason: 'checkmate',
+  opponentId: 100,
   ...over,
 });
 const flair = (...ids: string[]): FlairEntry[] => ids.map((id) => flairById(id)!);
