@@ -188,7 +188,7 @@ Edits to the game card are silent (no notification). There are no per-move messa
 ### 7.7 Notifications — P0
 
 - **In-app**: the lobby shows "Your move" games first, with a badge.
-- **DM**: for users who granted write access, a DM on each turn change ("Your move vs Alice · 12. Nf3 · 23 h left") with **♟ Open game** and **Go to group** buttons; a DM when challenged; one reminder at 10 % of the move time remaining for controls of 8 h or more.
+- **DM**: for users who granted write access, a DM on each turn change ("Your move vs Alice 👑 · 12. Nf3 · 23 h left") with **♟ Open game** and **Go to group** buttons; one reminder at 10 % of the move time remaining for controls of 8 h or more; a DM when the opponent offers a draw while it is your move (an offer made with a move rides on the turn DM instead); a DM when challenged; and a result DM ("You won vs Alice · Resignation · 1512 (+8)") when a game ends by something other than your own action. Each game or challenge keeps **at most one live bot message**: a new DM replaces the previous one, which is deleted, or reduced to one line once Telegram no longer allows deleting it (after two days). After you move, your DM quietly becomes "✓ You played 12… Nf6 · waiting for Alice". Names carry worn flair. Design: [DM notifications spec](superpowers/specs/2026-09-29-dm-notifications-design.md).
 - **Group**: none. The challenge card mentions the challenged player once; that is the only mention the bot ever makes.
 - Open question: whether to offer an admin-controlled group mention as a fallback for users who declined DMs (default off).
 
@@ -239,7 +239,7 @@ In the app, under the group, visible to group admins only (verified against Tele
   could only cost someone a casual game they walked away from. The time control is not offered when
   the bot is the chosen opponent.
 - The bot never notifies the player about moves: no "your turn" DM when it replies, and no reminder.
-  The game-end notification stays, since it reports a result rather than a move.
+  The in-app game-end result stays, since it reports a result rather than a move; no DM is sent.
 - No rating numbers are shown for the levels.
 
 ## 8. UX specification
