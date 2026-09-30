@@ -30,6 +30,7 @@ import {
   type TelegramFailure,
 } from '../../telegram/client';
 import { groupMessageLink, miniAppLink } from '../../telegram/links';
+import { moveLabel } from '../../telegram/dmText';
 import { challengeCardView, gameCardView } from '../../telegram/views';
 import { enqueue } from '../queue';
 import type { JobHandler, JobHandlers, JobResult } from '../types';
@@ -199,11 +200,6 @@ const editCard =
     );
     return settle(await editMessage(ctx, group.telegramChatId, challenge.messageId, rendered));
   };
-
-function moveLabel(ply: number, san: string): string {
-  const number = Math.ceil(ply / 2);
-  return ply % 2 === 1 ? `${number}. ${san}` : `${number}... ${san}`;
-}
 
 async function dmContent(
   ctx: TelegramHandlerContext,
