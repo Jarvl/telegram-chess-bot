@@ -14,9 +14,8 @@ import { enqueue } from '../jobs/queue';
 export async function deleteMyData(deps: Deps, userId: number): Promise<void> {
   const finished = await deps.db.transaction(async (tx) => {
     const now = await dbNow(tx);
-    // DM notifications spec §2.4: first, so the user's own DMs all read "Game ended" rather than
-    // the game-end stubs `finishGame` would give them, and while the chat id is still known.
-    await retireUserDms(tx, userId, deletedStub());
+    // Locks in the order every DM writer takes them — the games and challenges first, then the
+    // user's `dm_messages` rows — so a DM being recorded for one of these games cannot deadlock.
     const active = await tx
       .select()
       .from(games)
@@ -24,19 +23,6 @@ export async function deleteMyData(deps: Deps, userId: number): Promise<void> {
         and(eq(games.status, 'active'), or(eq(games.whiteId, userId), eq(games.blackId, userId))),
       )
       .for('update');
-    const publicIds: string[] = [];
-    for (const game of active) {
-      const colour = colourOf(game, userId);
-      if (!colour) continue;
-      await finishGame(
-        tx,
-        game,
-        { result: colour === 'white' ? '0-1' : '1-0', endReason: 'resignation' },
-        now,
-        colour,
-      );
-      publicIds.push(game.publicId);
-    }
     const pending = await tx
       .select()
       .from(challenges)
@@ -47,25 +33,8 @@ export async function deleteMyData(deps: Deps, userId: number): Promise<void> {
         ),
       )
       .for('update');
-    for (const challenge of pending) {
-      await tx
-        .update(challenges)
-        .set({
-          status: challenge.challengerId === userId ? 'cancelled' : 'declined',
-          resolvedAt: sql`now()`,
-        })
-        .where(eq(challenges.id, challenge.id));
-      await retireChallengeDm(
-        tx,
-        challenge,
-        challenge.challengerId === userId ? 'cancelled' : 'declined',
-      );
-      await enqueue(tx, {
-        kind: 'edit_card',
-        payload: { challengeId: challenge.id },
-        dedupKey: `card:ch:${challenge.publicId}`,
-      });
-    }
+    // Anonymised before any game ends or challenge settles, so the stubs left in opponents' chats
+    // name "Deleted player" rather than the handle and flair being erased.
     await tx
       .update(users)
       .set({
@@ -79,6 +48,35 @@ export async function deleteMyData(deps: Deps, userId: number): Promise<void> {
         deletedAt: now,
       })
       .where(eq(users.id, userId));
+    // DM notifications spec §2.4: before the games end, so the user's own DMs all read "Game
+    // ended" rather than the game-end stubs `finishGame` would give them. Each row kept its chat id.
+    await retireUserDms(tx, userId, deletedStub());
+    const publicIds: string[] = [];
+    for (const game of active) {
+      const colour = colourOf(game, userId);
+      if (!colour) continue;
+      await finishGame(
+        tx,
+        game,
+        { result: colour === 'white' ? '0-1' : '1-0', endReason: 'resignation' },
+        now,
+        colour,
+      );
+      publicIds.push(game.publicId);
+    }
+    for (const challenge of pending) {
+      const outcome = challenge.challengerId === userId ? 'cancelled' : 'declined';
+      await tx
+        .update(challenges)
+        .set({ status: outcome, resolvedAt: sql`now()` })
+        .where(eq(challenges.id, challenge.id));
+      await retireChallengeDm(tx, challenge, outcome);
+      await enqueue(tx, {
+        kind: 'edit_card',
+        payload: { challengeId: challenge.id },
+        dedupKey: `card:ch:${challenge.publicId}`,
+      });
+    }
     // Flair spec §3.4. The update above takes the row lock, which an award job for this player also
     // holds while it inserts `user_flair` rows. Deleting only after it has the lock means such a job
     // has committed and this sees its rows; a job that starts later finds `deleted_at` set (§3.2).
