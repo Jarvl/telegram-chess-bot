@@ -9,7 +9,8 @@ export { engineJobHandlers, type EngineHandlerContext } from './engine';
 export { lichessJobHandlers, LichessPacer, type LichessHandlerContext } from './lichess';
 export { sharePhotoJobHandlers } from './sharePhoto';
 export { userPhotoJobHandlers } from './userPhoto';
-export { telegramJobHandlers, type TelegramHandlerContext } from './telegram';
+export { telegramJobHandlers } from './telegram';
+export type { TelegramHandlerContext } from './telegramCall';
 
 /** Handlers that need no Telegram or Lichess client; `main.ts` merges the others in. */
 export function coreJobHandlers(deps: Deps): JobHandlers {

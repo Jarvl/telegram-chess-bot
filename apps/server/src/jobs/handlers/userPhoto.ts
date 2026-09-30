@@ -6,7 +6,7 @@ import { users } from '../../db/schema';
 import { getPhotoRow, storePhoto, touchPhoto } from '../../domain/photos';
 import { getUserById } from '../../domain/users';
 import type { JobHandler, JobHandlers } from '../types';
-import type { TelegramHandlerContext } from './telegram';
+import type { TelegramHandlerContext } from './telegramCall';
 
 const payloadSchema = z.object({ userId: z.number().int() });
 

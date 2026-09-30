@@ -19,7 +19,7 @@ import { enqueueEngineMove, isEngineGame } from './engineGames';
 import { DomainError } from './errors';
 import { buildGameDto, colourOf, positionKeys } from './gameDto';
 import { deadlineExpression, reminderExpression } from './limits';
-import { gameEndedStub, moveLabel, waitingText } from '../telegram/dmText';
+import { gameEndedStub, moveLabel, waitingText } from './dmText';
 import { resultRecipients } from './dmRules';
 import { markWaiting, retireGameDms } from './dms';
 import { applyGameResultToRatings, getPlayerRating } from './ratings';

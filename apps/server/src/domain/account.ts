@@ -3,7 +3,7 @@ import { dbNow } from '../db/client';
 import { challenges, games, groupMembers, userFlair, users } from '../db/schema';
 import type { Deps } from './deps';
 import { colourOf } from './gameDto';
-import { deletedStub } from '../telegram/dmText';
+import { deletedStub } from './dmText';
 import { retireChallengeDm } from './challenges';
 import { retireUserDms } from './dms';
 import { finishGame } from './games';

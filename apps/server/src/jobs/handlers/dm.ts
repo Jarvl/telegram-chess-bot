@@ -41,10 +41,10 @@ import {
   turnText,
   waitingText,
   type ChallengeOutcome,
-} from '../../telegram/dmText';
+} from '../../domain/dmText';
 import { groupMessageLink, miniAppLink } from '../../telegram/links';
 import type { JobHandler } from '../types';
-import { call, settle, type CallResult, type TelegramHandlerContext } from './telegram';
+import { call, settle, type CallResult, type TelegramHandlerContext } from './telegramCall';
 
 async function forgetIfBlocked(
   ctx: TelegramHandlerContext,

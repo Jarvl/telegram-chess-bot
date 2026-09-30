@@ -10,7 +10,7 @@ import {
   resultText,
   turnText,
   waitingText,
-} from '../../src/telegram/dmText';
+} from '../../src/domain/dmText';
 
 const turn = {
   opponent: '@bob 👑',

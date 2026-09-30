@@ -15,7 +15,7 @@ import {
   reminderExpression,
 } from './limits';
 import { isBlocked } from './members';
-import { challengeStub, type ChallengeOutcome } from '../telegram/dmText';
+import { challengeStub, type ChallengeOutcome } from './dmText';
 import { retireChallengeDms } from './dms';
 import { nameWithFlair, requireUser, wantsDms } from './users';
 
