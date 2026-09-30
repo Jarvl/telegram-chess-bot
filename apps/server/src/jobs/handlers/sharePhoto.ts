@@ -80,6 +80,7 @@ async function side(
     ratingChange: sideRatings(game, colour),
     photo:
       user.photoHash && !user.isEngine ? await getPhotoBytes(ctx.deps.db, user.photoHash) : null,
+    flair: user.flairWorn,
   };
 }
 

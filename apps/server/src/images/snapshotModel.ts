@@ -1,5 +1,6 @@
 import {
   avatarColour,
+  flairById,
   isProvisional,
   material,
   personInitial,
@@ -25,6 +26,8 @@ export type SnapshotSide = {
   ratingChange: { before: number; after: number; rdAfter: number } | null;
   /** The player's stored Telegram photo (a small JPEG); null without one, and for the bot. */
   photo: Buffer | null;
+  /** Worn flair ids in slot order (flair spec §2), as stored. */
+  flair: readonly string[];
 };
 
 export type SnapshotInput = {
@@ -52,6 +55,8 @@ export type SnapshotBar = {
   colour: Colour;
   avatar: SnapshotAvatar;
   name: string;
+  /** Worn flair ids the catalog knows, in slot order, drawn after the name; none for the bot. */
+  flair: string[];
   rating: string | null;
   /** `+16` or `−16`, beside a finished rated game's new rating. */
   ratingDelta: { label: string; gain: boolean } | null;
@@ -126,6 +131,7 @@ function bar(
           photo: side.photo ? `data:image/jpeg;base64,${side.photo.toString('base64')}` : null,
         },
     name: side.name,
+    flair: side.isBot ? [] : side.flair.filter((id) => flairById(id) !== undefined),
     ...rating(side, outcome !== null),
     captured: taken.captured.map((piece) => `${opponent}${piece.toUpperCase()}` as PieceCode),
     lead: taken.lead ? `+${taken.lead}` : null,
