@@ -7,19 +7,20 @@ import {
   type Colour,
 } from '@group-chess/shared';
 import { Chess } from 'chess.js';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { InputFile } from 'grammy';
 import type { InlineKeyboardButton, Message } from 'grammy/types';
 import { z } from 'zod';
 import {
   games,
+  jobs,
   shares,
   type GameRow,
   type GroupRow,
   type MoveRow,
   type UserRow,
 } from '../../db/schema';
-import { listMoves, requireGameById } from '../../domain/games';
+import { flairAwardDedupKey, listMoves, requireGameById } from '../../domain/games';
 import { requireGroup } from '../../domain/groups';
 import { getPhotoBytes } from '../../domain/photos';
 import { getPlayerRating } from '../../domain/ratings';
@@ -207,6 +208,21 @@ function ratingChanges(game: GameRow): { white: RatingChange; black: RatingChang
   return white && black ? { white, black } : null;
 }
 
+/** How long the result photo waits before looking again for the game's flair award to finish. */
+const FLAIR_AWARD_WAIT_MS = 2_000;
+
+/**
+ * Whether the game's `award_flair` job has yet to run. A failed award is done too, so a rule that
+ * throws never holds back the photo.
+ */
+async function flairAwardPending(ctx: TelegramHandlerContext, game: GameRow): Promise<boolean> {
+  const [pending] = await ctx.deps.db
+    .select({ id: jobs.id })
+    .from(jobs)
+    .where(and(eq(jobs.dedupKey, flairAwardDedupKey(game.publicId)), isNull(jobs.doneAt)));
+  return pending !== undefined;
+}
+
 /** The finished game's final position, told to its group (the players get no game-end DM). */
 const sendResultPhoto =
   (ctx: TelegramHandlerContext, fonts: SnapshotFonts): JobHandler =>
@@ -217,6 +233,10 @@ const sendResultPhoto =
     if (!game.result || !game.endReason) return { outcome: 'done' };
     const group = await requireGroup(ctx.deps.db, game.groupId);
     if (group.botStatus === 'left') return { outcome: 'done' };
+    // The award is queued with this photo when the game ends; waiting for it lets the photo show
+    // the flair this game earned.
+    if (await flairAwardPending(ctx, game))
+      return { outcome: 'retry', delayMs: FLAIR_AWARD_WAIT_MS };
     const { white, black, moves } = await players(ctx, game);
     const analysis =
       game.lichessUrl ?? (moves.length > 0 ? analysisUrl(moves.map((move) => move.san)) : null);
