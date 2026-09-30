@@ -62,7 +62,7 @@ describe('the flair catalog', () => {
       rank_1700: band(1700, 1799),
       rank_1800: band(1800, null),
       en_passant_win: { kind: 'won', pattern: 'en_passant' },
-      win_streak_5: { kind: 'streak', result: 'win', length: 5, rated: true },
+      win_streak_5: { kind: 'streak', result: 'win', length: 5 },
       queenside_castle_win: { kind: 'won', pattern: 'castle_queenside' },
       // Loosened after launch from a win with a promotion to any promotion.
       promotion_win: { kind: 'made', pattern: 'promotion' },
@@ -74,20 +74,8 @@ describe('the flair catalog', () => {
   it('holds the second batch in display order, with its rules and descriptions', () => {
     const second: [category: string, id: string, codePoints: string, rule: object, text: string][] =
       [
-        [
-          'feat',
-          'win_streak_3',
-          '1F321 FE0F',
-          streak('win', 3, { rated: true }),
-          'Win three rated games in a row',
-        ],
-        [
-          'feat',
-          'win_streak_10',
-          '1F30B',
-          streak('win', 10, { rated: true }),
-          'Win ten rated games in a row',
-        ],
+        ['feat', 'win_streak_3', '1F321 FE0F', streak('win', 3), 'Win three rated games in a row'],
+        ['feat', 'win_streak_10', '1F30B', streak('win', 10), 'Win ten rated games in a row'],
         [
           'feat',
           'underpromotion_win',
@@ -238,13 +226,8 @@ describe('the flair catalog', () => {
     expect(flairById('retired_flair')).toBeUndefined();
   });
 
-  it('leaves streaks and totals unrated unless asked', () => {
+  it('makes every streak rated, and leaves totals unrated unless asked', () => {
     expect(total('draw', 10)).toEqual({ kind: 'total', result: 'draw', count: 10, rated: false });
-    expect(streak('win', 5, { rated: true })).toEqual({
-      kind: 'streak',
-      result: 'win',
-      length: 5,
-      rated: true,
-    });
+    expect(streak('win', 5)).toEqual({ kind: 'streak', result: 'win', length: 5 });
   });
 });

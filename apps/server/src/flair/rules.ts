@@ -30,7 +30,7 @@ export type RuleContext = {
   side: Colour;
 };
 
-/** The filter of `streak` and `total`: with `rated`, casual games are skipped. */
+/** The filter of `total`: with `rated`, casual games are skipped. */
 function passesFilter(rule: { rated: boolean }, past: CountedGame): boolean {
   return !rule.rated || past.rated;
 }
@@ -57,12 +57,12 @@ const EVALUATORS: {
     game.result === 'win' &&
     gaveMate(moves, side) &&
     game.finishedAt.getTime() - game.startedAt.getTime() <= rule.seconds * 1000,
-  // The last `length` games that pass the filter, this one included, all have the result: the run
-  // is at least `length` long, not exactly. An award missed at the `length`-th game is therefore
-  // made at the next qualifying one.
+  // The last `length` rated games, this one included, all have the result: the run is at least
+  // `length` long, not exactly. An award missed at the `length`-th game is therefore made at the
+  // next qualifying one. Casual games neither extend nor break the run.
   streak: (rule, { game, history }) => {
-    if (!passesFilter(rule, game)) return false;
-    const run = history.filter((past) => passesFilter(rule, past)).slice(-rule.length);
+    if (!game.rated) return false;
+    const run = history.filter((past) => past.rated).slice(-rule.length);
     return run.length === rule.length && run.every((past) => past.result === rule.result);
   },
   // This game has the result, and so do at least `count` games that pass the filter, this one

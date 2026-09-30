@@ -136,7 +136,7 @@ describe('quickMate', () => {
 });
 
 describe('streak', () => {
-  const five = streak('win', 5, { rated: true });
+  const five = streak('win', 5);
   it('holds at the fifth win in a row and at every win after it', () => {
     const wins = [1, 2, 3, 4, 5, 6].map((id) => game(id, 'win'));
     expect(ruleHolds(five, at(wins.slice(0, 4)))).toBe(false);
@@ -161,13 +161,6 @@ describe('streak', () => {
     expect(
       ruleHolds(five, at([...ratedWins(1, 2, 3, 4, 5), game(6, 'win', { rated: false })])),
     ).toBe(false);
-    // Unless the rule asks for rated games, casual ones count.
-    expect(
-      ruleHolds(
-        streak('win', 3),
-        at([game(1, 'win'), game(2, 'win', { rated: false }), game(3, 'win')]),
-      ),
-    ).toBe(true);
   });
   it('breaks on a rated draw or loss', () => {
     const history = [
@@ -186,12 +179,14 @@ describe('streak', () => {
       ruleHolds(five, at([...ratedWins(1, 2, 3, 4, 5), game(6, 'loss'), game(7, 'win')])),
     ).toBe(false);
   });
-  it('runs on the rule’s own result, not only on wins', () =>
-    // Two losses in a row, the second casual, which a streak that does not ask for rated games
-    // counts.
-    expect(
-      ruleHolds(streak('loss', 2), at([game(1, 'loss'), game(2, 'loss', { rated: false })])),
-    ).toBe(true));
+  it('runs a losing streak over rated games only, a casual loss neither extending nor breaking it', () => {
+    const casual = { rated: false };
+    const run = [game(1, 'loss'), game(2, 'loss', casual), game(3, 'loss'), game(4, 'win', casual)];
+    expect(ruleHolds(streak('loss', 3), at(run.slice(0, 3)))).toBe(false);
+    expect(ruleHolds(streak('loss', 3), at([...run, game(5, 'loss')]))).toBe(true);
+    // Scored at a casual game, a streak never holds.
+    expect(ruleHolds(streak('loss', 2), at(run.slice(0, 2)))).toBe(false);
+  });
 });
 
 describe('total', () => {

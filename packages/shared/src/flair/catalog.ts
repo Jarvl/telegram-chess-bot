@@ -43,10 +43,11 @@ export type PlayerResult = 'win' | 'draw' | 'loss';
  * - `made`: they made `pattern`, whatever the result.
  * - `won`: they won and made `pattern`. `lost`: they lost and their opponent made `pattern`.
  * - `quickMate`: they won by mate at most `seconds` after the game started.
- * - `streak`: the last `length` games that pass the filter all have `result`.
+ * - `streak`: the last `length` rated games all have `result`. Every streak is rated: casual games
+ *   neither extend nor break the run.
  * - `total`: at least `count` games that pass the filter have `result`.
  *
- * With `rated`, the filter skips casual games. A rule's answer at a game may depend only on that
+ * With `rated`, `total` skips casual games. A rule's answer at a game may depend only on that
  * game and the player's earlier counted games (§1.6), which is what lets each game be evaluated
  * once, as it ends.
  */
@@ -56,7 +57,7 @@ export type FlairRule =
   | { kind: 'won'; pattern: MovePattern }
   | { kind: 'lost'; pattern: MovePattern }
   | { kind: 'quickMate'; seconds: number }
-  | { kind: 'streak'; result: PlayerResult; length: number; rated: boolean }
+  | { kind: 'streak'; result: PlayerResult; length: number }
   | { kind: 'total'; result: PlayerResult; count: number; rated: boolean };
 
 export type FlairDefinition = {
@@ -97,13 +98,9 @@ export function quickMate(seconds: number): FlairRule {
   return { kind: 'quickMate', seconds };
 }
 
-/** `length` games in a row with `result`. With `rated`, casual games are skipped. */
-export function streak(
-  result: PlayerResult,
-  length: number,
-  options?: { rated?: boolean },
-): FlairRule {
-  return { kind: 'streak', result, length, rated: options?.rated ?? false };
+/** `length` rated games in a row with `result`; casual games are skipped. */
+export function streak(result: PlayerResult, length: number): FlairRule {
+  return { kind: 'streak', result, length };
 }
 
 /** `count` games with `result`, in a row or not. With `rated`, casual games are skipped. */
@@ -126,9 +123,9 @@ export const FLAIR = [
   { id: 'rank_1700', emoji: '🗿', category: 'rank', rule: held(1700, 1799) },
   { id: 'rank_1800', emoji: '🤖', category: 'rank', rule: held(1800, null) },
   { id: 'en_passant_win', emoji: '👑', category: 'feat', rule: won('en_passant') },
-  { id: 'win_streak_3', emoji: '🌡️', category: 'feat', rule: streak('win', 3, { rated: true }) },
-  { id: 'win_streak_5', emoji: '🔥', category: 'feat', rule: streak('win', 5, { rated: true }) },
-  { id: 'win_streak_10', emoji: '🌋', category: 'feat', rule: streak('win', 10, { rated: true }) },
+  { id: 'win_streak_3', emoji: '🌡️', category: 'feat', rule: streak('win', 3) },
+  { id: 'win_streak_5', emoji: '🔥', category: 'feat', rule: streak('win', 5) },
+  { id: 'win_streak_10', emoji: '🌋', category: 'feat', rule: streak('win', 10) },
   { id: 'queenside_castle_win', emoji: '🏰', category: 'feat', rule: won('castle_queenside') },
   // Once a win with a promotion; loosened to any promotion, and backfilled again for it.
   { id: 'promotion_win', emoji: '♟️', category: 'feat', rule: made('promotion'), backfill: 2 },
