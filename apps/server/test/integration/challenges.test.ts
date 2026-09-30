@@ -163,7 +163,7 @@ describe('acceptChallenge', () => {
     expect(accepted).toMatchObject({ status: 'accepted', gameId: game.id });
     expect((await jobRows()).map((job) => [job.kind, job.dedupKey])).toEqual([
       ['edit_card', `card:g:${game.publicId}`],
-      ['send_dm', `dm:${bob.id}:g:${game.publicId}:turn:0`],
+      ['send_dm', `dm:${bob.id}:g:${game.publicId}`],
     ]);
   });
 

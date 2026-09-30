@@ -19,8 +19,10 @@ import { enqueueEngineMove, isEngineGame } from './engineGames';
 import { DomainError } from './errors';
 import { buildGameDto, colourOf, positionKeys } from './gameDto';
 import { deadlineExpression, reminderExpression } from './limits';
+import { moveLabel, waitingText } from '../telegram/dmText';
+import { markWaiting } from './dms';
 import { applyGameResultToRatings, getPlayerRating } from './ratings';
-import { requireUser, wantsDms } from './users';
+import { nameWithFlair, requireUser, wantsDms } from './users';
 
 export type EndInput = { result: GameResult; endReason: EndReason };
 
@@ -260,6 +262,15 @@ async function commitMove(tx: DbOrTx, input: CommitInput): Promise<GameRow> {
   // clock expressions below already return null for it without being asked about the engine.
   const engineNext = opponent.isEngine;
   const engineGame = isEngineGame(game);
+  if (!engineGame) {
+    // DM notifications spec §2.2: the mover's live DM quietly becomes the waiting line. A fired
+    // premove comes through here too, for its owner.
+    await markWaiting(tx, {
+      userId: colour === 'white' ? game.whiteId : game.blackId,
+      gameId: game.id,
+      text: waitingText({ move: moveLabel(ply, result.san), opponent: nameWithFlair(opponent) }),
+    });
+  }
   const timePerMove = game.timePerMove as TimePerMove;
   const offerLapses = game.drawOfferBy !== null && game.drawOfferBy !== colour;
   const [moved] = await tx
@@ -337,7 +348,8 @@ async function commitMove(tx: DbOrTx, input: CommitInput): Promise<GameRow> {
         gameId: game.id,
         ...(premovesCancelled ? { premovesCancelled: true } : {}),
       },
-      dedupKey: `dm:${opponentId}:g:${game.publicId}:turn:${ply}`,
+      dedupKey: `dm:${opponentId}:g:${game.publicId}`,
+      mergePayload: true,
     });
   }
   return premovesCancelled ? { ...moved, premoves: [] } : moved;

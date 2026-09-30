@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { games, jobs, moves } from '../../src/db/schema';
+import { dmMessages, games, jobs, moves } from '../../src/db/schema';
 import { createEngineGame, getEngineUser } from '../../src/domain/engineGames';
 import { getGameDto, playMove, requireGameById, resign } from '../../src/domain/games';
 import { touchMember } from '../../src/domain/members';
@@ -71,9 +71,29 @@ describe('firing premoves', () => {
     );
     expect(await jobList()).toEqual([
       ['edit_card', `card:g:${game.publicId}`],
-      ['send_dm', `dm:${alice.id}:g:${game.publicId}:turn:2`],
+      ['send_dm', `dm:${alice.id}:g:${game.publicId}`],
     ]);
     expect((await requireGameById(db, game.id)).premoves).toEqual([]);
+  });
+
+  it("marks the premove owner's DM as waiting and sends them no turn DM", async () => {
+    const { game, alice, bob } = await setup();
+    await db.insert(dmMessages).values({
+      userId: bob.id,
+      chatId: 22,
+      gameId: game.id,
+      telegramMessageId: 101,
+      kind: 'turn',
+      stub: 'Game vs Alice ended',
+      sentAt: new Date(),
+    });
+    await queue(game.id, ['e7e5']);
+    await move(game.publicId, alice.id, 'e2e4', 0);
+    expect(await db.select().from(dmMessages)).toMatchObject([
+      { userId: bob.id, kind: 'waiting', stub: '✓ You played 1... e5 · waiting for Alice' },
+    ]);
+    const dms = (await db.select().from(jobs)).filter((job) => job.kind === 'send_dm');
+    expect(dms.map((job) => job.payload.userId)).toEqual([alice.id]);
   });
 
   it('plays one premove per opponent move and keeps the rest for the owner', async () => {
@@ -111,7 +131,7 @@ describe('firing premoves', () => {
     expect(after.plyCount).toBe(13);
     expect((await requireGameById(db, game.id)).premoves).toEqual([]);
     const dm = (await db.select().from(jobs)).find((job) => job.kind === 'send_dm');
-    expect(dm?.dedupKey).toBe(`dm:${bob.id}:g:${game.publicId}:turn:13`);
+    expect(dm?.dedupKey).toBe(`dm:${bob.id}:g:${game.publicId}`);
     expect(dm?.payload).toEqual({
       userId: bob.id,
       template: 'turn',
@@ -127,7 +147,7 @@ describe('firing premoves', () => {
     expect(dto.plyCount).toBe(1);
     expect((await requireGameById(db, game.id)).premoves).toEqual([]);
     const dm = (await db.select().from(jobs)).find((job) => job.kind === 'send_dm');
-    expect(dm?.dedupKey).toBe(`dm:${bob.id}:g:${game.publicId}:turn:1`);
+    expect(dm?.dedupKey).toBe(`dm:${bob.id}:g:${game.publicId}`);
     expect(dm?.payload).toEqual({
       userId: bob.id,
       template: 'turn',
@@ -147,7 +167,7 @@ describe('firing premoves', () => {
     expect(dto.plyCount).toBe(3);
     expect((await requireGameById(db, game.id)).premoves).toEqual([]);
     const dm = (await db.select().from(jobs)).find((job) => job.kind === 'send_dm');
-    expect(dm?.dedupKey).toBe(`dm:${bob.id}:g:${game.publicId}:turn:3`);
+    expect(dm?.dedupKey).toBe(`dm:${bob.id}:g:${game.publicId}`);
     expect(dm?.payload).toEqual({
       userId: bob.id,
       template: 'turn',

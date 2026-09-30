@@ -1,10 +1,17 @@
-import { computeClaims, type Colour, type GameDto } from '@group-chess/shared';
+import {
+  computeClaims,
+  opposite,
+  sideToMove,
+  type Colour,
+  type GameDto,
+} from '@group-chess/shared';
 import { eq, sql } from 'drizzle-orm';
 import { games, type GameRow } from '../db/schema';
 import type { Deps } from './deps';
 import { isEngineGame } from './engineGames';
 import { DomainError } from './errors';
 import { positionKeys } from './gameDto';
+import { enqueue } from '../jobs/queue';
 import { finishGame, listMoves, loadGameDto, lockActiveGame, type EndInput } from './games';
 
 type OfferState = Pick<
@@ -53,6 +60,17 @@ export async function offerDraw(deps: Deps, input: Input): Promise<GameDto> {
       .where(eq(games.id, game.id))
       .returning();
     if (!updated) throw new DomainError('not_found', 'game not found');
+    // DM notifications spec §2.4: an offer made while the recipient is to move is a DM of its own;
+    // one made by the player to move rides on the recipient's next turn DM.
+    if (sideToMove(game.fen) !== colour) {
+      const recipientId = opposite(colour) === 'white' ? game.whiteId : game.blackId;
+      await enqueue(tx, {
+        kind: 'send_dm',
+        payload: { userId: recipientId, template: 'draw_offer', gameId: game.id },
+        dedupKey: `dm:${recipientId}:g:${game.publicId}`,
+        mergePayload: true,
+      });
+    }
     return loadGameDto(tx, updated, input.userId);
   });
   deps.bus.publish(input.gameId);

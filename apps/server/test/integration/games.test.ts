@@ -1,6 +1,6 @@
 import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { adminActions, games, jobs, moves, ratings, users } from '../../src/db/schema';
+import { adminActions, dmMessages, games, jobs, moves, ratings, users } from '../../src/db/schema';
 import { abortGame, getGameDto, playMove, resign, voidGame } from '../../src/domain/games';
 import { touchMember } from '../../src/domain/members';
 import { openTestDb, testDeps, truncateAll } from '../helpers/db';
@@ -74,8 +74,37 @@ describe('playMove', () => {
     expect(await secondsUntil('deadline_at', game.id)).toBeGreaterThan(86_390);
     expect((await jobList()).map((job) => [job.kind, job.dedupKey])).toEqual([
       ['edit_card', `card:g:${game.publicId}`],
-      ['send_dm', `dm:${bob.id}:g:${game.publicId}:turn:1`],
+      ['send_dm', `dm:${bob.id}:g:${game.publicId}`],
     ]);
+  });
+
+  it("marks the mover's live DM as waiting", async () => {
+    const { game, alice } = await setup();
+    await db.insert(dmMessages).values({
+      userId: alice.id,
+      chatId: 11,
+      gameId: game.id,
+      telegramMessageId: 101,
+      kind: 'turn',
+      stub: 'Game vs Bob ended',
+      sentAt: new Date(),
+    });
+    await move(game.publicId, alice.id, 'e2e4', 0);
+    expect(await db.select().from(dmMessages)).toMatchObject([
+      { kind: 'waiting', stub: '✓ You played 1. e4 · waiting for Bob' },
+    ]);
+    const retire = (await jobList()).find((job) => job.kind === 'retire_dm');
+    expect(retire?.payload).toMatchObject({
+      action: 'wait',
+      telegramMessageId: 101,
+      text: '✓ You played 1. e4 · waiting for Bob',
+    });
+  });
+
+  it('does nothing for a mover with no live DM', async () => {
+    const { game, alice } = await setup();
+    await move(game.publicId, alice.id, 'e2e4', 0);
+    expect((await jobList()).map((job) => job.kind)).not.toContain('retire_dm');
   });
 
   it('sets a reminder only when the opponent allows DMs and the control is eight hours or more', async () => {

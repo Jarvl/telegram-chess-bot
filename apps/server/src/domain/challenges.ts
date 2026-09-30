@@ -242,7 +242,8 @@ export async function acceptChallenge(
     await enqueue(tx, {
       kind: 'send_dm',
       payload: { userId: white.id, template: 'turn', gameId: game.id },
-      dedupKey: `dm:${white.id}:g:${game.publicId}:turn:0`,
+      dedupKey: `dm:${white.id}:g:${game.publicId}`,
+      mergePayload: true,
     });
     return { challenge: accepted ?? challenge, game };
   });

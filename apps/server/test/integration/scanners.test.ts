@@ -81,7 +81,7 @@ describe('sendDueReminders', () => {
     const [job] = await db.select().from(jobs);
     expect(job).toMatchObject({
       kind: 'send_dm',
-      dedupKey: `dm:${alice.id}:g:${game.publicId}:reminder:0`,
+      dedupKey: `dm:${alice.id}:g:${game.publicId}`,
     });
     expect(job?.payload).toEqual({ userId: alice.id, template: 'reminder', gameId: game.id });
     expect((await reload(game.id)).reminderAt).toBeNull();
