@@ -1,100 +1,25 @@
-import {
-  formatTimeLeft,
-  ratedLabel,
-  sideToMove,
-  t,
-  timePerMoveLabel,
-  type TimePerMove,
-} from '@group-chess/shared';
 import { and, eq, isNull } from 'drizzle-orm';
-import type { InlineKeyboardButton } from 'grammy/types';
 import { z } from 'zod';
-import type { Config } from '../../config';
-import { dbNow } from '../../db/client';
-import { games, groups, type GameRow, type UserRow } from '../../db/schema';
+import { games, groups, type GameRow } from '../../db/schema';
 import { getChallengeById, setChallengeMessage } from '../../domain/challenges';
-import type { Deps } from '../../domain/deps';
-import { listMoves, requireGameById } from '../../domain/games';
-import { markBotLeft } from '../../domain/groupLifecycle';
-import { migrateChatId, requireGroup } from '../../domain/groups';
-import { displayName, getUserById, requireUser, setDmAllowed, wantsDms } from '../../domain/users';
+import { requireGameById } from '../../domain/games';
+import { requireGroup } from '../../domain/groups';
 import {
   renderChallengeCard,
   renderGameCard,
   renderWelcomeCard,
   type RenderedMessage,
 } from '../../telegram/cards';
-import {
-  classifyTelegramError,
-  type TelegramApi,
-  type TelegramFailure,
-} from '../../telegram/client';
-import { groupMessageLink, miniAppLink } from '../../telegram/links';
+import { miniAppLink } from '../../telegram/links';
 import { challengeCardView, gameCardView } from '../../telegram/views';
 import { enqueue } from '../queue';
+import { retireDm, sendDm } from './dm';
+import { call, settle, type TelegramHandlerContext } from './telegramCall';
 import type { JobHandler, JobHandlers, JobResult } from '../types';
-
-export type TelegramHandlerContext = { deps: Deps; api: TelegramApi; config: Config };
-
-export type CallResult<T> = { ok: true; value: T } | { ok: false; failure: TelegramFailure };
-
-/** Runs one Bot API call and applies the chat-level consequences of spec §11. */
-export async function call<T>(
-  ctx: TelegramHandlerContext,
-  chatId: number | null,
-  fn: () => Promise<T>,
-): Promise<CallResult<T>> {
-  try {
-    return { ok: true, value: await fn() };
-  } catch (error) {
-    const failure = classifyTelegramError(error);
-    if (!failure) throw error;
-    if (chatId !== null && failure.kind === 'chat_gone') await markBotLeft(ctx.deps, chatId);
-    if (chatId !== null && failure.kind === 'migrated')
-      await migrateChatId(ctx.deps.db, chatId, failure.newChatId);
-    return { ok: false, failure };
-  }
-}
-
-/** Job outcome for a failure; `'throw'` means count an attempt and back off. */
-export function telegramFailureOutcome(failure: TelegramFailure): JobResult | 'throw' {
-  switch (failure.kind) {
-    case 'retry_after':
-      return {
-        outcome: 'retry',
-        delayMs: failure.seconds * 1000,
-        error: `telegram 429: retry after ${failure.seconds}s`,
-      };
-    case 'migrated':
-      return { outcome: 'retry', delayMs: 1000, error: 'chat migrated' };
-    case 'not_modified':
-    case 'message_gone':
-    case 'blocked':
-    case 'chat_gone':
-      return { outcome: 'done' };
-    case 'other':
-      return 'throw';
-  }
-}
-
-export function settle(result: CallResult<unknown>): JobResult {
-  if (result.ok) return { outcome: 'done' };
-  const outcome = telegramFailureOutcome(result.failure);
-  if (outcome === 'throw')
-    throw new Error(`telegram: ${(result.failure as { description: string }).description}`);
-  return outcome;
-}
 
 const gameCardPayload = z.object({ gameId: z.number().int() });
 const challengePayload = z.object({ challengeId: z.number().int() });
 const cardPayload = z.union([gameCardPayload, challengePayload]);
-const dmPayload = z.object({
-  userId: z.number().int(),
-  template: z.enum(['turn', 'challenge', 'reminder']),
-  gameId: z.number().int().optional(),
-  challengeId: z.number().int().optional(),
-  premovesCancelled: z.boolean().optional(),
-});
 const messagePayload = z.object({
   chatId: z.number().int(),
   threadId: z.number().int().nullable().optional(),
@@ -200,107 +125,6 @@ const editCard =
     return settle(await editMessage(ctx, group.telegramChatId, challenge.messageId, rendered));
   };
 
-function moveLabel(ply: number, san: string): string {
-  const number = Math.ceil(ply / 2);
-  return ply % 2 === 1 ? `${number}. ${san}` : `${number}... ${san}`;
-}
-
-async function dmContent(
-  ctx: TelegramHandlerContext,
-  user: UserRow,
-  payload: z.infer<typeof dmPayload>,
-): Promise<{ text: string; buttons: InlineKeyboardButton[][] } | null> {
-  const { config, deps } = ctx;
-  if (payload.template === 'challenge') {
-    if (payload.challengeId === undefined) return null;
-    const challenge = await getChallengeById(deps.db, payload.challengeId);
-    if (!challenge || challenge.status !== 'pending') return null;
-    const challenger = await requireUser(deps.db, challenge.challengerId);
-    const group = await requireGroup(deps.db, challenge.groupId);
-    return {
-      text: t('dm.challenge', {
-        challenger: displayName(challenger),
-        timePerMove: timePerMoveLabel(challenge.timePerMove as TimePerMove),
-        rated: ratedLabel(challenge.rated),
-      }),
-      buttons: [
-        [
-          {
-            text: t('button.open'),
-            url: miniAppLink(config, { kind: 'lobby', groupId: group.publicId }),
-          },
-        ],
-      ],
-    };
-  }
-  if (payload.gameId === undefined) return null;
-  const game = await requireGameById(deps.db, payload.gameId);
-  const opponentId = game.whiteId === user.id ? game.blackId : game.whiteId;
-  const opponent = await requireUser(deps.db, opponentId);
-  const group = await requireGroup(deps.db, game.groupId);
-  const openGame: InlineKeyboardButton = {
-    text: t('button.open_game'),
-    url: miniAppLink(config, { kind: 'game', gameId: game.publicId }),
-  };
-  const groupLink =
-    game.cardMessageId !== null ? groupMessageLink(group.telegramChatId, game.cardMessageId) : null;
-  const goToGroup: InlineKeyboardButton[] = groupLink
-    ? [{ text: t('button.go_to_group'), url: groupLink }]
-    : [];
-
-  if (game.status !== 'active') return null;
-  const toMove = sideToMove(game.fen) === 'white' ? game.whiteId : game.blackId;
-  if (toMove !== user.id) return null;
-  const now = await dbNow(deps.db);
-  const timeLeft = game.deadlineAt
-    ? formatTimeLeft(game.deadlineAt.getTime() - now.getTime())
-    : null;
-  if (payload.template === 'reminder') {
-    if (!timeLeft) return null;
-    return {
-      text: t('dm.reminder', { timeLeft, opponent: displayName(opponent) }),
-      buttons: [[openGame], goToGroup],
-    };
-  }
-  const last = (await listMoves(deps.db, game.id)).at(-1);
-  const lastMove = last ? moveLabel(last.ply, last.san) : null;
-  const key = lastMove
-    ? timeLeft
-      ? 'dm.turn'
-      : 'dm.turn.no_clock'
-    : timeLeft
-      ? 'dm.turn.first'
-      : 'dm.turn.first_no_clock';
-  const turn = t(key, {
-    opponent: displayName(opponent),
-    lastMove: lastMove ?? '',
-    timeLeft: timeLeft ?? '',
-  });
-  return {
-    text: payload.premovesCancelled ? `${turn}\n\n${t('dm.premoves_cancelled')}` : turn,
-    buttons: [[openGame], goToGroup],
-  };
-}
-
-const sendDm =
-  (ctx: TelegramHandlerContext): JobHandler =>
-  async ({ job }) => {
-    const payload = dmPayload.parse(job.payload);
-    const user = await getUserById(ctx.deps.db, payload.userId);
-    if (!user || !wantsDms(user) || user.telegramUserId === null) return { outcome: 'done' };
-    const content = await dmContent(ctx, user, payload);
-    if (!content) return { outcome: 'done' };
-    const chatId = user.telegramUserId;
-    const result = await call(ctx, null, () =>
-      ctx.api.sendMessage(chatId, content.text, {
-        reply_markup: { inline_keyboard: content.buttons.filter((row) => row.length > 0) },
-      }),
-    );
-    if (!result.ok && result.failure.kind === 'blocked')
-      await setDmAllowed(ctx.deps.db, user.id, false);
-    return settle(result);
-  };
-
 const sendWelcome =
   (ctx: TelegramHandlerContext): JobHandler =>
   async ({ job }) => {
@@ -355,6 +179,7 @@ export function telegramJobHandlers(ctx: TelegramHandlerContext): JobHandlers {
     send_challenge_card: sendChallengeCard(ctx),
     edit_card: editCard(ctx),
     send_dm: sendDm(ctx),
+    retire_dm: retireDm(ctx),
     send_welcome: sendWelcome(ctx),
     send_message: sendMessage(ctx),
   };

@@ -37,7 +37,7 @@ import {
 } from '../../telegram/cards';
 import { miniAppLink } from '../../telegram/links';
 import type { JobHandler, JobHandlers } from '../types';
-import { call, settle, type CallResult, type TelegramHandlerContext } from './telegram';
+import { call, settle, type CallResult, type TelegramHandlerContext } from './telegramCall';
 
 const sharePayloadSchema = z.object({ shareId: z.number().int() });
 const resultPayloadSchema = z.object({ gameId: z.number().int() });

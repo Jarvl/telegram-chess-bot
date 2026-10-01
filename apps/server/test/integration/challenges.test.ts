@@ -1,6 +1,6 @@
 import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { challenges, games, jobs, users } from '../../src/db/schema';
+import { challenges, dmMessages, games, jobs, users } from '../../src/db/schema';
 import {
   acceptChallenge,
   cancelChallenge,
@@ -163,7 +163,7 @@ describe('acceptChallenge', () => {
     expect(accepted).toMatchObject({ status: 'accepted', gameId: game.id });
     expect((await jobRows()).map((job) => [job.kind, job.dedupKey])).toEqual([
       ['edit_card', `card:g:${game.publicId}`],
-      ['send_dm', `dm:${bob.id}:g:${game.publicId}:turn:0`],
+      ['send_dm', `dm:${bob.id}:g:${game.publicId}`],
     ]);
   });
 
@@ -358,5 +358,56 @@ describe('createRematch', () => {
     await expect(createRematch(deps, { gameId: done.id, userId: carol.id })).rejects.toMatchObject({
       code: 'forbidden',
     });
+  });
+});
+
+describe('challenge DMs', () => {
+  async function withLiveDm() {
+    const { group, alice, bob } = await setup();
+    const challenge = await insertChallenge(db, group.id, alice.id, bob.id);
+    await db.insert(dmMessages).values({
+      userId: bob.id,
+      chatId: 22,
+      challengeId: challenge.id,
+      telegramMessageId: 101,
+      kind: 'challenge',
+      stub: 'Challenge from Alice expired',
+      sentAt: new Date(),
+    });
+    return { alice, bob, challenge };
+  }
+  const retired = async () => ({
+    rows: await db.select().from(dmMessages),
+    texts: (await jobRows())
+      .filter((job) => job.kind === 'retire_dm')
+      .map((job) => job.payload.text),
+  });
+
+  it('retires the challenge DM on accept', async () => {
+    const { bob, challenge } = await withLiveDm();
+    await acceptChallenge(deps, { challengeId: challenge.id, userId: bob.id });
+    expect(await retired()).toEqual({ rows: [], texts: ['Challenge from Alice accepted'] });
+  });
+
+  it('retires the challenge DM on decline', async () => {
+    const { bob, challenge } = await withLiveDm();
+    await declineChallenge(deps, { challengeId: challenge.id, userId: bob.id });
+    expect(await retired()).toEqual({ rows: [], texts: ['Challenge from Alice declined'] });
+  });
+
+  it('retires the challenge DM on cancel', async () => {
+    const { alice, challenge } = await withLiveDm();
+    await cancelChallenge(deps, { challengeId: challenge.id, userId: alice.id });
+    expect(await retired()).toEqual({ rows: [], texts: ['Challenge from Alice cancelled'] });
+  });
+
+  it('retires the challenge DM on expiry', async () => {
+    const { challenge } = await withLiveDm();
+    await db
+      .update(challenges)
+      .set({ expiresAt: sql`now() - interval '1 second'` })
+      .where(eq(challenges.id, challenge.id));
+    await expireChallenges(deps);
+    expect(await retired()).toEqual({ rows: [], texts: ['Challenge from Alice expired'] });
   });
 });

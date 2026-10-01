@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { ratings } from '../../src/db/schema';
+import { jobs, ratings } from '../../src/db/schema';
 import { acceptDraw, claimDraw, declineDraw, offerDraw } from '../../src/domain/draws';
 import { playMove } from '../../src/domain/games';
 import { touchMember } from '../../src/domain/members';
@@ -28,7 +28,48 @@ let n = 0;
 const play = (gameId: string, userId: number, uci: string, expectedPly: number) =>
   playMove(deps, { gameId, userId, uci, expectedPly, clientMoveId: `draw-test-${(n += 1)}` });
 
+const resultDms = async () =>
+  (await db.select().from(jobs))
+    .filter((job) => job.kind === 'send_dm' && job.payload.template === 'result')
+    .map((job) => job.payload.userId);
+
+describe('draw result DMs', () => {
+  it('sends the result DM to the offerer when the draw is accepted', async () => {
+    const { game, alice, bob } = await setup();
+    await offerDraw(deps, { gameId: game.publicId, userId: alice.id });
+    await acceptDraw(deps, { gameId: game.publicId, userId: bob.id });
+    expect(await resultDms()).toEqual([alice.id]);
+  });
+
+  it("sends the result DM to the claimer's opponent", async () => {
+    const { game, alice, bob } = await setup({
+      fen: '8/8/8/8/8/8/1R6/K6k w - - 100 60',
+      plyCount: 120,
+    });
+    await claimDraw(deps, { gameId: game.publicId, userId: bob.id });
+    expect(await resultDms()).toEqual([alice.id]);
+  });
+});
+
 describe('draw offers', () => {
+  it('sends a draw offer DM when the recipient is to move', async () => {
+    const { game, alice, bob } = await setup();
+    await offerDraw(deps, { gameId: game.publicId, userId: bob.id });
+    const dms = (await db.select().from(jobs)).filter((job) => job.kind === 'send_dm');
+    expect(dms.map((job) => [job.dedupKey, job.payload])).toEqual([
+      [
+        `dm:${alice.id}:g:${game.publicId}`,
+        { userId: alice.id, template: 'draw_offer', gameId: game.id },
+      ],
+    ]);
+  });
+
+  it('sends no DM for an offer by the player to move', async () => {
+    const { game, alice } = await setup();
+    await offerDraw(deps, { gameId: game.publicId, userId: alice.id });
+    expect((await db.select().from(jobs)).map((job) => job.kind)).not.toContain('send_dm');
+  });
+
   it('records an offer, refuses a second one while it stands, and lets the opponent decline', async () => {
     const { game, alice, bob } = await setup();
     const offered = await offerDraw(deps, { gameId: game.publicId, userId: alice.id });

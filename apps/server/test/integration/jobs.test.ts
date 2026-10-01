@@ -54,6 +54,50 @@ describe('enqueue', () => {
     await enqueue(db, { kind: 'edit_card', dedupKey: 'card:g:1' });
     expect(await rows()).toHaveLength(2);
   });
+  it('merges the payload of a re-armed job when asked', async () => {
+    await enqueue(db, {
+      kind: 'send_dm',
+      dedupKey: 'k',
+      payload: { template: 'turn', premovesCancelled: true },
+      mergePayload: true,
+    });
+    await enqueue(db, {
+      kind: 'send_dm',
+      dedupKey: 'k',
+      payload: { template: 'draw_offer' },
+      mergePayload: true,
+    });
+    const all = await rows();
+    expect(all).toHaveLength(1);
+    expect(all[0]!.payload).toEqual({ template: 'draw_offer', premovesCancelled: true });
+  });
+
+  it('keeps the first payload when not asked to merge', async () => {
+    await enqueue(db, { kind: 'send_dm', dedupKey: 'k', payload: { n: 1 } });
+    await enqueue(db, { kind: 'send_dm', dedupKey: 'k', payload: { n: 2 } });
+    expect((await rows())[0]!.payload).toEqual({ n: 1 });
+  });
+
+  it('reruns a job re-armed with a merged payload while it was running', async () => {
+    const seen: unknown[] = [];
+    await enqueue(db, { kind: 'send_dm', dedupKey: 'k', payload: { n: 1 }, mergePayload: true });
+    const w = worker({
+      send_dm: async ({ job }) => {
+        seen.push(job.payload.n);
+        if (job.payload.n === 1)
+          await enqueue(db, {
+            kind: 'send_dm',
+            dedupKey: 'k',
+            payload: { n: 2 },
+            mergePayload: true,
+          });
+      },
+    });
+    await w.runOnce();
+    await w.runOnce();
+    expect(seen).toEqual([1, 2]);
+    expect((await rows()).every((job) => job.doneAt !== null)).toBe(true);
+  });
 });
 
 describe('JobWorker', () => {

@@ -2,11 +2,11 @@ import { eq, inArray, sql } from 'drizzle-orm';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { dbNow } from '../../src/db/client';
 import { runMigrations } from '../../src/db/migrate';
-import { jobs, tips, userFlair, users } from '../../src/db/schema';
+import { dmMessages, jobs, tips, userFlair, users } from '../../src/db/schema';
 import { listMoves, requireGameById } from '../../src/domain/games';
 import { storePhoto } from '../../src/domain/photos';
 import { openTestDb, truncateAll } from '../helpers/db';
-import { insertGame, insertGroup, insertUser } from '../helpers/fixtures';
+import { insertChallenge, insertGame, insertGroup, insertUser } from '../helpers/fixtures';
 import { FIXTURE_JPEG } from '../helpers/photos';
 
 const { db, close } = openTestDb();
@@ -63,6 +63,7 @@ describe('database', () => {
       'admin_actions',
       'board_images',
       'challenges',
+      'dm_messages',
       'flair_backfills',
       // Unused; kept until a later release so the previous image can still boot (backfill spec §2).
       'flair_introductions',
@@ -117,6 +118,46 @@ describe('database', () => {
 
   it('starts a user with no worn flair', async () =>
     expect((await insertUser(db)).flairWorn).toEqual([]));
+});
+
+describe('dm_messages table', () => {
+  async function gameAndChallenge() {
+    const group = await insertGroup(db);
+    const alice = await insertUser(db);
+    const bob = await insertUser(db);
+    const game = await insertGame(db, group.id, alice.id, bob.id);
+    const challenge = await insertChallenge(db, group.id, bob.id, alice.id);
+    return { alice, game, challenge };
+  }
+  const live = { chatId: 11, kind: 'turn' as const, stub: 'Game vs Bob ended', sentAt: new Date() };
+
+  it('allows one live DM per user and game', async () => {
+    const { alice, game } = await gameAndChallenge();
+    await db
+      .insert(dmMessages)
+      .values({ ...live, userId: alice.id, gameId: game.id, telegramMessageId: 101 });
+    await expect(
+      db
+        .insert(dmMessages)
+        .values({ ...live, userId: alice.id, gameId: game.id, telegramMessageId: 102 }),
+    ).rejects.toThrow();
+  });
+
+  it('requires exactly one of game and challenge on a DM row', async () => {
+    const { alice, game, challenge } = await gameAndChallenge();
+    await expect(
+      db.insert(dmMessages).values({ ...live, userId: alice.id, telegramMessageId: 101 }),
+    ).rejects.toThrow();
+    await expect(
+      db.insert(dmMessages).values({
+        ...live,
+        userId: alice.id,
+        gameId: game.id,
+        challengeId: challenge.id,
+        telegramMessageId: 102,
+      }),
+    ).rejects.toThrow();
+  });
 });
 
 describe('tips table', () => {

@@ -53,7 +53,8 @@ export async function sendDueReminders(deps: Deps, limit = 100): Promise<number>
       await enqueue(tx, {
         kind: 'send_dm',
         payload: { userId, template: 'reminder', gameId: game.id },
-        dedupKey: `dm:${userId}:g:${game.publicId}:reminder:${game.plyCount}`,
+        dedupKey: `dm:${userId}:g:${game.publicId}`,
+        mergePayload: true,
       });
       await tx.update(games).set({ reminderAt: null }).where(eq(games.id, game.id));
     }

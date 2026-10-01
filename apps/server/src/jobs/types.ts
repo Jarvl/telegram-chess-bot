@@ -9,6 +9,7 @@ export const JOB_KINDS = [
   'send_share_photo',
   'send_result_photo',
   'send_dm',
+  'retire_dm',
   'send_welcome',
   'send_message',
   'engine_move',
